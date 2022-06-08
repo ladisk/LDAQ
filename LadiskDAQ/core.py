@@ -157,7 +157,8 @@ class LDAQ():
 
         
         QtGui.QApplication.processEvents()
-        time.sleep(1.0) # time to stabilize
+        time.sleep(1.0) # time to stabilize 
+        #test
 
     def plot_window_update(self):
         """

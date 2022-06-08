@@ -68,7 +68,7 @@ class LDAQ():
         """
         Function that checks whether the acquisition or generation class are running.
         """
-        if self.generation != None:
+        if self.generation == None:
             if self.acquisition.is_running:
                 return True
             else:
@@ -120,14 +120,14 @@ class LDAQ():
             color_list = ["w", "g", "r", "b"]
             curves = []
             for i, channel in enumerate(channels):
-                channel_name = self.acquisition.channels[channel]
+                channel_name = self.acquisition.channel_names[channel]
                 color = color_list[ i%len(color_list) ]
                 curve = plot.plot( pen=pg.mkPen(color, width=1), name=channel_name) 
                 curves.append(curve)
             return curves
 
         if self.plot_channel_layout == "default":
-            self.plot_channel_layout = {(0, 0): np.arange( len(self.acquisition.channels) )}
+            self.plot_channel_layout = {(0, 0): np.arange( len(self.acquisition.channel_names) )}
 
         # create window layout:
         self.curves_dict = {}
@@ -164,7 +164,7 @@ class LDAQ():
         Updates plot window with collected data.
         """
 
-        data = self.acquisition.plot_data[-self.max_samples::self.nth_point]
+        data = self.acquisition.plot_data[-self.max_samples::self.nth_point]      
 
         for position in self.plot_channel_layout:
             channels = self.plot_channel_layout[ position ]

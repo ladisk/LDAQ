@@ -41,7 +41,7 @@ class NIAcquisition(BaseAcquisition):
         self.channel_names = self.Task.channel_list
         self.sample_rate = self.Task.sample_rate
         
-        self.plot_data = np.zeros(len(self.channel_names))
+        self.plot_data = np.zeros((1000000, len(self.channel_names)))
         
     def _clear_task(self):
         """Clear a task."""

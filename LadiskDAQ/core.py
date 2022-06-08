@@ -152,8 +152,7 @@ class LDAQ():
                 curve.setData(dummy_data)
                 curve.setPos(0, 0)
 
-        # create fixed time array:
-        self.time_arr = -1*(np.arange(self.max_samples)/self.acquisition.sample_rate)[::-self.nth_point]
+        
 
         
         QtGui.QApplication.processEvents()
@@ -165,7 +164,11 @@ class LDAQ():
         Updates plot window with collected data.
         """
 
-        data = self.acquisition.plot_data[-self.max_samples::self.nth_point]      
+        data = self.acquisition.plot_data[-self.max_samples:]
+        # create fixed time array:
+        self.time_arr = -1*(np.arange(data.shape[0])/self.acquisition.sample_rate)[::-self.nth_point]
+        data = data[::self.nth_point]
+
 
         for position in self.plot_channel_layout:
             channels = self.plot_channel_layout[ position ]

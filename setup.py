@@ -7,7 +7,7 @@ base_path = os.path.dirname(__file__)
 # Read the project version from "__init__.py"
 regexp = re.compile(r'.*__version__ = [\'\"](.*?)[\'\"]', re.S)
 
-init_file = os.path.join(base_path, 'sdypy_template_project', '__init__.py')
+init_file = os.path.join(base_path, 'LadiskDAQ', '__init__.py')
 with open(init_file, 'r') as f:
     module_content = f.read()
 
@@ -37,19 +37,19 @@ requirements = parse_requirements('requirements.txt')
 
 if __name__ == '__main__':
     setup(
-        name='sdypy_template_project',
-        description='A project template for the sdPy effort.',
+        name='LadiskDAQ',
+        description='Acquisiton, visualization and signal generation package.',
         long_description=readme,
         license='MIT license',
-        url='https://github.com/sdypy/sdypy_template_project',
+        url='https://github.com/sdypy/LadiskDAQ',
         version=version,
-        author='Janko Slavič, Domen Gorjup, Klemen Zaletelj',
+        author='Tilen Košir, Klemen Zaletelj, Janko Slavič',
         author_email='janko.slavic@fs.uni-lj.si',
-        maintainer='Janko Slavič, Domen Gorjup, Klemen Zaletelj',
+        maintainer='Tilen Košir, Klemen Zaletelj, Janko Slavič',
         maintainer_email='janko.slavic@fs.uni-lj.si',
         install_requires=requirements,
-        keywords=['template project'],
-        packages=['sdypy_template_project'],
+        keywords=['acqusition'],
+        packages=['LadiskDAQ'],
         classifiers=['Development Status :: 3 - Alpha',
                      'Intended Audience :: Developers',
                      'Programming Language :: Python :: 3.6']

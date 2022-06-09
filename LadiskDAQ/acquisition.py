@@ -55,9 +55,11 @@ class NIAcquisition(BaseAcquisition):
         self.plot_data = np.vstack((self.plot_data, acquired_data))
         self.Trigger.add_data(acquired_data)
 
-        if self.Trigger.finished or not self.is_running:
+        
+        if self.Trigger.finished:
             self.data = self.Trigger.get_data()
 
+        if self.Trigger.finished or not self.is_running:
             self.stop()
             self.clear_task()
 
@@ -100,7 +102,7 @@ class NIAcquisition(BaseAcquisition):
 
     def run_acquisition(self):
         self.is_running = True
-        
+
         if not hasattr(self, 'Task'):
             self.Task = DAQTask(self.task_name)
 

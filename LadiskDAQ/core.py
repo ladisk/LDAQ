@@ -29,7 +29,7 @@ class LDAQ():
         #    (1, 0): [0, 1], (1, 1):[0,1]
         # }
 
-    def configure(self, plot_layout='default', max_time=5.0, nth_point=50):
+    def configure(self, plot_layout='default', max_time=5.0, nth_point=50, autoclose=False):
         """Configure the plot window settings.
         
         :param plot_layout: layout of the plots and channels. "default" or dict. Keys of dict are (axis 0, axis 1) of the subplot
@@ -39,6 +39,7 @@ class LDAQ():
         self.plot_channel_layout = plot_layout
         self.maxTime = max_time
         self.nth_point = nth_point
+        self.autoclose = autoclose
         
         self.max_samples = int(self.maxTime*self.acquisition.sample_rate) # max samples to display on some plots based on self.maxTime        
 
@@ -73,7 +74,6 @@ class LDAQ():
         for thread in thread_list:
             thread.join()
 
-        print("Please close monitor window.") # TODO: print that into graph
         self.plot_window_exit() # waits for plot window to be closed.
 
     def is_running(self):
@@ -189,7 +189,11 @@ class LDAQ():
         """
         Waits for plot window to be closed.
         """
-        pg.QtGui.QApplication.exec_()
+        if self.autoclose:
+            self.win.close()
+        else:
+            print("Please close monitor window.") # TODO: print that into graph
+            pg.QtGui.QApplication.exec_()
 
 
         

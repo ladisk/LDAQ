@@ -44,6 +44,8 @@ class LDAQ():
         self.max_samples = int(self.maxTime*self.acquisition.sample_rate) # max samples to display on some plots based on self.maxTime        
 
     def run(self):
+        self.acquisition_started = False
+
         thread_list = []
         
         # Make separate threads for data acquisition
@@ -96,6 +98,31 @@ class LDAQ():
             if self.generation != None:
                 self.generation.stop()
 
+    def _create_plot(self, pos_x, pos_y, label_x="", label_y="", unit_x="", unit_y=""):
+        # subplot options:
+        p = self.win.addPlot(row=pos_x, col=pos_y) 
+        p.setLabel('bottom', label_x, unit_x)
+        p.setLabel('left', label_y, unit_y)
+        p.setDownsampling(mode='peak')
+        p.addLegend()
+        p.setRange(xRange=[-self.maxTime, 0])
+        #p.setLimits(xMax=0)
+        p.showGrid(x = True, y = True, alpha = 0.3)  
+        return p
+
+    def _create_curves(self, plot, channels):
+        """
+        channels - index
+        """
+        color_list = ["blue", "orange", "green", "red"]
+        curves = []
+        for i, channel in enumerate(channels):
+            channel_name = self.acquisition.channel_names[channel]
+            color = color_list[ i%len(color_list) ]
+            curve = plot.plot( pen=pg.mkPen(color, width=2), name=channel_name) 
+            curves.append(curve)
+        return curves
+
     def plot_window_init(self):
         """
         Initializes plot window.
@@ -107,31 +134,6 @@ class LDAQ():
         self.win.setWindowTitle('Measurement Monitoring')
         self.win.resize(800,400)
         #self.win.setBackground('w')
-
-        def create_plot(pos_x, pos_y, label_x="", label_y="", unit_x="", unit_y=""):
-            # subplot options:
-            p = self.win.addPlot(row=pos_x, col=pos_y) 
-            p.setLabel('bottom', label_x, unit_x)
-            p.setLabel('left', label_y, unit_y)
-            p.setDownsampling(mode='peak')
-            p.addLegend()
-            p.setRange(xRange=[-self.maxTime, 0])
-            #p.setLimits(xMax=0)
-            p.showGrid(x = True, y = True, alpha = 0.3)  
-            return p
-
-        def create_curves(plot, channels):
-            """
-            channels - index
-            """
-            color_list = ["blue", "orange", "green", "red"]
-            curves = []
-            for i, channel in enumerate(channels):
-                channel_name = self.acquisition.channel_names[channel]
-                color = color_list[ i%len(color_list) ]
-                curve = plot.plot( pen=pg.mkPen(color, width=2), name=channel_name) 
-                curves.append(curve)
-            return curves
 
         if self.plot_channel_layout == "default":
             self.plot_channel_layout = {(0, 0): np.arange( len(self.acquisition.channel_names) )}
@@ -146,11 +148,11 @@ class LDAQ():
         for i, (pos_x, pos_y) in enumerate(positions):
 
             # create subplot and curves on the subplot:
-            plot = create_plot(pos_x=pos_x, pos_y=pos_y, label_x="", label_y="", unit_x="", unit_y="")
+            plot = self._create_plot(pos_x=pos_x, pos_y=pos_y, label_x="", label_y="", unit_x="", unit_y="")
             #plot.ctrl.fftCheck.setChecked(True)
 
             channels = self.plot_channel_layout[ (pos_x, pos_y) ]
-            curves = create_curves(plot, channels)
+            curves = self._create_curves(plot, channels)
             self.curves_dict[(pos_x, pos_y)] = curves
 
             # initialize some data:
@@ -171,6 +173,9 @@ class LDAQ():
         self.time_arr = -1*(np.arange(data.shape[0])/self.acquisition.sample_rate)[::-self.nth_point]
         data = data[::self.nth_point]
 
+        if not self.acquisition_started and self.acquisition.Trigger.triggered:
+            self.win.setBackground('green')
+            self.acquisition_started = True
 
         for position in self.plot_channel_layout:
             channels = self.plot_channel_layout[ position ]

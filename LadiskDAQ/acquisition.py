@@ -7,61 +7,45 @@ import time
 
 from pyTrigger import pyTrigger
 
-from .daqtask import DAQTask
+from .daqtask import DAQTask, acquire_cont_example
 
 
 class BaseAcquisition:
     def __init__(self):
         self.channel_names = []
+        self.plot_data = []
         self.is_running = True
     
-    def acquire(self):
+    def read_data(self):
+        """This code acquires data."""
         pass
 
-    def run_acquisition(self):
-        self.plot_data = []
-
-        while self.is_running:
-            self.acquire()
-
-
-class NIAcquisition(BaseAcquisition):
-    """National Instruments Acquisition class."""
-
-    def __init__(self, task_name):
-        """Initialize the task.
-
-        :param task_name: Name of the task from NI Max
-        """
-        super().__init__()
-
-        self.task_name = task_name
-        self.Task = DAQTask(self.task_name)
-        self.channel_names = self.Task.channel_list
-        self.sample_rate = self.Task.sample_rate
-
-    def clear_task(self):
-        """Clear a task."""
-        self.Task.clear_task(wait_until_done=False)
-        del self.Task
-
-    def stop(self):
-        self.is_running = False
-
     def acquire(self):
-        self.Task.acquire()
-
-        acquired_data = self.Task.data.T
+        acquired_data = self.read_data()
         self.plot_data = np.vstack((self.plot_data, acquired_data))
         self.Trigger.add_data(acquired_data)
 
-        
         if self.Trigger.finished:
             self.data = self.Trigger.get_data()
 
         if self.Trigger.finished or not self.is_running:
             self.stop()
             self.clear_task()
+
+    def set_data_source(self):
+        pass
+
+    def run_acquisition(self):
+        self.is_running = True
+
+        
+        self.set_data_source()
+
+        self.plot_data = np.zeros((1, len(self.channel_names)))
+        self.set_trigger_instance()
+
+        while self.is_running:
+            self.acquire()
 
     def set_trigger(self, level, channel, duration=1, duration_unit='seconds', presamples=100, type='abs'):
         """Set parameters for triggering the measurement.
@@ -100,17 +84,81 @@ class NIAcquisition(BaseAcquisition):
             trigger_level=self.trigger_settings['level'],
             presamples=self.trigger_settings['presamples'])
 
-    def run_acquisition(self):
-        self.is_running = True
+class ADAcquisition(BaseAcquisition):
+    def __init__(self, port_nr):
+        super.__init__()
 
+class SerialAcquisition(BaseAcquisition):
+    def __init__(self, port_nr):
+        super.__init__()
+
+class NIAcquisition(BaseAcquisition):
+    """National Instruments Acquisition class."""
+
+    def __init__(self, task_name):
+        """Initialize the task.
+
+        :param task_name: Name of the task from NI Max
+        """
+        super().__init__()
+
+        self.task_name = task_name
+        self.Task = DAQTask(self.task_name)
+        self.channel_names = self.Task.channel_list
+        self.sample_rate = self.Task.sample_rate
+
+    def clear_task(self):
+        """Clear a task."""
+        self.Task.clear_task(wait_until_done=False)
+        del self.Task
+
+    def stop(self):
+        self.is_running = False
+
+    def read_data(self):
+        self.Task.acquire()
+        return self.Task.data.T
+
+    def set_trigger(self, level, channel, duration=1, duration_unit='seconds', presamples=100, type='abs'):
+        """Set parameters for triggering the measurement.
+        
+        :param level: trigger level
+        :param channel: trigger channel
+        :param duration: durtion of the acquisition after trigger (in seconds or samples)
+        :param duration_unit: 'seconds' or 'samples'
+        :param presamples: number of presampels to save
+        :param type: trigger type: up, down or abs"""
+
+        if duration_unit == 'seconds':
+            duration_samples = int(self.sample_rate*duration)
+            duration_seconds = duration
+        elif duration_unit == 'samples':
+            duration_samples = int(duration)
+            duration_seconds = duration/self.sample_rate
+
+        self.trigger_settings = {
+            'level': level,
+            'channel': channel,
+            'duration': duration,
+            'duration_unit': duration_unit,
+            'presamples': presamples,
+            'type': type,
+            'duration_samples': duration_samples,
+            'duration_seconds': duration_seconds,
+        }
+
+    def set_trigger_instance(self):
+        self.Trigger = pyTrigger(
+            rows=self.trigger_settings['duration_samples'], 
+            channels=self.Task.number_of_ch,
+            trigger_type=self.trigger_settings['type'],
+            trigger_channel=self.trigger_settings['channel'], 
+            trigger_level=self.trigger_settings['level'],
+            presamples=self.trigger_settings['presamples'])
+    
+    def set_data_source(self):
         if not hasattr(self, 'Task'):
             self.Task = DAQTask(self.task_name)
-
-        self.plot_data = np.zeros((1, len(self.channel_names)))
-        self.set_trigger_instance()
-
-        while self.is_running:
-            self.acquire()
 
     def save(self, name, root='', save_columns='All', timestamp=True, comment=''):
         self.data_dict = {

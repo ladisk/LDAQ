@@ -45,7 +45,8 @@ class LDAQ():
 
     def run(self):
         thread_list = []
-
+        
+        print("threading")
         # Make separate threads for data acquisition
         thread_acquisition = threading.Thread(target=self.acquisition.run_acquisition )
         thread_list.append(thread_acquisition)
@@ -56,6 +57,7 @@ class LDAQ():
             thread_list.append(thread_generation)
 
         # initialize plot window:
+        print("init")
         self.plot_window_init()
 
         # start both threads:
@@ -64,6 +66,7 @@ class LDAQ():
         time.sleep(0.1)
 
         # while data is being generated and collected:
+        print("loop")
         while self.is_running():
             self.check_events()
 
@@ -74,7 +77,9 @@ class LDAQ():
         for thread in thread_list:
             thread.join()
 
+        print("exit")
         self.plot_window_exit() # waits for plot window to be closed.
+        print("stop")
 
     def is_running(self):
         """
@@ -138,19 +143,39 @@ class LDAQ():
         # create window layout:
         self.curves_dict = {}
 
-        pos_x_curr = 0
+        pos_x_prev = 0
+        pos_y_prev = 0
+
         positions = list(self.plot_channel_layout.keys())
         positions = [positions[i] for i in np.lexsort(np.array(positions).T[::-1])]
-        for pos_x, pos_y in positions:
-            if pos_x != pos_x_curr:
+        ncols = len(set( [pos[1] for pos in positions ])  )
+        nrows = len(set( [pos[0] for pos in positions ])  )
+
+        for i, (pos_x, pos_y) in enumerate(positions):
+            if pos_x != pos_x_prev:
                 self.win.nextRow()
 
-            plot = create_plot(colspan=1, label_x="", label_y="", unit_x="", unit_y="")
+            if i < len(positions)-1:
+                colspan = 1
+                pos_x_next = positions[i+1][0]
+                pos_y_next = positions[i+1][1]
+
+                if pos_x_next >= pos_x:
+                    colspan = ncols - pos_y # extend subplot into space where there's nothing
+                else:
+                    colspan = pos_y_next - pos_y
+            else:
+                colspan = 1
+
+
+            # create subplot and curves on the subplot:
+            plot = create_plot(colspan=colspan, label_x="", label_y="", unit_x="", unit_y="")
             channels = self.plot_channel_layout[ (pos_x, pos_y) ]
             curves = create_curves(plot, channels)
             self.curves_dict[(pos_x, pos_y)] = curves
 
-            pos_x_curr = pos_x
+            pos_x_prev = pos_x
+            pos_y_prev = pos_y
 
             # initialize some data:
             dummy_data = np.zeros(self.max_samples ) # dummy data

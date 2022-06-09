@@ -46,7 +46,6 @@ class LDAQ():
     def run(self):
         thread_list = []
         
-        print("threading")
         # Make separate threads for data acquisition
         thread_acquisition = threading.Thread(target=self.acquisition.run_acquisition )
         thread_list.append(thread_acquisition)
@@ -57,7 +56,6 @@ class LDAQ():
             thread_list.append(thread_generation)
 
         # initialize plot window:
-        print("init")
         self.plot_window_init()
 
         # start both threads:
@@ -66,7 +64,6 @@ class LDAQ():
         # time.sleep(0.1)
 
         # while data is being generated and collected:
-        print("loop")
         while self.is_running():
             self.check_events()
 
@@ -77,9 +74,7 @@ class LDAQ():
         for thread in thread_list:
             thread.join()
 
-        print("exit")
         self.plot_window_exit() # waits for plot window to be closed.
-        print("stop")
 
     def is_running(self):
         """
@@ -107,8 +102,8 @@ class LDAQ():
         """
 
         # Create app:
-        # if not hasattr(self, "app"):
-        #     self.app = QtGui.QApplication(sys.argv)   # initialize QT application if not yet initialized          
+        #if not hasattr(self, "app"):
+        #    self.app = QtGui.QApplication(sys.argv)   # initialize QT application if not yet initialized          
 
         self.win = pg.GraphicsLayoutWidget(show=True) # creates plot window
         self.win.setWindowTitle('Measurement Monitoring')

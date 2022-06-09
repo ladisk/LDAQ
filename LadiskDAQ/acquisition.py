@@ -33,9 +33,6 @@ class NIAcquisition(BaseAcquisition):
         """
         super().__init__()
 
-        self.acquisition_type = None
-
-
         self.task_name = task_name
         self.Task = DAQTask(self.task_name)
         self.channel_names = self.Task.channel_list
@@ -52,12 +49,10 @@ class NIAcquisition(BaseAcquisition):
 
         acquired_data = self.Task.data.T
         self.plot_data = np.vstack((self.plot_data, acquired_data))
-        if self.acquisition_type == 'trigger':
-            self.Trigger.add_data(acquired_data)
+        self.Trigger.add_data(acquired_data)
 
         if self.Trigger.finished:
-            if self.acquisition_type == 'trigger':
-                self.data = self.Trigger.get_data()
+            self.data = self.Trigger.get_data()
 
             self.is_running = False
             self._clear_task()
@@ -71,7 +66,6 @@ class NIAcquisition(BaseAcquisition):
         :param duration_unit: 'seconds' or 'samples'
         :param presamples: number of presampels to save
         :param type: trigger type: up, down or abs"""
-        self.acquisition_type = 'trigger'
 
         if duration_unit == 'seconds':
             duration_samples = int(self.sample_rate*duration)
@@ -85,15 +79,6 @@ class NIAcquisition(BaseAcquisition):
             trigger_channel=channel, 
             trigger_level=level,
             presamples=presamples)
-
-    def set_continuous_acquisition(self, duration=1, duration_unit='seconds', start_delay=0):
-        """Set parameters for continuous acquisition.
-        
-        :param duration: duration of the acquisition (in seconds or samples)
-        :param duration_unit: 'seconds' or 'samples'
-        :param start_delay: delay the start of acquisition in seconds"""
-        self.acquisition_type = 'continuous'
-
     
     def save(self, name, root='', save_columns='All', timestamp=True, comment=''):
         self.data_dict = {
@@ -109,10 +94,10 @@ class NIAcquisition(BaseAcquisition):
 
         if timestamp:
             now = datetime.datetime.now()
-            stamp = f'{now.strftime("%Y%m%d_%H%M%S")}'
+            stamp = f'{now.strftime("%Y%m%d_%H%M%S")}_'
         else:
             stamp = ''
         
-        self.filename = f'{stamp}_{name}.pkl'
+        self.filename = f'{stamp}{name}.pkl'
         self.path = os.path.join(root, self.filename)
         pickle.dump(self.data_dict, open(self.path, 'wb'), protocol=-1)

@@ -3,6 +3,7 @@ from collections import deque
 import numpy as np
 import pickle
 import datetime
+import time
 
 from pyTrigger import pyTrigger
 
@@ -11,14 +12,15 @@ from .daqtask import DAQTask
 
 class BaseAcquisition:
     def __init__(self):
-        self.plot_data = []
-        self.is_running = True
         self.channel_names = []
+        self.is_running = True
     
     def acquire(self):
         pass
 
     def run_acquisition(self):
+        self.plot_data = []
+
         while self.is_running:
             self.acquire()
 
@@ -37,12 +39,11 @@ class NIAcquisition(BaseAcquisition):
         self.Task = DAQTask(self.task_name)
         self.channel_names = self.Task.channel_list
         self.sample_rate = self.Task.sample_rate
-        
-        self.plot_data = np.zeros((1, len(self.channel_names)))
-        
+
     def clear_task(self):
         """Clear a task."""
         self.Task.clear_task(wait_until_done=False)
+        del self.Task
 
     def stop(self):
         self.is_running = False
@@ -57,7 +58,7 @@ class NIAcquisition(BaseAcquisition):
         if self.Trigger.finished or not self.is_running:
             self.data = self.Trigger.get_data()
 
-            self.is_running = False
+            self.stop()
             self.clear_task()
 
     def set_trigger(self, level, channel, duration=1, duration_unit='seconds', presamples=100, type='abs'):
@@ -72,17 +73,43 @@ class NIAcquisition(BaseAcquisition):
 
         if duration_unit == 'seconds':
             duration_samples = int(self.sample_rate*duration)
+            duration_seconds = duration
         elif duration_unit == 'samples':
             duration_samples = int(duration)
+            duration_seconds = duration/self.sample_rate
 
+        self.trigger_settings = {
+            'level': level,
+            'channel': channel,
+            'duration': duration,
+            'duration_unit': duration_unit,
+            'presamples': presamples,
+            'type': type,
+            'duration_samples': duration_samples,
+            'duration_seconds': duration_seconds,
+        }
+
+    def set_trigger_instance(self):
         self.Trigger = pyTrigger(
-            rows=duration_samples, 
+            rows=self.trigger_settings['duration_samples'], 
             channels=self.Task.number_of_ch,
-            trigger_type=type,
-            trigger_channel=channel, 
-            trigger_level=level,
-            presamples=presamples)
-    
+            trigger_type=self.trigger_settings['type'],
+            trigger_channel=self.trigger_settings['channel'], 
+            trigger_level=self.trigger_settings['level'],
+            presamples=self.trigger_settings['presamples'])
+
+    def run_acquisition(self):
+        self.is_running = True
+        
+        if not hasattr(self, 'Task'):
+            self.Task = DAQTask(self.task_name)
+
+        self.plot_data = np.zeros((1, len(self.channel_names)))
+        self.set_trigger_instance()
+
+        while self.is_running:
+            self.acquire()
+
     def save(self, name, root='', save_columns='All', timestamp=True, comment=''):
         self.data_dict = {
             'data': self.data,
@@ -100,7 +127,7 @@ class NIAcquisition(BaseAcquisition):
             stamp = f'{now.strftime("%Y%m%d_%H%M%S")}_'
         else:
             stamp = ''
-        
+
         self.filename = f'{stamp}{name}.pkl'
         self.path = os.path.join(root, self.filename)
         pickle.dump(self.data_dict, open(self.path, 'wb'), protocol=-1)

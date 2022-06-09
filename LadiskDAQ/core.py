@@ -101,35 +101,35 @@ class LDAQ():
         Initializes plot window.
         """
 
-        # Create app:
-        #if not hasattr(self, "app"):
-        #    self.app = QtGui.QApplication(sys.argv)   # initialize QT application if not yet initialized          
-
+        pg.setConfigOption('background', 'w')
+        pg.setConfigOption('foreground', 'k')
         self.win = pg.GraphicsLayoutWidget(show=True) # creates plot window
         self.win.setWindowTitle('Measurement Monitoring')
+        self.win.resize(800,400)
+        #self.win.setBackground('w')
 
         def create_plot(pos_x, pos_y, label_x="", label_y="", unit_x="", unit_y=""):
             # subplot options:
             p = self.win.addPlot(row=pos_x, col=pos_y) 
-            #p = self.win.addPlot(colspan=2)   
             p.setLabel('bottom', label_x, unit_x)
             p.setLabel('left', label_y, unit_y)
             p.setDownsampling(mode='peak')
             p.addLegend()
             p.setRange(xRange=[-self.maxTime, 0])
-            p.setLimits(xMax=0)
+            #p.setLimits(xMax=0)
+            p.showGrid(x = True, y = True, alpha = 0.3)  
             return p
 
         def create_curves(plot, channels):
             """
             channels - index
             """
-            color_list = ["w", "g", "r", "b"]
+            color_list = ["blue", "orange", "green", "red"]
             curves = []
             for i, channel in enumerate(channels):
                 channel_name = self.acquisition.channel_names[channel]
                 color = color_list[ i%len(color_list) ]
-                curve = plot.plot( pen=pg.mkPen(color, width=1), name=channel_name) 
+                curve = plot.plot( pen=pg.mkPen(color, width=2), name=channel_name) 
                 curves.append(curve)
             return curves
 
@@ -138,7 +138,6 @@ class LDAQ():
 
         # create window layout:
         self.curves_dict = {}
-
         positions = list(self.plot_channel_layout.keys())
         positions = [positions[i] for i in np.lexsort(np.array(positions).T[::-1])]
         #ncols = len(set( [pos[1] for pos in positions ])  )
@@ -148,6 +147,8 @@ class LDAQ():
 
             # create subplot and curves on the subplot:
             plot = create_plot(pos_x=pos_x, pos_y=pos_y, label_x="", label_y="", unit_x="", unit_y="")
+            #plot.ctrl.fftCheck.setChecked(True)
+
             channels = self.plot_channel_layout[ (pos_x, pos_y) ]
             curves = create_curves(plot, channels)
             self.curves_dict[(pos_x, pos_y)] = curves

@@ -63,7 +63,7 @@ class LDAQ():
         # start both threads:
         for thread in thread_list:
             thread.start()
-        time.sleep(0.1)
+        # time.sleep(0.1)
 
         # while data is being generated and collected:
         print("loop")
@@ -107,8 +107,8 @@ class LDAQ():
         """
 
         # Create app:
-        if not hasattr(self, "app"):
-            self.app = QtGui.QApplication(sys.argv)   # initialize QT application if not yet initialized          
+        # if not hasattr(self, "app"):
+        #     self.app = QtGui.QApplication(sys.argv)   # initialize QT application if not yet initialized          
 
         self.win = pg.GraphicsLayoutWidget(show=True) # creates plot window
         self.win.setWindowTitle('Measurement Monitoring')
@@ -184,7 +184,7 @@ class LDAQ():
                 curve.setPos(0, 0)
 
         QtGui.QApplication.processEvents()
-        time.sleep(0.1) # time to stabilize 
+        # time.sleep(0.1) # time to stabilize 
         #test
 
     def plot_window_update(self):

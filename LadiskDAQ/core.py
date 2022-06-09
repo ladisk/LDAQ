@@ -17,22 +17,32 @@ class LDAQ():
         self.generation  = generation
 
         # plot window settings:
+        self.configure()
 
-        self.maxTime = 5.0                                               # max time of data history on scrolling plots
-        self.max_samples = int(self.maxTime*self.acquisition.sample_rate) # max samples to display on some plots based on self.maxTime        
-        self.plot_channel_layout = "default"
-        self.nth_point = 50
+        # self.maxTime = 5.0                                               # max time of data history on scrolling plots
+        # self.max_samples = int(self.maxTime*self.acquisition.sample_rate) # max samples to display on some plots based on self.maxTime        
+        # self.plot_channel_layout = "default"
+        # self.nth_point = 50
 
-        #self.plot_channel_layout = {
+        # self.plot_channel_layout = {
         #    (0, 0): [0],    (0, 1):[1],
         #    (1, 0): [0, 1], (1, 1):[0,1]
-        #}
+        # }
+
+    def configure(self, plot_layout='default', max_time=5.0, nth_point=50):
+        """Configure the plot window settings.
         
+        :param plot_layout: layout of the plots and channels. "default" or dict. Keys of dict are (axis 0, axis 1) of the subplot
+            layout, values are lists of channel indices to show on the subplots.
+        :param max_time: max time to show on the plot.
+        :param nth_point: Only show every n_th point on the live plot."""
+        self.plot_channel_layout = plot_layout
+        self.maxTime = max_time
+        self.nth_point = nth_point
+        
+        self.max_samples = int(self.maxTime*self.acquisition.sample_rate) # max samples to display on some plots based on self.maxTime        
 
     def run(self):
-        """
-       
-        """
         thread_list = []
 
         # Make separate threads for data acquisition
@@ -156,7 +166,7 @@ class LDAQ():
 
         
         QtGui.QApplication.processEvents()
-        time.sleep(1.0) # time to stabilize 
+        time.sleep(0.1) # time to stabilize 
         #test
 
     def plot_window_update(self):

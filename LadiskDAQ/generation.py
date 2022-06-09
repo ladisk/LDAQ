@@ -27,3 +27,7 @@ class NIGenerator(BaseGenerator):
 
     def clear_task(self):
         self.Task.clear_task(wait_until_done=False)
+
+    def stop(self):
+        self.clear_task()
+        self.is_running = False

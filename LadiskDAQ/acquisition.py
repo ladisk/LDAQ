@@ -40,9 +40,13 @@ class NIAcquisition(BaseAcquisition):
         
         self.plot_data = np.zeros((1, len(self.channel_names)))
         
-    def _clear_task(self):
+    def clear_task(self):
         """Clear a task."""
         self.Task.clear_task(wait_until_done=False)
+
+    def stop(self):
+        self.clear_task()
+        self.is_running = False
 
     def acquire(self):
         self.Task.acquire()
@@ -51,11 +55,11 @@ class NIAcquisition(BaseAcquisition):
         self.plot_data = np.vstack((self.plot_data, acquired_data))
         self.Trigger.add_data(acquired_data)
 
-        if self.Trigger.finished:
+        if self.Trigger.finished or not self.is_running:
             self.data = self.Trigger.get_data()
 
             self.is_running = False
-            self._clear_task()
+            self.clear_task()
 
     def set_trigger(self, level, channel, duration=1, duration_unit='seconds', presamples=100, type='abs'):
         """Set parameters for triggering the measurement.

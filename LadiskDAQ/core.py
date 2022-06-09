@@ -60,10 +60,12 @@ class LDAQ():
         # start both threads:
         for thread in thread_list:
             thread.start()
-        time.sleep(1.0)
+        time.sleep(0.1)
 
         # while data is being generated and collected:
-        while self.is_running() and self.check_events():
+        while self.is_running():
+            self.check_events()
+
             # update plot window:
             self.plot_window_update()
 
@@ -79,26 +81,20 @@ class LDAQ():
         Function that checks whether the acquisition or generation class are running.
         """
         if self.generation == None:
-            if self.acquisition.is_running:
-                return True
-            else:
-                return False
-        
+            running = self.acquisition.is_running
         else:
-            if self.acquisition.is_running and self.generation.is_running:
-                return True
-            else:
-                return False
+            running = self.acquisition.is_running and self.generation.is_running
+
+        return running
 
     def check_events(self):
         """
         Function that would disable DAQ, for example keyboard presses
         """
         if keyboard.is_pressed('q'):
-            return False
-        else:
-            return True
-        
+            self.acquisition.stop()
+            if self.generation != None:
+                self.generation.stop()
 
     def plot_window_init(self):
         """
@@ -162,9 +158,6 @@ class LDAQ():
                 curve.setData(dummy_data)
                 curve.setPos(0, 0)
 
-        
-
-        
         QtGui.QApplication.processEvents()
         time.sleep(0.1) # time to stabilize 
         #test

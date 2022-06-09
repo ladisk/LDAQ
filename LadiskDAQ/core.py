@@ -107,10 +107,11 @@ class LDAQ():
 
         self.win = pg.GraphicsLayoutWidget(show=True) # creates plot window
         self.win.setWindowTitle('Measurement Monitoring')
-                 
-        def create_plot(colspan=1, label_x="", label_y="", unit_x="", unit_y=""):
+
+        def create_plot(pos_x, pos_y, label_x="", label_y="", unit_x="", unit_y=""):
             # subplot options:
-            p = self.win.addPlot(colspan=colspan)  
+            p = self.win.addPlot(row=pos_x, col=pos_y) 
+            #p = self.win.addPlot(colspan=2)   
             p.setLabel('bottom', label_x, unit_x)
             p.setLabel('left', label_y, unit_y)
             p.setDownsampling(mode='peak')
@@ -138,39 +139,18 @@ class LDAQ():
         # create window layout:
         self.curves_dict = {}
 
-        pos_x_prev = 0
-        pos_y_prev = 0
-
         positions = list(self.plot_channel_layout.keys())
         positions = [positions[i] for i in np.lexsort(np.array(positions).T[::-1])]
-        ncols = len(set( [pos[1] for pos in positions ])  )
-        nrows = len(set( [pos[0] for pos in positions ])  )
+        #ncols = len(set( [pos[1] for pos in positions ])  )
+        #nrows = len(set( [pos[0] for pos in positions ])  )
 
         for i, (pos_x, pos_y) in enumerate(positions):
-            if pos_x != pos_x_prev:
-                self.win.nextRow()
-
-            if i < len(positions)-1:
-                colspan = 1
-                pos_x_next = positions[i+1][0]
-                pos_y_next = positions[i+1][1]
-
-                if pos_x_next >= pos_x:
-                    colspan = ncols - pos_y # extend subplot into space where there's nothing
-                else:
-                    colspan = pos_y_next - pos_y
-            else:
-                colspan = 1
-
 
             # create subplot and curves on the subplot:
-            plot = create_plot(colspan=colspan, label_x="", label_y="", unit_x="", unit_y="")
+            plot = create_plot(pos_x=pos_x, pos_y=pos_y, label_x="", label_y="", unit_x="", unit_y="")
             channels = self.plot_channel_layout[ (pos_x, pos_y) ]
             curves = create_curves(plot, channels)
             self.curves_dict[(pos_x, pos_y)] = curves
-
-            pos_x_prev = pos_x
-            pos_y_prev = pos_y
 
             # initialize some data:
             dummy_data = np.zeros(self.max_samples ) # dummy data
@@ -179,8 +159,6 @@ class LDAQ():
                 curve.setPos(0, 0)
 
         QtGui.QApplication.processEvents()
-        # time.sleep(0.1) # time to stabilize 
-        #test
 
     def plot_window_update(self):
         """

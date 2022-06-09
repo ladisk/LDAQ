@@ -20,6 +20,12 @@ class BaseAcquisition:
         """This code acquires data."""
         pass
 
+    def clear_data_source(self):
+        pass
+
+    def stop(self):
+        self.is_running = False
+    
     def acquire(self):
         acquired_data = self.read_data()
         self.plot_data = np.vstack((self.plot_data, acquired_data))
@@ -30,7 +36,7 @@ class BaseAcquisition:
 
         if self.Trigger.finished or not self.is_running:
             self.stop()
-            self.clear_task()
+            self.clear_data_source()
 
     def set_data_source(self):
         pass
@@ -38,7 +44,6 @@ class BaseAcquisition:
     def run_acquisition(self):
         self.is_running = True
 
-        
         self.set_data_source()
 
         self.plot_data = np.zeros((1, len(self.channel_names)))
@@ -84,13 +89,16 @@ class BaseAcquisition:
             trigger_level=self.trigger_settings['level'],
             presamples=self.trigger_settings['presamples'])
 
+
 class ADAcquisition(BaseAcquisition):
     def __init__(self, port_nr):
         super.__init__()
 
+
 class SerialAcquisition(BaseAcquisition):
     def __init__(self, port_nr):
         super.__init__()
+
 
 class NIAcquisition(BaseAcquisition):
     """National Instruments Acquisition class."""
@@ -111,6 +119,9 @@ class NIAcquisition(BaseAcquisition):
         """Clear a task."""
         self.Task.clear_task(wait_until_done=False)
         del self.Task
+
+    def clear_data_source(self):
+        return self.clear_task()
 
     def stop(self):
         self.is_running = False

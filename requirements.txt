@@ -4,6 +4,7 @@ scipy>=1.2.0
 matplotlib>=3.0.0
 tqdm>=4.25.0
 pyqtgraph
+PyQt5>=5.15.6
 keyboard
 pyTrigger
 PyDAQmx

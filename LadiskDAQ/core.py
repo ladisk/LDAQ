@@ -19,7 +19,7 @@ class LDAQ():
         # plot window settings:
         self.configure()
 
-    def configure(self, plot_layout='default', max_time=5.0, nth_point=50, autoclose=False):
+    def configure(self, plot_layout='default', max_time=5.0, nth_point=50, autoclose=False, fun=None):
         """Configure the plot window settings.
         
         :param plot_layout: layout of the plots and channels. "default" or dict. Keys of dict are (axis 0, axis 1) of the subplot
@@ -60,6 +60,7 @@ class LDAQ():
         self.maxTime = max_time
         self.nth_point = nth_point
         self.autoclose = autoclose
+        self.fun = fun
         
         self.max_samples = int(self.maxTime*self.acquisition.sample_rate) # max samples to display on some plots based on self.maxTime        
 
@@ -85,7 +86,7 @@ class LDAQ():
         # start both threads:
         for thread in thread_list:
             thread.start()
-        # time.sleep(0.1)
+        time.sleep(0.1)
 
         # while data is being generated and collected:
         while self.is_running():
@@ -137,8 +138,9 @@ class LDAQ():
         p.showGrid(x = True, y = True, alpha = 0.3)  
 
         if type(channels) == tuple:          # if fft
-            p.ctrl.fftCheck.setChecked(True)
-            p.setLogMode(x=None, y=True)
+            # p.ctrl.fftCheck.setChecked(True)
+            # p.setLogMode(x=None, y=True)
+            pass
         elif type(channels[0]) == tuple:     # if channel vs. channel
             pass
         else:                                # if time signal
@@ -232,9 +234,14 @@ class LDAQ():
                     channel_x, channel_y = channel
                     x_values = data[:, channel_x]
                     y_values = data[:, channel_y]
-                else:
+                elif type(channels) == list:
                     x_values = self.time_arr
                     y_values = data[:, channel]
+                else:
+                    x_values, y_values = self.fun(self, data[:, channel])
+                    # x_values = self.time_arr
+                    # y_values = data[:, channel]
+                
                 curve.setData(x_values, y_values)
 
         # redraw / update plot window

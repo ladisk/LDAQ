@@ -60,7 +60,14 @@ class LDAQ():
         self.maxTime = max_time
         self.nth_point = nth_point
         self.autoclose = autoclose
-        self.fun = fun
+
+        if type(fun) == str:
+            self.fun_name = fun
+            if fun == "fft":
+                self.fun = _fun_fft
+        else:
+            self.fun_name = "custom"
+            self.fun = fun
         
         self.max_samples = int(self.maxTime*self.acquisition.sample_rate) # max samples to display on some plots based on self.maxTime        
 
@@ -138,8 +145,10 @@ class LDAQ():
         p.showGrid(x = True, y = True, alpha = 0.3)  
 
         if type(channels) == tuple:          # if fft
-            # p.ctrl.fftCheck.setChecked(True)
-            # p.setLogMode(x=None, y=True)
+            if self.fun_name == "fft":
+                p.setLogMode(x=None, y=True)
+                p.setRange(xRange=[0, self.acquisition.sample_rate/4]) 
+            
             pass
         elif type(channels[0]) == tuple:     # if channel vs. channel
             pass
@@ -197,6 +206,7 @@ class LDAQ():
 
         # create window layout:
         self.curves_dict = {}
+        self.plot_dict = {}
         positions = list(self.plot_channel_layout.keys())
         positions = [positions[i] for i in np.lexsort(np.array(positions).T[::-1])]
         #ncols = len(set( [pos[1] for pos in positions ])  )
@@ -208,6 +218,7 @@ class LDAQ():
             channels = self.plot_channel_layout[(pos_x, pos_y)]
             plot, curves = self._create_plot(channels=channels, pos_x=pos_x, pos_y=pos_y, label_x="", label_y="", unit_x="", unit_y="")
             self.curves_dict[(pos_x, pos_y)] = curves
+            self.plot_dict[(pos_x, pos_y)] = plot
 
     def plot_window_update(self):
         """
@@ -216,7 +227,7 @@ class LDAQ():
 
         data = self.acquisition.plot_data[-self.max_samples:]
         # create fixed time array:
-        self.time_arr = -1*(np.arange(data.shape[0])/self.acquisition.sample_rate)[::-self.nth_point]
+        self.time_arr = -1*(np.arange(data.shape[0])/self.acquisition.sample_rate)
         data = data[::self.nth_point]
 
         if not self.acquisition_started and self.acquisition.Trigger.triggered:
@@ -235,12 +246,15 @@ class LDAQ():
                     x_values = data[:, channel_x]
                     y_values = data[:, channel_y]
                 elif type(channels) == list:
-                    x_values = self.time_arr
+                    x_values = self.time_arr[::-self.nth_point]
                     y_values = data[:, channel]
                 else:
-                    x_values, y_values = self.fun(self, data[:, channel])
-                    # x_values = self.time_arr
-                    # y_values = data[:, channel]
+                    fun_return = self.fun(self, self.acquisition.plot_data[-self.max_samples:][:, channel], position)
+                    if type(fun_return) != tuple:
+                        y_values = fun_return[::-self.nth_point]
+                        x_values = self.time_arr[::-self.nth_point]
+                    else:
+                        x_values, y_values = fun_return
                 
                 curve.setData(x_values, y_values)
 
@@ -257,6 +271,16 @@ class LDAQ():
             print("Please close monitor window.") # TODO: print that into graph
             self.win.addLabel('You may close the window.', color='red', size='10pt')
             pg.QtGui.QApplication.exec_()
+
+# ------------------------------------------------------------------------------
+#  Prepared plot Functions
+# ------------------------------------------------------------------------------
+
+def _fun_fft(self, data, position):
+   amp = np.fft.rfft(data) * 2 / len(data)
+   freq = np.fft.rfftfreq(len(data), d=1/self.acquisition.sample_rate)
+
+   return freq, np.abs(amp)
 
 
         

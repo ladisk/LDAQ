@@ -53,7 +53,7 @@ class BaseAcquisition:
 
         self.set_data_source()
 
-        self.plot_data = np.zeros((1, len(self.channel_names)))
+        self.plot_data = np.zeros((2, len(self.channel_names)))
         self.set_trigger_instance()
 
         while self.is_running:

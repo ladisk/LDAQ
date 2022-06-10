@@ -19,7 +19,7 @@ class LDAQ():
         # plot window settings:
         self.configure()
 
-    def configure(self, plot_layout='default', max_time=5.0, nth_point=50, autoclose=False, fun=None):
+    def configure(self, plot_layout='default', max_time=5.0, nth_point=50, autoclose=False, fun="fft"):
         """Configure the plot window settings.
         
         :param plot_layout: layout of the plots and channels. "default" or dict. Keys of dict are (axis 0, axis 1) of the subplot

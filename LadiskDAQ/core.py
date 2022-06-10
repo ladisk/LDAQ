@@ -44,6 +44,8 @@ class LDAQ():
         self.max_samples = int(self.maxTime*self.acquisition.sample_rate) # max samples to display on some plots based on self.maxTime        
 
     def run(self):
+        print('Press "q" to stop measurement.')
+        print('\tWaiting for trigger...', end='')
         self.acquisition_started = False
 
         thread_list = []
@@ -91,6 +93,8 @@ class LDAQ():
             self.acquisition.stop()
             if self.generation != None:
                 self.generation.stop()
+
+            print('stop.')
 
         return running
 
@@ -195,6 +199,8 @@ class LDAQ():
 
         if not self.acquisition_started and self.acquisition.Trigger.triggered:
             self.win.setBackground('lightgreen')
+            print('triggered.')
+            print('\tRecording...', end='')
             self.acquisition_started = True
 
         for position in self.plot_channel_layout:

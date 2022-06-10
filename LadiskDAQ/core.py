@@ -11,8 +11,6 @@ import sys
 import threading
 import types
 
-from sqlalchemy import func
-
 AXIS_SCALES = ['logx', 'logy']
 INBUILT_FUNCTIONS = ['fft']
 
@@ -138,7 +136,7 @@ class LDAQ():
         p = self.win.addPlot(row=pos_x, col=pos_y) 
         p.setLabel('bottom', label_x, unit_x)
         p.setLabel('left', label_y, unit_y)
-        p.setDownsampling(mode='peak', auto=True)
+        p.setDownsampling(mode='subsample', auto=True)
         p.addLegend()
         p.showGrid(x = True, y = True, alpha = 0.3)  
 

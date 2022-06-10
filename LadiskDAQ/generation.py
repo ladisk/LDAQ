@@ -44,15 +44,24 @@ class NIGenerator(BaseGenerator):
 
     def clear_task(self):
         self.Task.clear_task(wait_until_done=False)
+
+        # generate zeros
+        self.Task = DAQTask(self.task_name)
+        zero_signal = np.zeros((self.signal.shape[0], 10))
+        self.Task.generate(zero_signal, clear_task=False)
+        self.Task.clear_task(wait_until_done=False)
+        
         del self.Task
 
     def run_generation(self):
+        self.is_running = True
+        
         self.set_data_source()
+        time.sleep(0.5)
 
         self.generate()
 
         while self.is_running:
-            print('checking')
             time.sleep(0.5)
         
         self.clear_data_source()

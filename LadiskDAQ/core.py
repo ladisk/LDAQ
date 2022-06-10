@@ -86,6 +86,10 @@ class LDAQ():
             running = self.acquisition.is_running
         else:
             running = self.acquisition.is_running and self.generation.is_running
+        
+        if not running:
+            self.acquisition.stop()
+            self.generation.stop()
 
         return running
 
@@ -160,8 +164,8 @@ class LDAQ():
             channels = self.plot_channel_layout[(pos_x, pos_y)]
             curves = self._create_curves(plot, channels)
             self.curves_dict[(pos_x, pos_y)] = curves
-
-        QtGui.QApplication.processEvents()
+        
+        # QtGui.QApplication.processEvents()
 
     def plot_window_update(self):
         """

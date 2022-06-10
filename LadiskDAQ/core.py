@@ -9,6 +9,12 @@ from pyqtgraph.Qt import QtCore, QtGui
 import sys
 
 import threading
+import types
+
+from sqlalchemy import func
+
+AXIS_SCALES = ['logx', 'logy']
+INBUILT_FUNCTIONS = ['fft']
 
 
 class LDAQ():
@@ -19,7 +25,7 @@ class LDAQ():
         # plot window settings:
         self.configure()
 
-    def configure(self, plot_layout='default', max_time=5.0, nth_point=50, autoclose=False, fun="fft"):
+    def configure(self, plot_layout='default', max_time=5.0, nth_point=50, autoclose=False):
         """Configure the plot window settings.
         
         :param plot_layout: layout of the plots and channels. "default" or dict. Keys of dict are (axis 0, axis 1) of the subplot
@@ -60,14 +66,6 @@ class LDAQ():
         self.maxTime = max_time
         self.nth_point = nth_point
         self.autoclose = autoclose
-
-        if type(fun) == str:
-            self.fun_name = fun
-            if fun == "fft":
-                self.fun = _fun_fft
-        else:
-            self.fun_name = "custom"
-            self.fun = fun
         
         self.max_samples = int(self.maxTime*self.acquisition.sample_rate) # max samples to display on some plots based on self.maxTime        
 
@@ -140,20 +138,9 @@ class LDAQ():
         p = self.win.addPlot(row=pos_x, col=pos_y) 
         p.setLabel('bottom', label_x, unit_x)
         p.setLabel('left', label_y, unit_y)
-        p.setDownsampling(mode='peak')
+        p.setDownsampling(mode='peak', auto=True)
         p.addLegend()
         p.showGrid(x = True, y = True, alpha = 0.3)  
-
-        if type(channels) == tuple:          # if fft
-            if self.fun_name == "fft":
-                p.setLogMode(x=None, y=True)
-                p.setRange(xRange=[0, self.acquisition.sample_rate/4]) 
-            
-            pass
-        elif type(channels[0]) == tuple:     # if channel vs. channel
-            pass
-        else:                                # if time signal
-            p.setRange(xRange=[-self.maxTime, 0]) 
 
         curves = self._create_curves(p, channels)
 
@@ -207,6 +194,7 @@ class LDAQ():
         # create window layout:
         self.curves_dict = {}
         self.plot_dict = {}
+        self.fun_dict = {}
         positions = list(self.plot_channel_layout.keys())
         positions = [positions[i] for i in np.lexsort(np.array(positions).T[::-1])]
         #ncols = len(set( [pos[1] for pos in positions ])  )
@@ -214,21 +202,76 @@ class LDAQ():
 
         for i, (pos_x, pos_y) in enumerate(positions):
 
+            # extract info from channel layout dict:
+            settings = self.plot_channel_layout[(pos_x, pos_y)]
+            channels = [i for i in settings if ((type(i)==int)or(type(i)==tuple))]
+            #print(channels)
+            scalings = [i for i in settings if i in AXIS_SCALES]
+            function = [i for i in settings if ((i in INBUILT_FUNCTIONS) or (type(i) == types.FunctionType))] # check if fun string or custom function
+            
+            # handle any additional functions for channel processing
+            if len(function) == 0:
+                function = lambda self, x: x
+                function_name = "none"
+
+            else:
+                function = function[0]
+                if type(function) == str:
+                    if function == "fft":
+                        function_name = "fft"
+                        function = _fun_fft
+                    else:
+                        function_name = "none"
+                        function = lambda self, x: x
+                else:
+                    function_name = "custom"
+
             # create subplot and curves on the subplot:
-            channels = self.plot_channel_layout[(pos_x, pos_y)]
             plot, curves = self._create_plot(channels=channels, pos_x=pos_x, pos_y=pos_y, label_x="", label_y="", unit_x="", unit_y="")
+
+            # additional plot settings:
+            
+            # built in functions:
+            if function_name == "fft":
+                plot.setLogMode(x=None, y=True)
+                plot.setRange(xRange=[0, self.acquisition.sample_rate/4])
+                pass
+                
+            # channel vs. channel plot
+            elif type(channels[0]) == tuple:     # if channel vs. channel
+                pass
+
+            # normal time signals channel:
+            else:                                # if time signal
+                plot.setRange(xRange=[-self.maxTime, 0]) 
+
+            # set scalings:
+            for scaling in scalings:
+                logx = False
+                logy = False
+                if scaling == "logx":
+                    logx = True
+                elif scaling == "logy":
+                    logy = True
+                else:
+                    pass
+                plot.setLogMode(x=logx, y=logy)
+
+
             self.curves_dict[(pos_x, pos_y)] = curves
-            self.plot_dict[(pos_x, pos_y)] = plot
+            self.plot_dict[(pos_x, pos_y)]   = plot
+            self.fun_dict[(pos_x, pos_y)]    = function
 
     def plot_window_update(self):
         """
         Updates plot window with collected data.
         """
+        self.acquisition.plot_data = self.acquisition.plot_data[-int(self.max_samples*1.5):]
 
         data = self.acquisition.plot_data[-self.max_samples:]
         # create fixed time array:
         self.time_arr = -1*(np.arange(data.shape[0])/self.acquisition.sample_rate)
-        data = data[::self.nth_point]
+        #data = data[::self.nth_point]
 
         if not self.acquisition_started and self.acquisition.Trigger.triggered:
             self.win.setBackground('lightgreen')
@@ -239,23 +282,22 @@ class LDAQ():
         for position in self.plot_channel_layout:
             channels = self.plot_channel_layout[ position ]
             curves = self.curves_dict[ position ]
+            function = self.fun_dict[ position ]
 
             for channel, curve in zip(channels, curves):
                 if type(channel) == tuple:
                     channel_x, channel_y = channel
-                    x_values = data[:, channel_x]
-                    y_values = data[:, channel_y]
-                elif type(channels) == list:
-                    x_values = self.time_arr[::-self.nth_point]
-                    y_values = data[:, channel]
+                    x_values = data[:, channel_x][::self.nth_point]
+                    y_values = data[:, channel_y][::self.nth_point]
                 else:
-                    fun_return = self.fun(self, self.acquisition.plot_data[-self.max_samples:][:, channel], position)
+                    y_values = data[:, channel]
+                    fun_return = function(self, y_values)
                     if type(fun_return) != tuple:
-                        y_values = fun_return[::-self.nth_point]
+                        y_values = fun_return[::self.nth_point]
                         x_values = self.time_arr[::-self.nth_point]
                     else:
                         x_values, y_values = fun_return
-                
+
                 curve.setData(x_values, y_values)
 
         # redraw / update plot window
@@ -276,7 +318,7 @@ class LDAQ():
 #  Prepared plot Functions
 # ------------------------------------------------------------------------------
 
-def _fun_fft(self, data, position):
+def _fun_fft(self, data):
    amp = np.fft.rfft(data) * 2 / len(data)
    freq = np.fft.rfftfreq(len(data), d=1/self.acquisition.sample_rate)
 

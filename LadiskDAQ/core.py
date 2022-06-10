@@ -19,23 +19,43 @@ class LDAQ():
         # plot window settings:
         self.configure()
 
-        # self.maxTime = 5.0                                               # max time of data history on scrolling plots
-        # self.max_samples = int(self.maxTime*self.acquisition.sample_rate) # max samples to display on some plots based on self.maxTime        
-        # self.plot_channel_layout = "default"
-        # self.nth_point = 50
-
-        # self.plot_channel_layout = {
-        #    (0, 0): [0],    (0, 1):[1],
-        #    (1, 0): [0, 1], (1, 1):[0,1]
-        # }
-
     def configure(self, plot_layout='default', max_time=5.0, nth_point=50, autoclose=False):
         """Configure the plot window settings.
         
         :param plot_layout: layout of the plots and channels. "default" or dict. Keys of dict are (axis 0, axis 1) of the subplot
-            layout, values are lists of channel indices to show on the subplots.
+            layout, values are lists of channel indices to show on the subplots. See examples below.
         :param max_time: max time to show on the plot.
-        :param nth_point: Only show every n_th point on the live plot."""
+        :param nth_point: Only show every n_th point on the live plot.
+        :param autoclose: Autoclose the window after the measurement is done.
+        
+        Plot layout
+        -----------
+        With plot layout, the user can define on which subplot the channels will be plotted. An example of
+        plot layout is:
+        >>> plot_layout = {
+            (0, 0): [0, 1],
+            (0, 1): [2, 3]
+        }
+
+        On first subplot (0, 0), channels 0 and 1 will be plotted, on the second subplot (0, 1), channels 2 and 3 will be plotted.
+        Channels can also be plotted one against another. If, for example, we wish to plot channel 1 as a function of channel 0, input
+        channel indices in a tuple; first the channel to be plotted on x-axis, and second the channel to be plotted on y-axis:
+        >>> plot_layout = {
+            (0, 0): [0, 1],
+            (0, 1): [2, 3],
+            (1, 0): [(0, 1)]
+        }
+
+        Additionally, the FFT of the signal can be computed on the fly. To define the subplots and channels where the FFT is computed, input the channel
+        indices as a tuple (not as a list as was shown before):
+        >>> plot_layout = {
+            (0, 0): [0, 1], # Time series
+            (0, 1): [2, 3], # Time series
+            (1, 0): [(0, 1)], # 1 = f(0)
+            (1, 1): (0,) # FFT(0)
+        }
+        
+        """
         self.plot_channel_layout = plot_layout
         self.maxTime = max_time
         self.nth_point = nth_point
@@ -228,6 +248,7 @@ class LDAQ():
             self.win.close()
         else:
             print("Please close monitor window.") # TODO: print that into graph
+            self.win.addLabel('You may close the window.', color='red', size='10pt')
             pg.QtGui.QApplication.exec_()
 
 

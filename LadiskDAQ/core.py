@@ -120,6 +120,11 @@ class LDAQ():
             channel_name = self.acquisition.channel_names[channel]
             color = color_list[ i%len(color_list) ]
             curve = plot.plot( pen=pg.mkPen(color, width=2), name=channel_name) 
+            
+            # initialize some data:
+            curve.setData(self.dummy_data)
+            curve.setPos(0, 0)
+
             curves.append(curve)
         return curves
 
@@ -127,6 +132,7 @@ class LDAQ():
         """
         Initializes plot window.
         """
+        self.dummy_data = np.zeros(self.max_samples ) # dummy data
 
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
@@ -151,15 +157,9 @@ class LDAQ():
             plot = self._create_plot(pos_x=pos_x, pos_y=pos_y, label_x="", label_y="", unit_x="", unit_y="")
             #plot.ctrl.fftCheck.setChecked(True)
 
-            channels = self.plot_channel_layout[ (pos_x, pos_y) ]
+            channels = self.plot_channel_layout[(pos_x, pos_y)]
             curves = self._create_curves(plot, channels)
             self.curves_dict[(pos_x, pos_y)] = curves
-
-            # initialize some data:
-            dummy_data = np.zeros(self.max_samples ) # dummy data
-            for curve in curves:
-                curve.setData(dummy_data)
-                curve.setPos(0, 0)
 
         QtGui.QApplication.processEvents()
 

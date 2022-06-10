@@ -174,7 +174,7 @@ class LDAQ():
         data = data[::self.nth_point]
 
         if not self.acquisition_started and self.acquisition.Trigger.triggered:
-            self.win.setBackground('green')
+            self.win.setBackground('lightgreen')
             self.acquisition_started = True
 
         for position in self.plot_channel_layout:

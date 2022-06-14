@@ -12,6 +12,7 @@ import sys
 
 import threading
 import types
+import pickle
 
 AXIS_SCALES = ['logx', 'logy']
 INBUILT_FUNCTIONS = ['fft', 'frf_amp', 'frf_phase']
@@ -28,7 +29,7 @@ class LDAQ():
         # store any temporary variables into this list
         self.temp_variables = []
 
-    def configure(self, plot_layout='default', max_time=5.0, nth_point=50, autoclose=False):
+    def configure(self, plot_layout='default', max_time=5.0, nth_point=1, autoclose=False):
         """Configure the plot window settings.
         
         :param plot_layout: layout of the plots and channels. "default" or dict. Keys of dict are (axis 0, axis 1) of the subplot
@@ -351,12 +352,12 @@ class LDAQ():
             self.curves_dict[(pos_x, pos_y)] = curves
             self.plot_dict[(pos_x, pos_y)]   = plot
 
-        ncols = len(set( [pos[1] for pos in positions ])  )
-        nrows = len(set( [pos[0] for pos in positions ])  )
-        for row in range(nrows):
-            self.win.ci.layout.setRowStretchFactor(row, 1)
-        for ncols in range(ncols):
-            self.win.ci.layout.setColumnStretchFactor(1, 1)
+        # ncols = len(set( [pos[1] for pos in positions ])  )
+        # nrows = len(set( [pos[0] for pos in positions ])  )
+        # for row in range(nrows):
+        #     self.win.ci.layout.setRowStretchFactor(row, 1)
+        # for ncols in range(ncols):
+        #     self.win.ci.layout.setColumnStretchFactor(1, 1)
 
     def plot_window_update(self):
         """
@@ -424,6 +425,19 @@ class LDAQ():
             #print("clearing:", key)
             del self.__dict__[key]
         self.temp_variables = []
+
+    def save_measurement(self, name, root='', save_channels='All', 
+                         timestamp=True, comment=''):
+        """Save acquired data.
+        
+        :param name: filename
+        :param root: directory to save to
+        :param save_channels: channel indices that are save. Defaults to 'All'.
+        :param timestamp: include timestamp before 'filename'
+        :param comment: commentary on the saved file
+        """
+        self.acquisition.save( name, root, save_channels, timestamp, comment)
+
 
 
 # ------------------------------------------------------------------------------
@@ -494,6 +508,11 @@ def _fun_frf_phase(self, data):
     else:
         return np.array([self.var_freq_2, 180/np.pi* np.angle(self.var_H1_2) ]).T
 
+
+# open measurements:
+def load_measurement(name, directory='' ):
+    with open(directory+'/' + name, 'rb') as f:
+        return pickle.load(f)
 
         
         

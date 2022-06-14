@@ -15,7 +15,7 @@ class BaseAcquisition:
         self.channel_names = []
         self.plot_data = []
         self.is_running = True
-    
+
     def read_data(self):
         """EDIT in child class
         
@@ -150,9 +150,22 @@ class NIAcquisition(BaseAcquisition):
         super().__init__()
 
         self.task_name = task_name
+
+        # TODO: clear task if it exists:
+        #try:
+            #clear task if it exist 
+            # done with  DAQmxClearTask(taskHandle) in Task.py
+        #except:
+            # pass
+        
         self.Task = DAQTask(self.task_name)
+
+
         self.channel_names = self.Task.channel_list
         self.sample_rate = self.Task.sample_rate
+
+        # set default trigger, so the signal will not be trigered:
+        self.set_trigger(1e20, 0, duration=600)
 
     def clear_task(self):
         """Clear a task."""

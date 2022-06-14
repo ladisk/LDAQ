@@ -67,7 +67,7 @@ class LDAQ():
         }
 
         CUSTOM FUNCTION PLOT: Lastly, the signals can be modified for visualization by specifying a custom function, that is passed to the channel list.
-        Example below computes the square of the signal coming from channels 1 and 2.
+        Example below computes the square of the signal coming from channels 1 and 2. 
         >>> plot_layout = {
             (0, 0): [0, 1],               # Time series
             (0, 1): [2, 3],               # Time series
@@ -84,6 +84,61 @@ class LDAQ():
             '''
             return channel_data**2
 
+        CUSTOM FUNCTION PLOT (channel vs. channel): 
+        >>> plot_layout = {
+            (0, 0): [(0, 1), fun]         # 2Darray = fun( np.array([ch0, ch1]).T )
+        }
+    	
+        function definition examples:
+
+        def fun(self, channel_data):
+            '''
+            :param self:         instance of the acquisition object (has to be there so the function is called properly)
+            :param channel_data: 2D channel data array of size (N, 2)
+
+            :return: 2D array np.array([x, y]).T that will be plotted on the subplot.
+            '''
+            ch0, ch1 = channel_data.T
+
+            x =  np.arange(len(ch1)) / self.acquisition.sample_rate # time array
+            y = ch1**2 + ch0 - 10
+
+            return np.array([x, y]).T
+
+         def fun(self, channel_data):
+            '''
+            :param self:         instance of the acquisition object (has to be there so the function is called properly)
+            :param channel_data: 2D channel data array of size (N, 2)
+
+            :return: 2D array np.array([x, y]).T that will be plotted on the subplot.
+            '''
+            ch0, ch1 = channel_data.T
+
+            x = np.arange(len(ch0)) / self.acquisition.sample_rate # time array
+            y = ch1 + ch0 # sum up two channels
+
+            # ---------------------------------------
+            # average across whole acquisition:
+            # ---------------------------------------
+            # ensure number of samples is the same and perform averaging:
+            if len(ch0) == int(self.max_samples): # at acquisition start, len(ch0) is less than self.max_samples
+                
+                # create class variables:
+                if not hasattr(self, 'var_y'):
+                    self.var_y = y
+                    self.var_x = x
+                    self.var_i = 0
+
+                    # these variables will be deleted from LDAQ class after acquisition run is stopped: 
+                    self.temp_variables.extend(["var_y", "var_x", "var_i"]) 
+                
+                self.var_y = (self.var_y * self.var_i + y) / (self.var_i + 1)
+                self.var_i += 1
+
+                return np.array([self.var_x, self.var_y]).T
+
+            else:
+                return np.array([x, y]).T
         """
         self.plot_channel_layout = plot_layout
         self.maxTime = max_time

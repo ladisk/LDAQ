@@ -1,3 +1,5 @@
+import enum
+from msilib.schema import Error
 import time
 import os
 import numpy as np
@@ -12,7 +14,7 @@ import threading
 import types
 
 AXIS_SCALES = ['logx', 'logy']
-INBUILT_FUNCTIONS = ['fft']
+INBUILT_FUNCTIONS = ['fft', 'frf_amp', 'frf_phase']
 
 
 class LDAQ():
@@ -22,6 +24,9 @@ class LDAQ():
 
         # plot window settings:
         self.configure()
+
+        # store any temporary variables into this list
+        self.temp_variables = []
 
     def configure(self, plot_layout='default', max_time=5.0, nth_point=50, autoclose=False):
         """Configure the plot window settings.
@@ -34,7 +39,7 @@ class LDAQ():
         
         Plot layout
         -----------
-        With plot layout, the user can define on which subplot the channels will be plotted. An example of
+        NORMAL TIME PLOTS: With plot layout, the user can define on which subplot the channels will be plotted. An example of
         plot layout is:
         >>> plot_layout = {
             (0, 0): [0, 1],
@@ -42,7 +47,9 @@ class LDAQ():
         }
 
         On first subplot (0, 0), channels 0 and 1 will be plotted, on the second subplot (0, 1), channels 2 and 3 will be plotted.
-        Channels can also be plotted one against another. If, for example, we wish to plot channel 1 as a function of channel 0, input
+        Channels can also be plotted one against another. 
+        
+        CHANNEL vs. CHANNEL PLOT: If, for example, we wish to plot channel 1 as a function of channel 0, input
         channel indices in a tuple; first the channel to be plotted on x-axis, and second the channel to be plotted on y-axis:
         >>> plot_layout = {
             (0, 0): [0, 1],
@@ -50,15 +57,33 @@ class LDAQ():
             (1, 0): [(0, 1)]
         }
 
-        Additionally, the FFT of the signal can be computed on the fly. To define the subplots and channels where the FFT is computed, input the channel
-        indices as a tuple (not as a list as was shown before):
+        FOURIER TRANSFORM PLOT: The DFT of the signal can be computed on the fly. To define the subplots and channels where the FFT is computed, 
+        add "fft" as an element into channel list. Additionaly 'logy' and 'logx' scalings can be set:
         >>> plot_layout = {
-            (0, 0): [0, 1], # Time series
-            (0, 1): [2, 3], # Time series
-            (1, 0): [(0, 1)], # 1 = f(0)
-            (1, 1): (0,) # FFT(0)
+            (0, 0): [0, 1],               # Time series
+            (0, 1): [2, 3],               # Time series
+            (1, 0): [(0, 1)],             # ch1 = f( ch0 )
+            (1, 1): [2, 3, "fft", "logy"] # FFT(2) & FFT(3), log y scale
         }
-        
+
+        CUSTOM FUNCTION PLOT: Lastly, the signals can be modified for visualization by specifying a custom function, that is passed to the channel list.
+        Example below computes the square of the signal coming from channels 1 and 2.
+        >>> plot_layout = {
+            (0, 0): [0, 1],               # Time series
+            (0, 1): [2, 3],               # Time series
+            (1, 0): [(0, 1)],             # ch1 = f( ch0 )
+            (1, 1): [2, 3, fun]           # fun(2) & fun(3)
+        }
+
+        function definition example:
+
+        def fun(self, channel_data):
+            '''
+            :param self:         instance of the acquisition object (has to be there so the function is called properly)
+            :param channel_data: channel data
+            '''
+            return channel_data**2
+
         """
         self.plot_channel_layout = plot_layout
         self.maxTime = max_time
@@ -103,6 +128,7 @@ class LDAQ():
             thread.join()
 
         self.plot_window_exit() # waits for plot window to be closed.
+        self.clear_temp_variables()
 
     def is_running(self):
         """
@@ -148,11 +174,9 @@ class LDAQ():
         """
         channels - index
         """
-        color_list = ["blue", "orange", "green", "red"]
+        color_dict = {ch:ind for ind, ch in enumerate(self.acquisition.channel_names)}
         curves = []
         for i, channel in enumerate(channels):
-            color = color_list[ i%len(color_list) ]
-
             if type(channel) == tuple:
                 channel_name_x = self.acquisition.channel_names[channel[0]]
                 channel_name_y = self.acquisition.channel_names[channel[1]]
@@ -162,6 +186,7 @@ class LDAQ():
                 channel_name_y = self.acquisition.channel_names[channel]
                 label = channel_name_y
 
+            color = color_dict[ channel_name_y ]
             curve = plot.plot( pen=pg.mkPen(color, width=2), name=label) 
             
             # initialize some data:
@@ -187,56 +212,61 @@ class LDAQ():
         self.win.resize(800,400)
 
         if self.plot_channel_layout == "default":
-            self.plot_channel_layout = {(0, 0): np.arange( len(self.acquisition.channel_names) )}
+            self.plot_channel_layout = {(0, 0):  [i for i in range(len(self.acquisition.channel_names)) ] }
 
         # create window layout:
         self.curves_dict = {}
         self.plot_dict = {}
         self.fun_dict = {}
         positions = list(self.plot_channel_layout.keys())
-        positions = [positions[i] for i in np.lexsort(np.array(positions).T[::-1])]
-        #ncols = len(set( [pos[1] for pos in positions ])  )
-        #nrows = len(set( [pos[0] for pos in positions ])  )
+        positions = [positions[i] for i in np.lexsort(np.array(positions).T[::-1])] # sort plot positions
 
-        for i, (pos_x, pos_y) in enumerate(positions):
+        for j, (pos_x, pos_y) in enumerate(positions):
 
             # extract info from channel layout dict:
             settings = self.plot_channel_layout[(pos_x, pos_y)]
             channels = [i for i in settings if ((type(i)==int)or(type(i)==tuple))]
             #print(channels)
             scalings = [i for i in settings if i in AXIS_SCALES]
-            function = [i for i in settings if ((i in INBUILT_FUNCTIONS) or (type(i) == types.FunctionType))] # check if fun string or custom function
+            functions = [i for i in settings if ((i in INBUILT_FUNCTIONS) or (type(i) == types.FunctionType))] # check if fun string or custom function
             
             # handle any additional functions for channel processing
-            if len(function) == 0:
+            if len(functions) == 0:
                 function = lambda self, x: x
                 function_name = "none"
 
-            else:
-                function = function[0]
+            elif len(functions) == 1:
+                function = functions[0]
+
                 if type(function) == str:
                     if function == "fft":
                         function_name = "fft"
                         function = _fun_fft
+                    elif function == "frf_amp":
+                        function_name = "frf_amp"
+                        function = _fun_frf_amplitude
+                    elif function == "frf_phase":
+                        function_name = "frf_phase"
+                        function = _fun_frf_phase
                     else:
-                        function_name = "none"
-                        function = lambda self, x: x
+                        pass
                 else:
                     function_name = "custom"
+
+            else:
+                raise NotImplementedError("Only 1 custom function per subplot is supported.")
+
+            self.fun_dict[(pos_x, pos_y)]    = function
 
             # create subplot and curves on the subplot:
             plot, curves = self._create_plot(channels=channels, pos_x=pos_x, pos_y=pos_y, label_x="", label_y="", unit_x="", unit_y="")
 
-            # additional plot settings:
-            
-            # built in functions:
-            if function_name == "fft":
-                plot.setLogMode(x=None, y=True)
-                plot.setRange(xRange=[0, self.acquisition.sample_rate/4])
-                pass
-                
+            # ADDITIONAL PLOT SETTINGS:                
             # channel vs. channel plot
-            elif type(channels[0]) == tuple:     # if channel vs. channel
+            if type(channels[0]) == tuple:     # if channel vs. channel
+                pass
+            
+            elif len(function(self, np.ones(10)).shape) > 1: # if function returns 2D array, then auto x range is needed
                 pass
 
             # normal time signals channel:
@@ -244,21 +274,34 @@ class LDAQ():
                 plot.setRange(xRange=[-self.maxTime, 0]) 
 
             # set scalings:
-            for scaling in scalings:
-                logx = False
-                logy = False
-                if scaling == "logx":
-                    logx = True
-                elif scaling == "logy":
-                    logy = True
-                else:
-                    pass
-                plot.setLogMode(x=logx, y=logy)
+            if len(scalings) > 0:
+                for scaling in scalings:
+                    logx = False
+                    logy = False
+                    if scaling == "logx":
+                        logx = True
+                    elif scaling == "logy":
+                        logy = True
+                    else:
+                        pass
+                    plot.setLogMode(x=logx, y=logy)
+            else:
+                 plot.setLogMode(x=False, y=False)
+
+            # built in functions:
+            if function_name == "fft" or function_name == "frf_amp" or function_name == "frf_phase":
+                plot.setRange(xRange=[0, self.acquisition.sample_rate/6])
 
 
             self.curves_dict[(pos_x, pos_y)] = curves
             self.plot_dict[(pos_x, pos_y)]   = plot
-            self.fun_dict[(pos_x, pos_y)]    = function
+
+        ncols = len(set( [pos[1] for pos in positions ])  )
+        nrows = len(set( [pos[0] for pos in positions ])  )
+        for row in range(nrows):
+            self.win.ci.layout.setRowStretchFactor(row, 1)
+        for ncols in range(ncols):
+            self.win.ci.layout.setColumnStretchFactor(1, 1)
 
     def plot_window_update(self):
         """
@@ -283,20 +326,26 @@ class LDAQ():
             function = self.fun_dict[ position ]
 
             for channel, curve in zip(channels, curves):
-                if type(channel) == tuple:
+                if type(channel) == tuple: # plotting channel vs. channel
                     channel_x, channel_y = channel
-                    x_values = data[:, channel_x][::self.nth_point]
-                    y_values = data[:, channel_y][::self.nth_point]
+                    fun_return = function(self, data[:, [channel_x, channel_y]])
+                    x_values, y_values = fun_return.T
+
+                    #x_values = x_values[::self.nth_point]
+                    #y_values = y_values[::self.nth_point]
+
                 else:
                     y_values = data[:, channel]
                     fun_return = function(self, y_values)
-                    if type(fun_return) != tuple:
+
+                    if len(fun_return.shape) == 1: # if function returns only 1D array
                         y_values = fun_return[::self.nth_point]
-                        x_values = self.time_arr[::-self.nth_point]
-                    else:
-                        x_values, y_values = fun_return
+                        x_values = self.time_arr[::-self.nth_point] # if time array then do not use function_x
+                    else:  # function returns 2D array (e.g. fft returns freq and amplitude)
+                        x_values, y_values = fun_return.T # expects 2D array to be returned
 
                 curve.setData(x_values, y_values)
+        
 
         # redraw / update plot window
         QtGui.QApplication.processEvents()
@@ -312,6 +361,16 @@ class LDAQ():
             self.win.addLabel('You may close the window.', color='red', size='10pt')
             pg.QtGui.QApplication.exec_()
 
+    def clear_temp_variables(self):
+        """
+        Clears any temporary variables created during the acquisition
+        """
+        for key in self.temp_variables:
+            #print("clearing:", key)
+            del self.__dict__[key]
+        self.temp_variables = []
+
+
 # ------------------------------------------------------------------------------
 #  Prepared plot Functions
 # ------------------------------------------------------------------------------
@@ -320,7 +379,65 @@ def _fun_fft(self, data):
    amp = np.fft.rfft(data) * 2 / len(data)
    freq = np.fft.rfftfreq(len(data), d=1/self.acquisition.sample_rate)
 
-   return freq, np.abs(amp)
+   return np.array([freq, np.abs(amp)]).T
+
+# TODO: write only 1 function for amplitude and phase, implement function arguments (*args)
+
+def _fun_frf_amplitude(self, data):
+    ch1, ch2 = data[-self.max_samples:].T
+    
+    # this code part is necessary for proper creation of new additional variables
+    # used in this function:
+    if not hasattr(self, 'var_H1'):
+        self.var_freq = np.fft.rfftfreq(self.max_samples, d=1/self.acquisition.sample_rate)
+        self.var_H1 = np.zeros(len(self.var_freq))
+        self.var_n  = 0
+        
+        # these variables will be deleted from LDAQ class after acquisition run is stopped: 
+        self.temp_variables.extend(["var_freq", "var_n", "var_H1" ]) 
+
+
+    if len(ch1) == int(self.max_samples):
+        ch1 = np.fft.rfft(ch1)
+        ch2 = np.fft.rfft(ch2)
+        H1 = ch2 / ch1 # frequency response function
+       
+         # FRF averaging:
+        self.var_H1 = (self.var_H1 * self.var_n + H1) / (self.var_n + 1)
+        self.var_n += 1
+
+        return np.array([self.var_freq, np.abs(self.var_H1) ]).T
+    
+    else:
+        return np.array([self.var_freq, np.abs(self.var_H1) ]).T
+
+def _fun_frf_phase(self, data):
+    ch1, ch2 = data[-self.max_samples:].T
+    
+    # this code part is necessary for proper creation of new additional variables
+    # used in this function:
+    if not hasattr(self, 'var_H1_2'):
+        self.var_freq_2 = np.fft.rfftfreq(self.max_samples, d=1/self.acquisition.sample_rate)
+        self.var_H1_2 = np.zeros(len(self.var_freq_2))
+        self.var_n_2  = 0
+        
+        # these variables will be deleted from LDAQ class after acquisition run is stopped: 
+        self.temp_variables.extend(["var_freq_2", "var_n_2", "var_H1_2" ]) 
+
+
+    if len(ch1) == int(self.max_samples):
+        ch1 = np.fft.rfft(ch1)
+        ch2 = np.fft.rfft(ch2)
+        H1 = ch2 / ch1 # frequency response function
+       
+         # FRF averaging:
+        self.var_H1_2 = (self.var_H1_2 * self.var_n_2 + H1) / (self.var_n_2 + 1)
+        self.var_n_2 += 1
+
+        return np.array([self.var_freq_2, 180/np.pi* np.angle(self.var_H1_2) ]).T
+    
+    else:
+        return np.array([self.var_freq_2, 180/np.pi* np.angle(self.var_H1_2) ]).T
 
 
         

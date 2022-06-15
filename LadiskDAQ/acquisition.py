@@ -151,10 +151,12 @@ class NIAcquisition(BaseAcquisition):
 
         self.task_name = task_name
 
-        # TODO: clear task if it exists:
+        # TODO: clear task if it exists
         #try:
             #clear task if it exist 
             # done with  DAQmxClearTask(taskHandle) in Task.py
+            # morš najdt handle pointer od taska in potem z zgornjo funkcijo clearat task
+            # Klemen boš ti ann? :D
         #except:
             # pass
         

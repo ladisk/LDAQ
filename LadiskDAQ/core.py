@@ -150,6 +150,7 @@ class LDAQ():
 
     def run(self):
         print('Press "q" to stop measurement.')
+        print('Press "s" to start measurement manually (without trigger).')
         print('\tWaiting for trigger...', end='')
         self.acquisition_started = False
 
@@ -212,6 +213,9 @@ class LDAQ():
             self.acquisition.stop()
             if self.generation != None:
                 self.generation.stop()
+
+        if keyboard.is_pressed('s'):
+            self.acquisition.Trigger.triggered = True
 
     def _create_plot(self, channels, pos_x, pos_y, label_x="", label_y="", unit_x="", unit_y=""):
         # subplot options:

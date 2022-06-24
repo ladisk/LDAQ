@@ -4,6 +4,9 @@ import pickle
 import datetime
 import time
 
+from PyDAQmx.DAQmxFunctions import *
+from PyDAQmx.Task import Task
+
 from pyTrigger import pyTrigger
 
 from .daqtask import DAQTask
@@ -151,17 +154,14 @@ class NIAcquisition(BaseAcquisition):
 
         self.task_name = task_name
 
-        # TODO: clear task if it exists
-        #try:
-            #clear task if it exist 
-            # done with  DAQmxClearTask(taskHandle) in Task.py
-            # morš najdt handle pointer od taska in potem z zgornjo funkcijo clearat task
-            # Klemen boš ti ann? :D
-        #except:
-            # pass
-        
-        self.Task = DAQTask(self.task_name)
+        try:
+            DAQmxClearTask(taskHandle_acquisition)
+        except:
+            pass
 
+        self.Task = DAQTask(self.task_name)
+        glob_vars = globals()
+        glob_vars['taskHandle_acquisition'] = self.Task.taskHandle
 
         self.channel_names = self.Task.channel_list
         self.sample_rate = self.Task.sample_rate

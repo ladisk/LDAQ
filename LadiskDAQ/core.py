@@ -29,7 +29,7 @@ class LDAQ():
         # store any temporary variables into this list
         self.temp_variables = []
 
-    def configure(self, plot_layout='default', max_time=5.0, nth_point=1, autoclose=False, refresh_interval=0.1):
+    def configure(self, plot_layout='default', max_time=5.0, nth_point=10, autoclose=True, refresh_interval=0.01):
         """Configure the plot window settings.
         
         :param plot_layout: layout of the plots and channels. "default" or dict. Keys of dict are (axis 0, axis 1) of the subplot

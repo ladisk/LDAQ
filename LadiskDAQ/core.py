@@ -29,7 +29,7 @@ class LDAQ():
         # store any temporary variables into this list
         self.temp_variables = []
 
-    def configure(self, plot_layout='default', max_time=5.0, nth_point=1, autoclose=False):
+    def configure(self, plot_layout='default', max_time=5.0, nth_point=1, autoclose=False, refresh_interval=0.1):
         """Configure the plot window settings.
         
         :param plot_layout: layout of the plots and channels. "default" or dict. Keys of dict are (axis 0, axis 1) of the subplot
@@ -145,6 +145,7 @@ class LDAQ():
         self.maxTime = max_time
         self.nth_point = nth_point
         self.autoclose = autoclose
+        self.refresh_interval = refresh_interval
         
         self.max_samples = int(self.maxTime*self.acquisition.sample_rate) # max samples to display on some plots based on self.maxTime        
 
@@ -176,6 +177,8 @@ class LDAQ():
         # while data is being generated and collected:
         while self.is_running():
             self.check_events()
+
+            time.sleep(self.refresh_interval)
 
             # update plot window:
             self.plot_window_update()
@@ -222,7 +225,7 @@ class LDAQ():
         p = self.win.addPlot(row=pos_x, col=pos_y) 
         p.setLabel('bottom', label_x, unit_x)
         p.setLabel('left', label_y, unit_y)
-        p.setDownsampling(mode='subsample', auto=True)
+        # p.setDownsampling(mode='subsample', auto=True)
         p.addLegend()
         p.showGrid(x = True, y = True, alpha = 0.3)  
 
@@ -391,8 +394,9 @@ class LDAQ():
                     fun_return = function(self, data[:, [channel_x, channel_y]])
                     x_values, y_values = fun_return.T
 
-                    #x_values = x_values[::self.nth_point]
-                    #y_values = y_values[::self.nth_point]
+                    if len(y_values) == len(data[:, channel_y]):
+                        x_values = x_values[::self.nth_point]
+                        y_values = y_values[::self.nth_point]
 
                 else:
                     y_values = data[:, channel]
@@ -403,6 +407,9 @@ class LDAQ():
                         x_values = self.time_arr[::-self.nth_point] # if time array then do not use function_x
                     else:  # function returns 2D array (e.g. fft returns freq and amplitude)
                         x_values, y_values = fun_return.T # expects 2D array to be returned
+                        if len(y_values) == len(data[:, channel]):
+                            x_values = x_values[::self.nth_point]
+                            y_values = y_values[::self.nth_point]
 
                 curve.setData(x_values, y_values)
         

@@ -60,6 +60,7 @@ class BaseAcquisition:
         self.set_trigger_instance()
 
         while self.is_running:
+            time.sleep(0.01)
             self.acquire()
 
     def set_trigger(self, level, channel, duration=1, duration_unit='seconds', presamples=100, type='abs'):
@@ -178,7 +179,7 @@ class NIAcquisition(BaseAcquisition):
         return self.clear_task()
 
     def read_data(self):
-        self.Task.acquire()
+        self.Task.acquire(wait_4_all_samples=False)
         return self.Task.data.T
     
     def set_data_source(self):

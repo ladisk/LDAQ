@@ -5,6 +5,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import keyboard
+from beautifultable import BeautifulTable
 
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui
@@ -149,10 +150,23 @@ class LDAQ():
         
         self.max_samples = int(self.maxTime*self.acquisition.sample_rate) # max samples to display on some plots based on self.maxTime        
 
-    def run(self):
-        print('Press "q" to stop measurement.')
-        print('Press "s" to start measurement manually (without trigger).')
-        print('\tWaiting for trigger...', end='')
+    def run(self, verbose=2):
+        """
+        :param verbose: 0 (print nothing), 1 (print status) or 2 (print status and hotkey legend). 
+        """
+        self.verbose = verbose
+        if verbose == 2:
+            table = BeautifulTable()
+            table.rows.append(["q", "Stop the measurement"])
+            table.rows.append(["s", "Start the measurement manually (without trigger)"])
+            table.rows.append(["f", "Freeze the plot during the measurement"])
+            table.rows.append(["Space", "Resume the plot after freeze"])
+            table.columns.header = ["HOTKEY", "DESCRIPTION"]
+            print(table)
+        
+        if self.verbose in [1, 2]:
+            print('\tWaiting for trigger...', end='')
+
         self.acquisition_started = False
 
         thread_list = []
@@ -174,14 +188,23 @@ class LDAQ():
             thread.start()
         time.sleep(0.1)
 
+        FREEZE_PLOT = False
+
         # while data is being generated and collected:
         while self.is_running():
             self.check_events()
 
             time.sleep(self.refresh_interval)
 
+            if keyboard.is_pressed('f'):
+                FREEZE_PLOT = True
+            if keyboard.is_pressed('Space'):
+                FREEZE_PLOT = False
+
             # update plot window:
-            self.plot_window_update()
+            if not FREEZE_PLOT:
+                self.plot_window_update()
+
 
         # after DAQ is completed, join the threads with the main thread:
         for thread in thread_list:
@@ -204,7 +227,8 @@ class LDAQ():
             if self.generation != None:
                 self.generation.stop()
 
-            print('stop.')
+            if self.verbose in [1, 2]:
+                print('stop.')
 
         return running
 
@@ -379,8 +403,9 @@ class LDAQ():
 
         if not self.acquisition_started and self.acquisition.Trigger.triggered:
             self.win.setBackground('lightgreen')
-            print('triggered.')
-            print('\tRecording...', end='')
+            if self.verbose in [1, 2]:
+                print('triggered.') 
+                print('\tRecording...', end='')
             self.acquisition_started = True
 
         for position in self.plot_channel_layout:

@@ -30,7 +30,7 @@ class LDAQ():
         # store any temporary variables into this list
         self.temp_variables = []
 
-    def configure(self, plot_layout='default', max_time=5.0, nth_point=10, autoclose=True, refresh_interval=0.01):
+    def configure(self, plot_layout='default', max_time=5.0, nth_point='auto', autoclose=True, refresh_interval=0.01):
         """Configure the plot window settings.
         
         :param plot_layout: layout of the plots and channels. "default" or dict. Keys of dict are (axis 0, axis 1) of the subplot
@@ -143,10 +143,17 @@ class LDAQ():
                 return np.array([x, y]).T
         """
         self.plot_channel_layout = plot_layout
+        if self.plot_channel_layout == "default":
+            self.plot_channel_layout = {(0, 0):  [i for i in range(len(self.acquisition.channel_names)) ] }
+
         self.maxTime = max_time
-        self.nth_point = nth_point
         self.autoclose = autoclose
         self.refresh_interval = refresh_interval
+
+        if type(nth_point) == int:
+            self.nth_point = nth_point
+        elif nth_point == 'auto':
+            self.nth_point = auto_nth_point(self.plot_channel_layout, max_time, self.acquisition.sample_rate, max_points_to_refresh=1e5)
         
         self.max_samples = int(self.maxTime*self.acquisition.sample_rate) # max samples to display on some plots based on self.maxTime        
 
@@ -297,9 +304,6 @@ class LDAQ():
         self.win = pg.GraphicsLayoutWidget(show=True) # creates plot window
         self.win.setWindowTitle('Measurement Monitoring')
         self.win.resize(800,400)
-
-        if self.plot_channel_layout == "default":
-            self.plot_channel_layout = {(0, 0):  [i for i in range(len(self.acquisition.channel_names)) ] }
 
         # create window layout:
         self.curves_dict = {}
@@ -550,6 +554,25 @@ def load_measurement(name, directory='' ):
     with open(directory+'/' + name, 'rb') as f:
         return pickle.load(f)
 
+
+def auto_nth_point(plot_layout, max_time, sample_rate, max_points_to_refresh=1e5):
+    """
+    Automatically determine the skip interval for drawing points.
+    """
+    plots = 0
+    for key, val in plot_layout.items():
+        if all(type(_) == int or type(_) == tuple for _ in val):
+            plots += len(val)
+        else:
+            plots += 1
+    
+    points_to_refresh = max_time*sample_rate*plots
+    
+    if max_points_to_refresh < points_to_refresh:
+        nth = int(np.ceil(points_to_refresh/max_points_to_refresh))
+    else:
+        nth = 1
+    return nth
         
         
     

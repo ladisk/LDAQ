@@ -190,3 +190,17 @@ Function definition examples:
 
 Supported hotkeys
 -----------------
+
+The supported hotkeys. Press these keys for the desired action while the plot is active.
+
++--------+--------------------------------------------------+
+| HotKey | Action                                           |
++========+==================================================+
+| q      | Stop the measurement                             |
++--------+--------------------------------------------------+
+| s      | Start the measurement manually (without trigger) |
++--------+--------------------------------------------------+
+| f      | Freeze the plot during the measurement           |
++--------+--------------------------------------------------+
+| Space  | Resume the plot after freeze                     |
++--------+--------------------------------------------------+

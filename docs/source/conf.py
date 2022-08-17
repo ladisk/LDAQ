@@ -20,9 +20,9 @@ sys.path.insert(0, os.path.abspath('../..'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'SDyPy project template'
-copyright = '2021, Janko Slavič, Domen Gorjup, Klemen Zaletelj'
-author = 'Janko Slavič, Domen Gorjup, Klemen Zaletelj'
+project = 'Ladisk DAQ'
+copyright = '2022, Tilen Košir, Klemen Zaletelj'
+author = 'Tilen Košir, Klemen Zaletelj'
 
 # The short X.Y version
 version = ''
@@ -106,7 +106,7 @@ html_static_path = ['_static']
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'sdypy_template_project_doc'
+htmlhelp_basename = 'ladisk_daq_doc'
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -133,8 +133,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'sdypy_template_project.tex', 'SDyPy project template project Documentation',
-     'Janko Slavič, Domen Gorjup, Klemen Zaletelj', 'manual'),
+    (master_doc, 'ladisk_DAQ.tex', 'Ladisk DAQ',
+     'Tilen Košir, Klemen Zaletelj', 'manual'),
 ]
 
 
@@ -143,7 +143,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'sdypy_template_project', 'SDyPy project template Documentation',
+    (master_doc, 'Ladisk_DAQ', 'Ladisk_DAQ',
      [author], 1)
 ]
 
@@ -154,8 +154,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'SDyPy project template', 'SDyPy project template Documentation',
-     author, 'SDyPy project template', 'One line description of project.',
+    (master_doc, 'Ladisk_DAQ', 'Ladisk_DAQ Documentation',
+     author, 'Ladisk_DAQ', 'One line description of project.',
      'Miscellaneous'),
 ]
 

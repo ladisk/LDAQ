@@ -16,6 +16,11 @@ To start the acquisition, a trigger must be set:
 
     acq.set_trigger(level=100, channel=0, duration=11, presamples=10)
 
+The acquisition can now be started on its own by running:
+::
+
+    acq.run_acquisition()
+
 Generation
 ----------
 Optionally, the ``generation`` object can also be created:
@@ -24,6 +29,11 @@ Optionally, the ``generation`` object can also be created:
     gen = LadiskDAQ.NIGenerator(output_task_name, signal)
 
 where the ``signal`` is a ``numpy`` array. Each row of the array represents one output channel.
+
+Similar to acquisition, the generatino can be strated on its own by running:
+::
+
+    gen.run_generation()
 
 Visualization, synchronization and triggering
 ---------------------------------------------
@@ -38,7 +48,7 @@ To costumize the visualization:
     ldaq.configure(plot_layout='default', max_time=5.0, nth_point='auto', autoclose=True, refresh_interval=0.01)
 
 see the `docstring <https://github.com/ladisk/LadiskDAQ/blob/84d574cfa8c5ccaab991a13fda5de56bc9509b0e/LadiskDAQ/core.py#L35>`_ for further details.
-For ``plot_layout`` detalis, see :ref:`below<Plot Layout section>`.
+For ``plot_layout`` details, see :ref:`below<Plot Layout section>`.
 
 To start the acquisition and visualization, call:
 ::
@@ -52,10 +62,25 @@ Additionally, the ``gen`` object can also be included to output the signal durin
 
     ldaq = LadiskDAQ.LDAQ(acq, gen)
 
-Again, the ``.run()`` mehtod can be called sequentially.
+Again, the ``.run()`` mehtod can be called sequentially (for example in a for loop).
 
 During the acquisition, some user interaction is supported. See below for the :ref:`supported hotkeys<Hotkeys section>`.
 
+
+Saving the measurement
+----------------------
+After the acquisition is done, the measurement can be saved by calling:
+::
+
+    ldaq.save_measurement(name, root='', save_channels='All', timestamp=True, comment='')
+
+or
+
+::
+
+    acq.save(name, root='', save_channels='All', timestamp=True, comment='')
+
+Both methods are equal, the second one must be used in the acquisition was started on its own (without creating the ``ldaq`` object).
 
 .. _Plot Layout section:
 

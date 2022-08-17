@@ -1,7 +1,9 @@
 import enum
 from msilib.schema import Error
+from re import X
 import time
 import os
+from xml.sax import SAXException
 import numpy as np
 import matplotlib.pyplot as plt
 import keyboard
@@ -509,7 +511,9 @@ def _fun_frf_amplitude(self, data):
     if len(ch1) == int(self.max_samples):
         ch1 = np.fft.rfft(ch1)
         ch2 = np.fft.rfft(ch2)
-        H1 = ch2 / ch1 # frequency response function
+        Sxx = ch1 * np.conj(ch1)
+        Sxy = ch2 * np.conj(ch1)
+        H1 = Sxy / Sxx # frequency response function
        
          # FRF averaging:
         self.var_H1 = (self.var_H1 * self.var_n + H1) / (self.var_n + 1)
@@ -537,7 +541,9 @@ def _fun_frf_phase(self, data):
     if len(ch1) == int(self.max_samples):
         ch1 = np.fft.rfft(ch1)
         ch2 = np.fft.rfft(ch2)
-        H1 = ch2 / ch1 # frequency response function
+        Sxx = ch1 * np.conj(ch1)
+        Sxy = ch2 * np.conj(ch1)
+        H1 = Sxy / Sxx # frequency response function
        
          # FRF averaging:
         self.var_H1_2 = (self.var_H1_2 * self.var_n_2 + H1) / (self.var_n_2 + 1)

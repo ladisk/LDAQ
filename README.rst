@@ -1,4 +1,4 @@
-Basic usage is presented here. For further details, see the documentation.
+Basic usage is presented here. For further details, see the `documentation<https://ladiskdaq.readthedocs.io/en/latest/getting_started.html>`_.
 
 Basic usage
 ===========

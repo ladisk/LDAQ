@@ -22,7 +22,13 @@ INBUILT_FUNCTIONS = ['fft', 'frf_amp', 'frf_phase']
 
 
 class LDAQ():
+    """Visualization and triggering."""
     def __init__(self, acquisition, generation=None):
+        """
+        :param acquisition: object created with one of the acquisition classes.
+        :param generation: optional, object created with one of the generation classes.
+        """
+
         self.acquisition = acquisition
         self.generation  = generation
 

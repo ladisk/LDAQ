@@ -57,7 +57,13 @@ class BaseAcquisition:
             self.stop()
             self.clear_data_source()
 
-    def run_acquisition(self):
+    def run_acquisition(self, run_time=None):
+        """
+        Runs acquisition.
+        :params: run_time - (float) number of seconds for which the acquisition will run. 
+                 If None acquisition runs indefinitely until self.is_running variable is set
+                 False externally (i.e. in a different process)
+        """
         self.is_running = True
 
         self.set_data_source()
@@ -65,9 +71,19 @@ class BaseAcquisition:
         self.plot_data = np.zeros((2, len(self.channel_names)))
         self.set_trigger_instance()
 
-        while self.is_running:
-            time.sleep(0.01)
-            self.acquire()
+        if run_time == None:
+            while self.is_running:
+                time.sleep(0.01)
+                self.acquire()
+        else:
+            time_start = time.time()
+            while self.is_running:  
+                if time_start + run_time < time.time():
+                    self.is_running = False
+
+                time.sleep(0.01)
+                self.acquire()
+
 
     def set_trigger(self, level, channel, duration=1, duration_unit='seconds', presamples=100, type='abs'):
         """Set parameters for triggering the measurement.
@@ -147,7 +163,8 @@ class ADAcquisition(BaseAcquisition):
 class SerialAcquisition(BaseAcquisition):
     """General Purpose Class for Serial Communication"""
     def __init__(self, port, baudrate, byte_sequence, start_bytes=b"\xfa\xfb", end_bytes=b"\n", 
-                       write_bytes=None, channel_names = None, sample_rate=1):
+                       write_start_bytes=None, write_end_bytes=None,
+                       channel_names = None, sample_rate=1, timeout=1):
         """
         Initializes serial communication.
 
@@ -161,8 +178,14 @@ class SerialAcquisition(BaseAcquisition):
                                 supported types: int8, uint8, int16, uint16, int32, uint32
         :param: start_bytes - (bstr) received bytes via serial communication indicating the start of each line
         :param: end_bytes   - (bstr) recieved bytes via serial communication indicating the end of each line
-        :param: write_bytes - (tuple) sequence of b"" strings with bytes to write to initiate/set data transfer or other settings
-                              Writes each encoded bstring with 1ms delay.
+        :param: write_start_bytes - bytes to be written at the beggining of acquisition
+                                    if (list/tuple/byte/bytearray) sequence of b"" strings with bytes to write to initiate/set data transfer or other settings
+                                    Writes each encoded bstring with 10 ms delay.
+                                    if list/tuple, then elements have to be of type byte/bytearray
+        :param: write_end_bytes   - bytes to be written at the beggining of acquisition
+                                    if (list/tuple/byte/bytearray) sequence of b"" strings with bytes to write to initiate/set data transfer or other settings
+                                    Writes each encoded bstring with 10 ms delay.
+                                    if list/tuple, then elements have to be of type byte/bytearray
         :param: sample_rate - approximate sample rate of incoming signal - currently needed only for plot purposes
                                 
                             
@@ -172,9 +195,11 @@ class SerialAcquisition(BaseAcquisition):
         self.port = port
         self.baudrate = baudrate
         self.byte_sequence = byte_sequence
-        self.write_bytes = write_bytes
+        self.start_bytes_write = write_start_bytes
+        self.end_bytes_write   = write_end_bytes
         self.start_bytes = start_bytes
         self.end_bytes = end_bytes
+        self.timeout   = timeout
 
         self.unpack_string = b""
         self.expected_number_of_bytes = 0
@@ -191,8 +216,34 @@ class SerialAcquisition(BaseAcquisition):
         # set default trigger, so the signal will not be trigered:
         self.set_trigger(1e20, 0, duration=600)
 
+    def set_data_source(self):
+        # open terminal:
+        if not hasattr(self, 'ser'):
+            try:
+                self.ser = serial.Serial(port=self.port, baudrate=self.baudrate, 
+                                         timeout=self.timeout)
+            except serial.SerialException:
+                print("Serial port is in use.")
+        elif not self.ser.is_open:
+            self.ser.open()
+            time.sleep(0.3)
+        else:
+            pass 
+        
+        # Send commands over serial:
+        self.write_to_serial(self.start_bytes_write)
+        time.sleep(0.1)
+
+        self.ser.reset_input_buffer() # clears previous data
+        self.buffer = b"" # reset class buffer
+
     def clear_data_source(self):
-        return self.ser.close()
+        #self.ser.reset_input_buffer()
+        #self.ser.reset_output_buffer()
+        time.sleep(0.01)
+        self.write_to_serial(self.end_bytes_write)
+        time.sleep(0.1)
+        self.ser.close()
 
     def read_data(self):
         # 1) read all data from serial
@@ -220,27 +271,6 @@ class SerialAcquisition(BaseAcquisition):
         self.buffer = self.end_bytes + self.start_bytes + parsed_lines[-1]
 
         return data
-    
-    def set_data_source(self):
-        if not hasattr(self, 'ser'):
-            try:
-                self.ser = serial.Serial(port=self.port, baudrate=self.baudrate)
-            except serial.SerialException:
-                print("Serial port is in use.")
-        elif not self.ser.is_open:
-            self.ser.open()
-        else:
-            pass 
-
-        if self.write_bytes is None:
-            pass
-        else:
-            #TODO: write self.write_bytes sequence
-            pass
-
-        self.ser.read_all() # clears previous data
-        self.ser.read_all()
-        self.ser.read_all()
 
     def set_unpack_data_settings(self):
         """
@@ -279,6 +309,32 @@ class SerialAcquisition(BaseAcquisition):
             else:
                 self.channel_names = self.channel_names
 
+    def write_to_serial(self, write_bytes):
+        """
+        Writes data to serial port.
+
+        :param: write_start_bytes - bytes to be written at the beggining of acquisition
+                                if (list/tuple/byte/bytearray) sequence of b"" strings with bytes to write to initiate/set data transfer or other settings
+                                Writes each encoded bstring with 10 ms delay.
+                                if list/tuple, then elements have to be of type byte/bytearray
+        """
+        if write_bytes is None:
+            pass
+        else:
+            if isinstance(write_bytes, list):
+                if all(isinstance(b, (bytes, bytearray)) for b in write_bytes):
+                    for byte in write_bytes:
+                        self.ser.write(byte)
+                        time.sleep(0.01)
+                else:
+                    raise TypeError("write_bytes have to be bytes or bytearray type.")
+
+            elif isinstance(write_bytes, (bytes, bytearray)):
+                self.ser.write(write_bytes)
+                time.sleep(0.01)
+            else:
+                raise TypeError("write_bytes have to be bytes or bytearray type.")
+
 
 class NIAcquisition(BaseAcquisition):
     """National Instruments Acquisition class."""
@@ -314,7 +370,7 @@ class NIAcquisition(BaseAcquisition):
         del self.Task
 
     def clear_data_source(self):
-        return self.clear_task()
+        self.clear_task()
 
     def read_data(self):
         self.Task.acquire(wait_4_all_samples=False)

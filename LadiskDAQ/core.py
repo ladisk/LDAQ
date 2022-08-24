@@ -458,6 +458,7 @@ class LDAQ():
         """
         Waits for plot window to be closed.
         """
+        time.sleep(0.5)
         if self.autoclose:
             self.win.close()
         else:

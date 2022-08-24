@@ -238,8 +238,6 @@ class SerialAcquisition(BaseAcquisition):
         self.buffer = b"" # reset class buffer
 
     def clear_data_source(self):
-        #self.ser.reset_input_buffer()
-        #self.ser.reset_output_buffer()
         time.sleep(0.01)
         self.write_to_serial(self.end_bytes_write)
         time.sleep(0.1)

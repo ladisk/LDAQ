@@ -23,7 +23,7 @@ INBUILT_FUNCTIONS = ['fft', 'frf_amp', 'frf_phase']
 
 class LDAQ():
     """Visualization and triggering."""
-    def __init__(self, acquisition, generation=None):
+    def __init__(self, acquisition, generation=None, control=None):
         """
         :param acquisition: object created with one of the acquisition classes.
         :param generation: optional, object created with one of the generation classes.
@@ -31,6 +31,14 @@ class LDAQ():
 
         self.acquisition = acquisition
         self.generation  = generation
+
+        if control:
+            if self.generation:
+                self.control = control(self.acquisition, self.generation)
+            else:    
+                self.control = control(self.acquisition)
+        else:
+            self.control = None
 
         # plot window settings:
         self.configure()
@@ -185,7 +193,7 @@ class LDAQ():
         self.acquisition_started = False
 
         thread_list = []
-        
+
         # Make separate threads for data acquisition
         thread_acquisition = threading.Thread(target=self.acquisition.run_acquisition )
         thread_list.append(thread_acquisition)
@@ -194,6 +202,10 @@ class LDAQ():
         if self.generation != None:
             thread_generation  = threading.Thread(target=self.generation.run_generation )
             thread_list.append(thread_generation)
+
+        if self.control:
+            thread_control = threading.Thread(target=self.control.run)
+            thread_list.append(thread_control)
 
         # initialize plot window:
         self.plot_window_init()

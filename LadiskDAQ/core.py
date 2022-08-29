@@ -192,53 +192,41 @@ class LDAQ():
 
         self.acquisition_started = False
 
-        thread_list = []
+        self.thread_list = []
 
         # Make separate threads for data acquisition
         thread_acquisition = threading.Thread(target=self.acquisition.run_acquisition )
-        thread_list.append(thread_acquisition)
+        self.thread_list.append(thread_acquisition)
 
         # If generation is present, create generation thread
         if self.generation != None:
             thread_generation  = threading.Thread(target=self.generation.run_generation )
-            thread_list.append(thread_generation)
+            self.thread_list.append(thread_generation)
 
         if self.control:
             thread_control = threading.Thread(target=self.control.run)
-            thread_list.append(thread_control)
+            self.thread_list.append(thread_control)
 
         # initialize plot window:
         self.plot_window_init()
 
+        self.FREEZE_PLOT = False
+
         # start both threads:
-        for thread in thread_list:
+        for thread in self.thread_list:
             thread.start()
         time.sleep(0.1)
 
-        FREEZE_PLOT = False
-
         # while data is being generated and collected:
         while self.is_running():
-            self.check_events()
-
             time.sleep(self.refresh_interval)
 
-            if keyboard.is_pressed('f'):
-                FREEZE_PLOT = True
-            if keyboard.is_pressed('Space'):
-                FREEZE_PLOT = False
+            self.check_events()
 
             # update plot window:
-            if not FREEZE_PLOT:
+            if not self.FREEZE_PLOT:
                 self.plot_window_update()
 
-
-        # after DAQ is completed, join the threads with the main thread:
-        for thread in thread_list:
-            thread.join()
-
-        self.plot_window_exit() # waits for plot window to be closed.
-        self.clear_temp_variables()
 
     def is_running(self):
         """
@@ -256,6 +244,13 @@ class LDAQ():
 
             if self.verbose in [1, 2]:
                 print('stop.')
+            
+            # after DAQ is completed, join the threads with the main thread:
+            for thread in self.thread_list:
+                thread.join()
+
+            self.plot_window_exit() # waits for plot window to be closed.
+            self.clear_temp_variables()
 
         return running
 
@@ -267,6 +262,12 @@ class LDAQ():
             self.acquisition.stop()
             if self.generation != None:
                 self.generation.stop()
+        
+        if keyboard.is_pressed('f'):
+            self.FREEZE_PLOT = True
+
+        if keyboard.is_pressed('Space'):
+            self.FREEZE_PLOT = False
 
         if keyboard.is_pressed('s'):
             self.acquisition.Trigger.triggered = True

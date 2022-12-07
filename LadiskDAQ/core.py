@@ -46,7 +46,7 @@ class LDAQ():
         # store any temporary variables into this list
         self.temp_variables = []
 
-    def configure(self, plot_layout='default', max_time=5.0, nth_point='auto', autoclose=True, refresh_interval=0.01):
+    def configure(self, plot_layout='default', max_time=5.0, nth_point='auto', autoclose=True, refresh_interval=0.01, show_live_plot=True):
         """Configure the plot window settings.
         
         :param plot_layout: layout of the plots and channels. "default" or dict. Keys of dict are (axis 0, axis 1) of the subplot
@@ -158,6 +158,7 @@ class LDAQ():
             else:
                 return np.array([x, y]).T
         """
+        self.show_live_plot = show_live_plot
         self.plot_channel_layout = plot_layout
         if self.plot_channel_layout == "default":
             self.plot_channel_layout = {(0, 0):  [i for i in range(len(self.acquisition.channel_names)) ] }
@@ -178,6 +179,9 @@ class LDAQ():
         :param verbose: 0 (print nothing), 1 (print status) or 2 (print status and hotkey legend). 
         """
         self.verbose = verbose
+        if not self.show_live_plot:
+            self.verbose = 2
+
         if verbose == 2:
             table = BeautifulTable()
             table.rows.append(["q", "Stop the measurement"])
@@ -208,7 +212,8 @@ class LDAQ():
             self.thread_list.append(thread_control)
 
         # initialize plot window:
-        self.plot_window_init()
+        if self.show_live_plot:
+            self.plot_window_init()
 
         self.FREEZE_PLOT = False
 
@@ -224,8 +229,13 @@ class LDAQ():
             self.check_events()
 
             # update plot window:
-            if not self.FREEZE_PLOT:
+            if not self.FREEZE_PLOT and self.show_live_plot:
                 self.plot_window_update()
+            else:
+                if not self.acquisition_started and self.acquisition.Trigger.triggered:
+                    print('triggered.') 
+                    print('\tRecording...', end='')
+                    self.acquisition_started = True
 
 
     def is_running(self):
@@ -249,7 +259,8 @@ class LDAQ():
             for thread in self.thread_list:
                 thread.join()
 
-            self.plot_window_exit() # waits for plot window to be closed.
+            if self.show_live_plot:
+                self.plot_window_exit() # waits for plot window to be closed.
             self.clear_temp_variables()
 
         return running

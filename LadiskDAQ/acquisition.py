@@ -131,6 +131,9 @@ class BaseAcquisition:
         :param timestamp: include timestamp before 'filename'
         :param comment: commentary on the saved file
         """
+        if not os.path.exists(root):
+            os.mkdir(root)
+
         self.data_dict = {
             'data': self.data,
             'channel_names': self.channel_names,

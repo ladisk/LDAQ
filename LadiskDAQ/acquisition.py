@@ -186,9 +186,8 @@ class SerialAcquisition(BaseAcquisition):
                                     if (list/tuple/byte/bytearray) sequence of b"" strings with bytes to write to initiate/set data transfer or other settings
                                     Writes each encoded bstring with 10 ms delay.
                                     if list/tuple, then elements have to be of type byte/bytearray
-        :param: sample_rate - approximate sample rate of incoming signal - currently needed only for plot purposes
-                                
-                            
+        :param: sample_rate - approximate sample rate of incoming signal - currently needed only for plot purposes                   
+                           
         """
         super().__init__()
 
@@ -246,7 +245,7 @@ class SerialAcquisition(BaseAcquisition):
     def read_data(self):
         # 1) read all data from serial
         self.buffer += self.ser.read_all()
-
+        #print(self.buffer)
         # 2) split data into lines
         parsed_lines = self.buffer.split(self.end_bytes + self.start_bytes)
         if len(parsed_lines) == 1 or len(parsed_lines) == 0: # not enough data
@@ -281,6 +280,7 @@ class SerialAcquisition(BaseAcquisition):
             "int16":  ("h", 2),
             "uint32": ("L", 4),
             "int32":  ("l", 4),
+            "float":  ("f", 4)
         }
 
         self.unpack_string = "<" # order of several bytes for 1 variable (see struct library)
@@ -294,6 +294,162 @@ class SerialAcquisition(BaseAcquisition):
                 self.n_channels += 1
 
         return self.unpack_string
+
+    def set_channel_names(self):
+        """
+        Sets default channel names if none were passed to the class.
+        """
+        if self.channel_names is None:
+            self.channel_names = [f"channel {i+1}" for i in range(self.n_channels)]
+        else:
+            if len(self.channel_names) != self.n_channels:
+                self.channel_names = [f"channel {i+1}" for i in range(self.n_channels)]
+            else:
+                self.channel_names = self.channel_names
+
+    def write_to_serial(self, write_bytes):
+        """
+        Writes data to serial port.
+
+        :param: write_start_bytes - bytes to be written at the beggining of acquisition
+                                if (list/tuple/byte/bytearray) sequence of b"" strings with bytes to write to initiate/set data transfer or other settings
+                                Writes each encoded bstring with 10 ms delay.
+                                if list/tuple, then elements have to be of type byte/bytearray
+        """
+        if write_bytes is None:
+            pass
+        else:
+            if isinstance(write_bytes, list):
+                if all(isinstance(b, (bytes, bytearray)) for b in write_bytes):
+                    for byte in write_bytes:
+                        self.ser.write(byte)
+                        time.sleep(0.01)
+                else:
+                    raise TypeError("write_bytes have to be bytes or bytearray type.")
+
+            elif isinstance(write_bytes, (bytes, bytearray)):
+                self.ser.write(write_bytes)
+                time.sleep(0.01)
+            else:
+                raise TypeError("write_bytes have to be bytes or bytearray type.")
+
+
+class SerialAcquisitionSimple(BaseAcquisition):
+    """General Purpose Class for Serial Communication where incoming information is
+    processed as string
+    TODO: fully test this class.
+    """
+    def __init__(self, port, baudrate, n_channels=1, delim=b",", start_char=b"", end_char=b"\r\n", 
+                       write_start_char=None, write_end_char=None,
+                       channel_names = None, sample_rate=1, timeout=1,
+                       add_time_channel=True):
+        """
+        Initializes serial communication.
+
+        :param: port - (str) serial port (i.e. "COM1")
+        :param: baudrate - (int) baudrate for serial communication
+        :param: byte_sequence - (tuple) data sequence in each recived line via serial communication
+                                example: (("int16", 2), ("int32", 2), ("uint16", 3))
+                                explanations: line consists of 2 16bit signed intigers, followed by 
+                                2 signed 32bit intigers, followed by 3 unsigned 16bit intigers.
+
+                                supported types: int8, uint8, int16, uint16, int32, uint32
+        :param: start_bytes - (bstr) received bytes via serial communication indicating the start of each line
+        :param: end_bytes   - (bstr) recieved bytes via serial communication indicating the end of each line
+        :param: write_start_bytes - bytes to be written at the beggining of acquisition
+                                    if (list/tuple/byte/bytearray) sequence of b"" strings with bytes to write to initiate/set data transfer or other settings
+                                    Writes each encoded bstring with 10 ms delay.
+                                    if list/tuple, then elements have to be of type byte/bytearray
+        :param: write_end_bytes   - bytes to be written at the beggining of acquisition
+                                    if (list/tuple/byte/bytearray) sequence of b"" strings with bytes to write to initiate/set data transfer or other settings
+                                    Writes each encoded bstring with 10 ms delay.
+                                    if list/tuple, then elements have to be of type byte/bytearray
+        :param: sample_rate - approximate sample rate of incoming signal - currently needed only for plot purposes                   
+                           
+        """
+        super().__init__()
+
+        self.port = port
+        self.baudrate = baudrate
+        self.delim = delim
+        self.start_char_write = write_start_char
+        self.end_char_write   = write_end_char
+        self.start_char = start_char
+        self.end_char   = end_char
+        self.timeout    = timeout
+
+        self.unpack_string = b""
+        self.n_channels = n_channels
+        self.channel_names = channel_names
+
+        self.set_channel_names()        # sets channel names if none were given to the class
+        self.set_data_source()          # initializes serial connection
+    
+        self.sample_rate = sample_rate   # TODO: estimate sample_rate  automatically
+        self.buffer = b""                # buffer to which recieved data is added
+
+        # set default trigger, so the signal will not be trigered:
+        self.set_trigger(1e20, 0, duration=600)
+
+    def set_data_source(self):
+        # open terminal:
+        if not hasattr(self, 'ser'):
+            try:
+                self.ser = serial.Serial(port=self.port, baudrate=self.baudrate, 
+                                         timeout=self.timeout)
+            except serial.SerialException:
+                print("Serial port is in use.")
+        elif not self.ser.is_open:
+            self.ser.open()
+            time.sleep(0.3)
+        else:
+            pass 
+        
+        # Send commands over serial:
+        self.write_to_serial(self.start_char_write)
+        time.sleep(0.1)
+
+        self.ser.reset_input_buffer() # clears previous data
+        self.buffer = b"" # reset class buffer
+
+    def clear_data_source(self):
+        time.sleep(0.01)
+        self.write_to_serial(self.end_char_write)
+        time.sleep(0.1)
+        self.ser.close()
+
+    def read_data(self):
+        # 1) read all data from serial
+        incoming_data = self.ser.read_all()
+        #print(incoming_data)
+        self.buffer += incoming_data
+        #print(self.buffer)
+        # 2) split data into lines
+        parsed_lines = self.buffer.split(self.end_char + self.start_char)
+        if len(parsed_lines) == 1 or len(parsed_lines) == 0: # not enough data
+            return np.array([]).reshape(-1, self.n_channels)
+        
+        # 3) decode full lines, convert data to numpy array
+        data = []
+        for line in parsed_lines[:-1]: # last element probably does not contain all data
+            line_split = [l for l in line.split(self.delim) if len(l) > 0 ]
+            if len(line_split) == self.n_channels:
+                try:
+                    line_decoded = [float(s) for s in line_split if len(s)>0]
+                    data.append(line_decoded)
+                except:
+                    pass
+            else:
+                #print(f"Expected nr. of bytes {self.expected_number_of_bytes}, line contains {len(line)}")
+                pass
+        data = np.array(data)
+        if len(data) == 0:
+            data = data.reshape(-1, self.n_channels)
+
+        # 4) reset buffer with remaninig bytes:
+        self.buffer = self.end_char + self.start_char + parsed_lines[-1]
+
+        return data
 
     def set_channel_names(self):
         """

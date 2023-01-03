@@ -162,8 +162,8 @@ class LDAQ():
         if self.plot_channel_layout == "default":
             self.plot_channel_layout = {(0, 0):  [i for i in range(len(self.acquisition.channel_names)) ] }
 
-        self.maxTime = max_time
-        self.autoclose = autoclose
+        self.maxTime          = max_time
+        self.autoclose        = autoclose
         self.refresh_interval = refresh_interval
 
         if type(nth_point) == int:
@@ -221,7 +221,7 @@ class LDAQ():
         while self.is_running():
             time.sleep(self.refresh_interval)
 
-            self.check_events()
+            self._check_events()
 
             # update plot window:
             if not self.FREEZE_PLOT:
@@ -254,7 +254,7 @@ class LDAQ():
 
         return running
 
-    def check_events(self):
+    def _check_events(self):
         """
         Function that would disable DAQ, for example keyboard presses
         """
@@ -271,6 +271,22 @@ class LDAQ():
 
         if keyboard.is_pressed('s'):
             self.acquisition.Trigger.triggered = True
+            
+        if hasattr(self, "additional_check_functions"):
+            for fun in self.additional_check_functions:
+                if fun(self):
+                    self.acquisition.stop()
+        
+    
+    def add_check_events(self, *args):
+        """
+        Takes functions that takes only "self" argument and returns True/False. If any of the provided functions
+        is True, the acquisition will be stopped. Each time this function is called, the previous additional
+        check functions are erased.
+        """
+        self.additional_check_functions = []
+        for fun in args:
+            self.additional_check_functions.append(fun)
 
     def _create_plot(self, channels, pos_x, pos_y, label_x="", label_y="", unit_x="", unit_y=""):
         # subplot options:

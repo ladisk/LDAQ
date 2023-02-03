@@ -10,7 +10,7 @@ import keyboard
 from beautifultable import BeautifulTable
 
 import pyqtgraph as pg
-from pyqtgraph.Qt import QtCore, QtGui
+from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
 import sys
 
 import threading
@@ -492,7 +492,7 @@ class LDAQ():
         
 
         # redraw / update plot window
-        QtGui.QApplication.processEvents()
+        QtWidgets.QApplication.processEvents()
 
     def plot_window_exit(self):
         """
@@ -504,7 +504,7 @@ class LDAQ():
         else:
             print("Please close monitor window.") # TODO: print that into graph
             self.win.addLabel('You may close the window.', color='red', size='10pt')
-            pg.QtGui.QApplication.exec_()
+            pg.QtWidgets.QApplication.exec_()
 
     def clear_temp_variables(self):
         """

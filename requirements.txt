@@ -3,7 +3,7 @@ numpy>=1.11.0
 scipy>=1.2.0
 matplotlib>=3.0.0
 tqdm>=4.25.0
-pyqtgraph==0.12.3 # later versions have a problem with QApplication
+pyqtgraph
 PyQt5>=5.15.6
 beautifultable>=1.1.0
 keyboard

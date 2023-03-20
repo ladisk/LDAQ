@@ -228,13 +228,13 @@ class SerialAcquisition(BaseAcquisition):
                 print("Serial port is in use.")
         elif not self.ser.is_open:
             self.ser.open()
-            time.sleep(0.3)
+            time.sleep(1.0)
         else:
             pass 
         
         # Send commands over serial:
         self.write_to_serial(self.start_bytes_write)
-        time.sleep(0.1)
+        time.sleep(0.5)
 
         self.ser.reset_input_buffer() # clears previous data
         self.buffer = b"" # reset class buffer

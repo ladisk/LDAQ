@@ -32,6 +32,8 @@ class Core():
         self.acquisitions  = acquisitions if isinstance(acquisitions,list ) else [acquisitions]
         self.generations   = generations  if isinstance(generations, list ) else [generations]
         self.controls      = controls     if isinstance(controls,    list ) else [controls]
+        
+        self.FREEZE_PLOT = False
 
     def synchronize_acquisitions(self):
         """
@@ -50,18 +52,23 @@ class Core():
         """
         self.verbose  = verbose
         self.run_time = run_time
-
+        self.is_running_global = True
+        
+        self.keyboard_hotkeys_setup()
         if verbose == 2:
             self._print_table()
         
         if self.verbose in [1, 2]:
             print('\tWaiting for trigger...', end='')
 
+        self.lock = threading.Lock() # for locking a thread if needed.
         self.triggered_globally = False
         self.thread_list = []
 
         # Make separate threads for data acquisition
         for acquisition in self.acquisitions:
+            # update triggers from acquisition to matche acquired samples to run_time:
+            acquisition.update_trigger(duration=self.run_time, duration_unit="seconds") 
             thread_acquisition = threading.Thread(target=acquisition.run_acquisition )
             self.thread_list.append(thread_acquisition)
 
@@ -74,115 +81,125 @@ class Core():
             thread_control = threading.Thread(target=control.run)
             self.thread_list.append(thread_control)
 
+        # check events:
+        thread_check_events = threading.Thread(target=self.check_events)
+        self.thread_list.append(thread_check_events)
+            
         # start all threads:
         for thread in self.thread_list:
             thread.start()
-        time.sleep(0.1)
+        time.sleep(0.2)
         
-        self.refresh_interval = 0.05 # update everything
-        self.run_time_start   = time.time()
-        while self.is_running():
-            time.sleep(self.refresh_interval)
-
-            self.check_events()   
-
-    def is_running(self):
-        """
-        Checks if all acquisition and generation threads are running.
-        """
-        acquisition_running = True
-        for acquisition in self.acquisitions:
-            if acquisition.is_running:
-                pass
-            else:
-                acquisition_running = False
-                break
-                
-        generation_running = True
-        for generation in self.generations:
-            if generation.is_running:
-                pass
-            else:
-                generation_running = False
-                break
-           
-        running = acquisition_running and generation_running
-        
-        # if run_time is set, track run time duration:
-        if (self.run_time is not None) and (running) and (self.triggered_globally):
-            run_time_current = time.time() - self.run_time_start
-            if run_time_current >= self.run_time:
-                running = False 
-        
-        if not running:
-            for acquisition in self.acquisitions:
-                acquisition.stop()
+        # Main Loop:
+        while self.is_running_global: #self.is_running():
+            time.sleep(0.5) 
             
-            for generation in self.generations:
-                generation.stop()
-
-            if self.verbose in [1, 2]:
-                print('stop.')
+        # on exit:
+        self.stop_acquisition_and_generation()
+        
+        for thread in self.thread_list:
+            thread.join()
             
-            for thread in self.thread_list:
-                thread.join()
-                
-        return running
+        if self.verbose in [1, 2]:
+            print('Measurement finished.')
+            
+        self.keyboard_hotkeys_remove()
 
     def check_events(self):
         """
-        Function that would disable DAQ, for example keyboard presses
+        Checks for:
+        - if all acquisition and generation sources are running. If one of them is not, then measurement terminated
+        - if any acquisition source has been triggered
+        - if any additional check functions added with 'add_check_events()' return True. If so, measurement is terminated
+        
+        Executed in a separate thread.
         """
-        # check if any of acquisition sources have been trigered and trigger other sources:
-        if not self.triggered_globally:
+        while self.is_running_global:
+            # Check if all acquisition sources are running:
+            acquisition_running = True
             for acquisition in self.acquisitions:
-                if acquisition.is_triggered():
-                    for acquisition in self.acquisitions:
-                        
-                        acquisition.acquire() # acquire data to flush data!
-                        acquisition.trigger() # trigger acquisition source
-                        acquisition.N_acquired_samples = 0 # reset count of acquired data points
-                        
-                    self.triggered_globally = True
-                    self.run_time_start = time.time()
-                    
-                    print('triggered.') 
-                    print('\tRecording...', end='') 
-                    break
-                else:
+                if acquisition.is_running:
                     pass
-        
-        # keyboard presses:
-        if keyboard.is_pressed('q'):
-            for acquisition in self.acquisitions:
-                acquisition.stop()
+                else:
+                    acquisition_running = False
+                    break
             
+            # Check if all generation sources are running:       
+            generation_running = True
             for generation in self.generations:
-                generation.stop()
-        
-        if keyboard.is_pressed('f'):
-            self.FREEZE_PLOT = True # TODO: currently no visualization
-
-        if keyboard.is_pressed('Space'):
-            self.FREEZE_PLOT = False # TODO: currently no visualization
-
-        if keyboard.is_pressed('s'):
-            for acquisition in self.acquisitions:
-                acquisition.trigger() 
-                
-        # additional functionalities added with 'add_check_events()' method:   
-        if hasattr(self, "additional_check_functions"):
-            for fun in self.additional_check_functions:
-                if fun(self):
+                if generation.is_running:
+                    pass
+                else:
+                    generation_running = False
+                    break
+            self.is_running_global = acquisition_running and generation_running
+            
+            # Check if any acquisition sources are triggered:
+            self.lock.acquire() 
+            try:
+                if not self.triggered_globally: # only if measurement is not already running
                     for acquisition in self.acquisitions:
-                        acquisition.stop()            
+                        if acquisition.is_triggered():
+                            self.start_acquisition()
+                            break
+                        else:
+                            pass
+                        
+            finally:
+                self.lock.release()
+                            
+            # additional functionalities added with 'add_check_events()' method:   
+            if hasattr(self, "additional_check_functions"):
+                for fun in self.additional_check_functions:
+                    if fun(self):
+                        self.stop_acquisition_and_generation()
+                                                
+            time.sleep(0.01)      
+
+    def keyboard_hotkeys_setup(self):
+        """Adds keyboard hotkeys for interaction.
+        """
+        id1 = keyboard.add_hotkey('s', self.start_acquisition)
+        id2 = keyboard.add_hotkey('q', self.stop_acquisition_and_generation)
+        id3 = keyboard.add_hotkey('f', self.freeze_plot_toggle)
+        self.hotkey_ids = [id1, id2, id3]
+        
+    def keyboard_hotkeys_remove(self):
+        """Removes all keyboard hotkeys defined by 'keyboard_hotkeys_setup'.
+        """
+        for id in self.hotkey_ids:
+            keyboard.remove_hotkey(id)
+            
+    def stop_acquisition_and_generation(self):
+        """Stops all acquisition and generation sources.
+        """
+        for acquisition in self.acquisitions:
+            acquisition.stop()
+        for generation in self.generations:
+            generation.stop()
+            
+    def start_acquisition(self):
+        """Starts acquisitions sources.
+        """
+        for acquisition in self.acquisitions:
+            acquisition.clear_buffer()
+            acquisition.trigger()
+        self.triggered_globally = True
+        print('triggered.') 
+        print('\tRecording...', end='') 
+            
+    def freeze_plot_toggle(self):
+        if self.FREEZE_PLOT == True:
+             self.FREEZE_PLOT = False
+        else:
+            self.FREEZE_PLOT = True
+        
 
     def _print_table(self):
         table = BeautifulTable()
+        table.rows.append(["s", "Start the measurement manually (ignore trigger)"])
         table.rows.append(["q", "Stop the measurement"])
-        table.rows.append(["s", "Start the measurement manually (without trigger)"])
-        table.rows.append(["f", "Freeze the plot during the measurement"])
-        table.rows.append(["Space", "Resume the plot after freeze"])
+        table.rows.append(["f", "Freeze the plot (toggle)"])
         table.columns.header = ["HOTKEY", "DESCRIPTION"]
         print(table)
         

@@ -17,10 +17,207 @@ import threading
 import types
 import pickle
 
-AXIS_SCALES = ['logx', 'logy']
+AXIS_SCALES       = ['logx', 'logy']
 INBUILT_FUNCTIONS = ['fft', 'frf_amp', 'frf_phase']
 
 
+class Core():
+    """TODO: this core class should sync the data and provide proper format for visualization!!!
+    """
+    def __init__(self, acquisitions, generations=None, controls=None):
+        acquisitions = [] if acquisitions is None else acquisitions
+        generations  = [] if generations is None else generations
+        controls     = [] if controls is None else controls
+        
+        self.acquisitions  = acquisitions if isinstance(acquisitions,list ) else [acquisitions]
+        self.generations   = generations  if isinstance(generations, list ) else [generations]
+        self.controls      = controls     if isinstance(controls,    list ) else [controls]
+
+    def synchronize_acquisitions(self):
+        """
+        TODO: maybe there is a way to sync all acquisition sources.
+        Maybe this function can be application specific.
+        For example, maybe functional generator is attached to all sources at the same time
+        and time shifts are calcualted.
+        """
+        pass
+            
+    def run(self, run_time=None, verbose=2):
+        """
+        :param run_time: measurement duration in seconds, from trigger event of any of the sources. 
+                         If None the measurement runs for ever until manually stopped.
+        :param verbose: 0 (print nothing), 1 (print status) or 2 (print status and hotkey legend). 
+        """
+        self.verbose  = verbose
+        self.run_time = run_time
+
+        if verbose == 2:
+            self._print_table()
+        
+        if self.verbose in [1, 2]:
+            print('\tWaiting for trigger...', end='')
+
+        self.triggered_globally = False
+        self.thread_list = []
+
+        # Make separate threads for data acquisition
+        for acquisition in self.acquisitions:
+            thread_acquisition = threading.Thread(target=acquisition.run_acquisition )
+            self.thread_list.append(thread_acquisition)
+
+        # If generation is present, create generation thread
+        for generation in self.generations:
+            thread_generation  = threading.Thread(target=generation.run_generation )
+            self.thread_list.append(thread_generation)
+
+        for control in self.controls:
+            thread_control = threading.Thread(target=control.run)
+            self.thread_list.append(thread_control)
+
+        # start all threads:
+        for thread in self.thread_list:
+            thread.start()
+        time.sleep(0.1)
+        
+        self.refresh_interval = 0.05 # update everything
+        self.run_time_start   = time.time()
+        while self.is_running():
+            time.sleep(self.refresh_interval)
+
+            self.check_events()   
+
+    def is_running(self):
+        """
+        Checks if all acquisition and generation threads are running.
+        """
+        acquisition_running = True
+        for acquisition in self.acquisitions:
+            if acquisition.is_running:
+                pass
+            else:
+                acquisition_running = False
+                break
+                
+        generation_running = True
+        for generation in self.generations:
+            if generation.is_running:
+                pass
+            else:
+                generation_running = False
+                break
+           
+        running = acquisition_running and generation_running
+        
+        # if run_time is set, track run time duration:
+        if (self.run_time is not None) and (running) and (self.triggered_globally):
+            run_time_current = time.time() - self.run_time_start
+            if run_time_current >= self.run_time:
+                running = False 
+        
+        if not running:
+            for acquisition in self.acquisitions:
+                acquisition.stop()
+            
+            for generation in self.generations:
+                generation.stop()
+
+            if self.verbose in [1, 2]:
+                print('stop.')
+            
+            for thread in self.thread_list:
+                thread.join()
+                
+        return running
+
+    def check_events(self):
+        """
+        Function that would disable DAQ, for example keyboard presses
+        """
+        # check if any of acquisition sources have been trigered and trigger other sources:
+        if not self.triggered_globally:
+            for acquisition in self.acquisitions:
+                if acquisition.is_triggered():
+                    for acquisition in self.acquisitions:
+                        
+                        acquisition.acquire() # acquire data to flush data!
+                        acquisition.trigger() # trigger acquisition source
+                        acquisition.N_acquired_samples = 0 # reset count of acquired data points
+                        
+                    self.triggered_globally = True
+                    self.run_time_start = time.time()
+                    
+                    print('triggered.') 
+                    print('\tRecording...', end='') 
+                    break
+                else:
+                    pass
+        
+        # keyboard presses:
+        if keyboard.is_pressed('q'):
+            for acquisition in self.acquisitions:
+                acquisition.stop()
+            
+            for generation in self.generations:
+                generation.stop()
+        
+        if keyboard.is_pressed('f'):
+            self.FREEZE_PLOT = True # TODO: currently no visualization
+
+        if keyboard.is_pressed('Space'):
+            self.FREEZE_PLOT = False # TODO: currently no visualization
+
+        if keyboard.is_pressed('s'):
+            for acquisition in self.acquisitions:
+                acquisition.trigger() 
+                
+        # additional functionalities added with 'add_check_events()' method:   
+        if hasattr(self, "additional_check_functions"):
+            for fun in self.additional_check_functions:
+                if fun(self):
+                    for acquisition in self.acquisitions:
+                        acquisition.stop()            
+
+    def _print_table(self):
+        table = BeautifulTable()
+        table.rows.append(["q", "Stop the measurement"])
+        table.rows.append(["s", "Start the measurement manually (without trigger)"])
+        table.rows.append(["f", "Freeze the plot during the measurement"])
+        table.rows.append(["Space", "Resume the plot after freeze"])
+        table.columns.header = ["HOTKEY", "DESCRIPTION"]
+        print(table)
+        
+    def add_check_events(self, *args):
+        """
+        Takes functions that takes only "self" argument and returns True/False. If any of the provided functions
+        is True, the acquisition will be stopped. Each time this function is called, the previous additional
+        check functions are erased.
+        """
+        self.additional_check_functions = []
+        for fun in args:
+            self.additional_check_functions.append(fun)
+        
+    def save_measurement(self, name, root='', save_channels='All', 
+                         timestamp=True, comment=''):
+        """Save acquired data.
+        
+        :param name: filename
+        :param root: directory to save to
+        :param save_channels: channel indices that are save. Defaults to 'All'.
+        :param timestamp: include timestamp before 'filename'
+        :param comment: commentary on the saved file
+        """
+        self.acquisition.save( name, root, save_channels, timestamp, comment)
+
+            
+
+class Visualization:
+    def __init__(self, plot_config=None):
+        self.plot_config = plot_config if plot_config is not None else {}
+
+    def plot(self, acquisitions):
+        # Implement the plotting code for the given acquisitions based on the plot_config
+        pass 
+    
 class LDAQ():
     """Visualization and triggering."""
     def __init__(self, acquisition, generation=None, control=None):

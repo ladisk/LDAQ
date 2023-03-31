@@ -4,6 +4,7 @@ class BaseControl:
     def __init__(self, acquisition, generation=None):
         self.acquisition = acquisition
         self.generattion = generation
+        self.control_name = "DefaultControl"
 
     def run(self):
         while self.acquisition.is_running:

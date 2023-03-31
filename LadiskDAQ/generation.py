@@ -7,6 +7,7 @@ from .daqtask import DAQTask
 class BaseGenerator:
     def __init__(self):
         self.is_running = True
+        self.generation_name = "DefaultSignalGeneration"
 
     def generate(self):
         pass
@@ -27,10 +28,11 @@ class BaseGenerator:
 
 
 class NIGenerator(BaseGenerator):
-    def __init__(self, task_name, signal):
+    def __init__(self, task_name, signal, generation_name=None):
         super().__init__()
         self.task_name = task_name
         self.signal = signal
+        self.generation_name = task_name if generation_name is None else generation_name
 
     def set_data_source(self):
         if not hasattr(self, 'Task'):

@@ -19,7 +19,7 @@ class BaseAcquisition:
         """EDIT in child class"""
         self.acquisition_name = "DefaultAcquisition"
         self.channel_names = []
-        self.plot_data = []
+        #self.plot_data = []
         self.is_running = True
         self.N_acquired_samples = 0
         self.external_trigger = False
@@ -66,9 +66,9 @@ class BaseAcquisition:
         acquired_data = self.read_data()
         self.N_acquired_samples += acquired_data.shape[0]
         
-        self.plot_data = np.vstack((self.plot_data, acquired_data))
-        self.plot_time = np.concatenate((self.plot_time, 
-                        self.plot_time[-1] + 1/self.sample_rate + np.arange(acquired_data.shape[0])/self.sample_rate ))
+        #self.plot_data = np.vstack((self.plot_data, acquired_data))
+        #self.plot_time = np.concatenate((self.plot_time, 
+        #                self.plot_time[-1] + 1/self.sample_rate + np.arange(acquired_data.shape[0])/self.sample_rate ))
         
         self.Trigger.add_data(acquired_data)
             
@@ -119,8 +119,8 @@ class BaseAcquisition:
         self.N_acquired_samples = 0
         self.is_running = True
 
-        self.plot_data = np.zeros((2, len(self.channel_names)))
-        self.plot_time = np.zeros(2)
+        #self.plot_data = np.zeros((2, len(self.channel_names)))
+        #self.plot_time = np.zeros(2)
         
         if not self.external_trigger:
             self.set_trigger_instance()

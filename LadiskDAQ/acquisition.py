@@ -73,22 +73,41 @@ class BaseAcquisition:
         self.Trigger.add_data(acquired_data)
             
         if self.Trigger.finished or not self.is_running:
-            self.data = self.Trigger.get_data()
-            self.data = self.data[-self.N_acquired_samples:] # remove zeros, that are there because of buffer
-            self.time = np.arange(self.data.shape[0])/self.sample_rate
-
+            self.time, self.data = self.get_data(last_N_points=self.N_acquired_samples)
             self.stop()
             self.terminate_data_source()
 
-    def get_data(self):
+    def get_data(self, last_N_points=None):
         """Reads and returns data from the pyTrigger buffer.
 
         Returns:
             tuple: (time, data) - 1D time vector and 2D measured data, both np.ndarray
         """
-        data = self.Trigger.get_data()
+        if last_N_points is None:
+            data = self.Trigger.get_data()
+        else:
+            data = self.Trigger.get_data()[-last_N_points:]
+            
         time = np.arange(data.shape[0])/self.sample_rate
         return time, data
+    
+    def get_measurement_dict(self, last_N_points=None):
+        if last_N_points is None:
+            time, data = self.get_data(last_N_points=self.N_acquired_samples)
+        else:
+            time, data = self.get_data(last_N_points=last_N_points)
+        
+        self.measurement_dict = {
+            'data': data,
+            'time': time,
+            'channel_names': self.channel_names,
+            'sample_rate' : None, 
+        }
+        
+        if hasattr(self, 'sample_rate'):
+            self.measurement_dict['sample_rate'] = self.sample_rate
+            
+        return self.measurement_dict
         
     def run_acquisition(self, run_time=None):
         """
@@ -193,31 +212,22 @@ class BaseAcquisition:
             bool: True/False if triggered
         """
         return self.Trigger.triggered
-    
-    def save(self, name, root='', save_channels='All', timestamp=True, comment=''):
+        
+    def save(self, name, root='', timestamp=True, comment=None):
         """Save acquired data.
         
         :param name: filename
         :param root: directory to save to
-        :param save_channels: channel indices that are save. Defaults to 'All'.
         :param timestamp: include timestamp before 'filename'
         :param comment: commentary on the saved file
         """
+        self.measurement_dict = self.get_measurement_dict()
+        
+        if comment is not None:
+            self.measurement_dict['comment'] = comment
+        
         if not os.path.exists(root):
             os.mkdir(root)
-
-        self.data_dict = {
-            'data': self.data,
-            'channel_names': self.channel_names,
-            'comment': comment,
-        }
-
-        if hasattr(self, 'sample_rate'):
-            self.data_dict['sample_rate'] = self.sample_rate
-
-        if save_channels != 'All':
-            self.data_dict['data'] = np.array(self.data_dict['data'])[:, save_channels]
-            self.data_dict['channel_names'] = [_ for i, _ in enumerate(self.data_dict['channel_names']) if i in save_channels]
 
         if timestamp:
             now = datetime.datetime.now()
@@ -225,9 +235,9 @@ class BaseAcquisition:
         else:
             stamp = ''
 
-        self.filename = f'{stamp}{name}.pkl'
-        self.path = os.path.join(root, self.filename)
-        pickle.dump(self.data_dict, open(self.path, 'wb'), protocol=-1)
+        filename = f'{stamp}{name}.pkl'
+        path = os.path.join(root, filename)
+        pickle.dump(self.measurement_dict, open(path, 'wb'), protocol=-1)
 
 
 class ADAcquisition(BaseAcquisition):

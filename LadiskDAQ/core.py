@@ -2,6 +2,7 @@ import enum
 from msilib.schema import Error
 from re import X
 import time
+import datetime
 import os
 from xml.sax import SAXException
 import numpy as np
@@ -24,7 +25,7 @@ INBUILT_FUNCTIONS = ['fft', 'frf_amp', 'frf_phase']
 
 
 class Core():
-    def __init__(self, acquisitions, generations=None, controls=None):
+    def __init__(self, acquisitions, generations=None, controls=None, visualization=None):
         acquisitions = [] if acquisitions is None else acquisitions
         generations  = [] if generations is None else generations
         controls     = [] if controls is None else controls
@@ -32,6 +33,7 @@ class Core():
         self.acquisitions  = acquisitions if isinstance(acquisitions,list ) else [acquisitions]
         self.generations   = generations  if isinstance(generations, list ) else [generations]
         self.controls      = controls     if isinstance(controls,    list ) else [controls]
+        self.visualization = visualization
         
         self.acquisition_names = [acq.acquisition_name for acq in self.acquisitions]
         if any(self.acquisition_names.count(s) > 1 for s in set(self.acquisition_names)): # check for duplicate acq. names
@@ -90,7 +92,7 @@ class Core():
         for control in self.controls:
             thread_control = threading.Thread(target=control.run)
             self.thread_list.append(thread_control)
-
+             
         # check events:
         thread_check_events = threading.Thread(target=self._check_events)
         self.thread_list.append(thread_check_events)
@@ -102,7 +104,12 @@ class Core():
             
             thread_global_trigger = threading.Thread(target=self._run_global_trigger)
             self.thread_list.append(thread_global_trigger)
-            
+           
+        # visualization:
+        if self.visualization is not None:
+            thread_visualization = threading.Thread(target=self.visualization.run, args=(self.get_measurement_dict))
+            self.thread_list.append(thread_visualization)
+              
         # start all threads:
         for thread in self.thread_list:
             thread.start()
@@ -286,18 +293,42 @@ class Core():
         self.additional_check_functions = []
         for fun in args:
             self.additional_check_functions.append(fun)
-        
-    def save_measurement(self, name, root='', save_channels='All', 
-                         timestamp=True, comment=''):
-        """Save acquired data.
+     
+    def get_measurement_dict(self, last_N_seconds=None):
+        self.measurement_dict = {}
+        for idx, name in enumerate(self.acquisition_names):
+            if last_N_seconds is None:
+                last_N_points = None
+            else:
+                last_N_points = int( last_N_seconds * self.acquisitions[idx].sample_rate ) 
+            self.measurement_dict[ name ] = self.acquisitions[idx].get_measurement_dict(last_N_points)
+            
+        return self.measurement_dict
+    
+    def save_measurement(self, name, root='', timestamp=True, comment=None):
+        """Save acquired data from all sources into one dictionary saved as pickle.
         
         :param name: filename
         :param root: directory to save to
-        :param save_channels: channel indices that are save. Defaults to 'All'.
         :param timestamp: include timestamp before 'filename'
-        :param comment: commentary on the saved file
+        :param comment: comment on the saved file
         """
-        self.acquisition.save( name, root, save_channels, timestamp, comment)            
+        self.measurement_dict = self.get_measurement_dict()
+        if comment is not None:
+            self.measurement_dict['comment'] = comment
+            
+        if not os.path.exists(root):
+            os.mkdir(root)
+
+        if timestamp:
+            now = datetime.datetime.now()
+            stamp = f'{now.strftime("%Y%m%d_%H%M%S")}_'
+        else:
+            stamp = ''
+
+        filename = f'{stamp}{name}.pkl'
+        path = os.path.join(root, filename)
+        pickle.dump(self.measurement_dict, open(path, 'wb'), protocol=-1)           
 
 class Visualization:
     def __init__(self, plot_config=None):

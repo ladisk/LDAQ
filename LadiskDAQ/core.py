@@ -13,6 +13,8 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
 import sys
 
+from pyTrigger import pyTrigger
+
 import threading
 import types
 import pickle
@@ -22,8 +24,6 @@ INBUILT_FUNCTIONS = ['fft', 'frf_amp', 'frf_phase']
 
 
 class Core():
-    """TODO: this core class should sync the data and provide proper format for visualization!!!
-    """
     def __init__(self, acquisitions, generations=None, controls=None):
         acquisitions = [] if acquisitions is None else acquisitions
         generations  = [] if generations is None else generations
@@ -32,6 +32,10 @@ class Core():
         self.acquisitions  = acquisitions if isinstance(acquisitions,list ) else [acquisitions]
         self.generations   = generations  if isinstance(generations, list ) else [generations]
         self.controls      = controls     if isinstance(controls,    list ) else [controls]
+        
+        self.acquisition_names = [acq.acquisition_name for acq in self.acquisitions]
+        if any(self.acquisition_names.count(s) > 1 for s in set(self.acquisition_names)): # check for duplicate acq. names
+            raise Exception("Two or more acquisition sources have the same name. Please make them unique.")
         
         self.FREEZE_PLOT = False
 
@@ -43,7 +47,8 @@ class Core():
         and time shifts are calcualted.
         """
         pass
-            
+    
+    
     def run(self, run_time=None, verbose=2):
         """
         :param run_time: measurement duration in seconds, from trigger event of any of the sources. 
@@ -61,14 +66,19 @@ class Core():
         if self.verbose in [1, 2]:
             print('\tWaiting for trigger...', end='')
 
+     
+        ####################
+        # Thread setting:  #
+        ####################
+        
         self.lock = threading.Lock() # for locking a thread if needed.
         self.triggered_globally = False
         self.thread_list = []
 
         # Make separate threads for data acquisition
         for acquisition in self.acquisitions:
-            # update triggers from acquisition to matche acquired samples to run_time:
-            acquisition.update_trigger(duration=self.run_time, duration_unit="seconds") 
+            # update triggers from acquisition to match acquired samples to run_time:
+            acquisition.update_trigger_parameters(duration=self.run_time, duration_unit="seconds") 
             thread_acquisition = threading.Thread(target=acquisition.run_acquisition )
             self.thread_list.append(thread_acquisition)
 
@@ -82,8 +92,16 @@ class Core():
             self.thread_list.append(thread_control)
 
         # check events:
-        thread_check_events = threading.Thread(target=self.check_events)
+        thread_check_events = threading.Thread(target=self._check_events)
         self.thread_list.append(thread_check_events)
+        
+        # if global trigger is set run the trigger in separate thread:
+        if hasattr(self, "global_Trigger"):
+            self.set_global_trigger(self.trigger_source, self.trigger_channel, 
+                                    self.trigger_level,   self.trigger_type)
+            
+            thread_global_trigger = threading.Thread(target=self._run_global_trigger)
+            self.thread_list.append(thread_global_trigger)
             
         # start all threads:
         for thread in self.thread_list:
@@ -104,8 +122,8 @@ class Core():
             print('Measurement finished.')
             
         self.keyboard_hotkeys_remove()
-
-    def check_events(self):
+    
+    def _check_events(self):
         """
         Checks for:
         - if all acquisition and generation sources are running. If one of them is not, then measurement terminated
@@ -156,6 +174,61 @@ class Core():
                                                 
             time.sleep(0.01)      
 
+    def set_global_trigger(self, trigger_source, trigger_channel, trigger_level, trigger_type='abs'):
+        """Sets global trigger of the acquisition. NOTE: since acquisition sources may not be synchronized,
+        expect up to 0.5 second delay between different acquisition sources.
+
+        Args:
+            trigger_source (int, str): acquisition source index (position in the 'acquisitions' list) or
+                                       name of the acquisition source as string (acquisition.acquistion_name)
+            trigger_channel (int): channel number used for trigger
+            trigger_level (float): trigger_level
+        """
+        # set external trigger option to all acquisition sources:
+        for acq in self.acquisitions:
+            acq.set_external_trigger()
+        
+        # set up global trigger:
+        if type(trigger_source) == int:
+            acquisition_trigger = self.acquisitions[trigger_source]
+            
+        elif type(trigger_source) == str:
+            for idx, acq in enumerate(self.acquisitions):
+                if trigger_source == acq.acquisition_name:
+                    acquisition_trigger = acq
+                    trigger_source = idx
+                    break
+            if trigger_source is None:
+                raise Exception("Trigger source name was not found in any of the acquisition sources.")
+        else:
+            raise TypeError("trigger_source type can only be index or string.")
+        
+        self.trigger_source  = trigger_source
+        self.trigger_channel = trigger_channel
+        self.trigger_level   = trigger_level
+        self.trigger_type    = trigger_type
+
+        duration = 5. # does not matter, since this pyTrigger is only used for triggering not data storing
+        self.global_trigger_buffer_samples = int( duration * acquisition_trigger.sample_rate )
+        
+        self.global_Trigger = pyTrigger(
+                rows= self.global_trigger_buffer_samples, 
+                channels=1, # only the triggering chanel will be passed to this pyTrigger instance
+                trigger_type=self.trigger_type,
+                trigger_channel=0, 
+                trigger_level=self.trigger_level,
+                presamples=0)
+        
+    def _run_global_trigger(self):
+        time.sleep(0.5)
+        while not self.triggered_globally:
+            _, data = self.acquisitions[self.trigger_source].get_data()
+            data = data[-self.global_trigger_buffer_samples:, self.trigger_channel:self.trigger_channel+1]
+            self.global_Trigger.add_data(data)
+            
+            if self.global_Trigger.triggered:
+                self.start_acquisition()
+            
     def keyboard_hotkeys_setup(self):
         """Adds keyboard hotkeys for interaction.
         """
@@ -181,12 +254,14 @@ class Core():
     def start_acquisition(self):
         """Starts acquisitions sources.
         """
-        for acquisition in self.acquisitions:
-            acquisition.clear_buffer()
-            acquisition.trigger()
-        self.triggered_globally = True
-        print('triggered.') 
-        print('\tRecording...', end='') 
+        if not self.triggered_globally:
+            self.triggered_globally = True
+            
+            for acquisition in self.acquisitions:
+                acquisition.clear_buffer()
+                acquisition.trigger()
+            print('triggered.') 
+            print('\tRecording...', end='') 
             
     def freeze_plot_toggle(self):
         if self.FREEZE_PLOT == True:
@@ -194,7 +269,6 @@ class Core():
         else:
             self.FREEZE_PLOT = True
         
-
     def _print_table(self):
         table = BeautifulTable()
         table.rows.append(["s", "Start the measurement manually (ignore trigger)"])
@@ -223,9 +297,7 @@ class Core():
         :param timestamp: include timestamp before 'filename'
         :param comment: commentary on the saved file
         """
-        self.acquisition.save( name, root, save_channels, timestamp, comment)
-
-            
+        self.acquisition.save( name, root, save_channels, timestamp, comment)            
 
 class Visualization:
     def __init__(self, plot_config=None):

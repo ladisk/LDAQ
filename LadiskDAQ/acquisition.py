@@ -22,11 +22,12 @@ class BaseAcquisition:
         self.plot_data = []
         self.is_running = True
         self.N_acquired_samples = 0
+        self.external_trigger = False
         
         # child class needs to have variables below:
         self.n_channels = 0
         self.sample_rate = 0
-
+        
     def read_data(self):
         """EDIT in child class
         
@@ -73,12 +74,22 @@ class BaseAcquisition:
             
         if self.Trigger.finished or not self.is_running:
             self.data = self.Trigger.get_data()
-            #self.data = self.data[-self.N_acquired_samples:] # remove zeros, that are there because of buffer
+            self.data = self.data[-self.N_acquired_samples:] # remove zeros, that are there because of buffer
             self.time = np.arange(self.data.shape[0])/self.sample_rate
 
             self.stop()
             self.terminate_data_source()
 
+    def get_data(self):
+        """Reads and returns data from the pyTrigger buffer.
+
+        Returns:
+            tuple: (time, data) - 1D time vector and 2D measured data, both np.ndarray
+        """
+        data = self.Trigger.get_data()
+        time = np.arange(data.shape[0])/self.sample_rate
+        return time, data
+        
     def run_acquisition(self, run_time=None):
         """
         Runs acquisition.
@@ -92,11 +103,14 @@ class BaseAcquisition:
         self.plot_data = np.zeros((2, len(self.channel_names)))
         self.plot_time = np.zeros(2)
         
-        self.set_trigger_instance()
-        self.set_data_source()
+        if not self.external_trigger:
+            self.set_trigger_instance()
+        else:
+            # if there's an external trigger set unachievable setting since the source will be triggered
+            # with .trigger() method:
+            self.update_trigger_parameters(level=1e30, type='abs', presamples=0)
         
-        # TODO: here develop some sort of wait / sleep function that waits for all the acquisitions
-        #       to be ready !!! 
+        self.set_data_source()
         
         if run_time == None:
             while self.is_running:
@@ -111,7 +125,7 @@ class BaseAcquisition:
                 time.sleep(0.01)
                 self.acquire()
 
-    def set_trigger(self, level, channel, duration=1, duration_unit='seconds', presamples=100, type='abs'):
+    def set_trigger_parameters(self, level, channel, duration=1, duration_unit='seconds', presamples=0, type='abs'):
         """Set parameters for triggering the measurement.
         
         :param level: trigger level
@@ -147,12 +161,11 @@ class BaseAcquisition:
             trigger_channel=self.trigger_settings['channel'], 
             trigger_level=self.trigger_settings['level'],
             presamples=self.trigger_settings['presamples'])
-    
-    def update_trigger(self, **kwargs):
+        
+    def update_trigger_parameters(self, **kwargs):
         """
         Updates trigger settings. See 'set_trigger' method for possible parameters.
         """  
-        
         for setting, value in kwargs.items():
             self.trigger_settings[setting] = value
             
@@ -163,7 +176,10 @@ class BaseAcquisition:
             self.trigger_settings['duration_seconds'] = self.trigger_settings['duration']/self.sample_rate
             
         self.set_trigger_instance()
-      
+    
+    def set_external_trigger(self):
+        self.external_trigger = True
+           
     def trigger(self):
         """Sets trigger off manually. Useful if the acquisition class is trigered by another process.
         """
@@ -279,7 +295,7 @@ class SerialAcquisition(BaseAcquisition):
         self.pretest_time = pretest_time if pretest_time is not None else 10.
         self.sample_rate = sample_rate if sample_rate is not None else self.get_sample_rate()
         # set default trigger, so the signal will not be trigered:
-        self.set_trigger(1e20, 0, duration=600)
+        self.set_trigger_parameters(1e20, 0, duration=600)
 
     def set_data_source(self):
         # open terminal:
@@ -484,7 +500,7 @@ class NIAcquisition(BaseAcquisition):
         self.n_channels = self.Task.number_of_ch
 
         # set default trigger, so the signal will not be trigered:
-        self.set_trigger(1e20, 0, duration=600)
+        self.set_trigger_parameters(1e20, 0, duration=600)
 
     def clear_task(self):
         """Clear a task."""

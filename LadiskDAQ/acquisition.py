@@ -21,7 +21,8 @@ class BaseAcquisition:
         self.channel_names = []
         #self.plot_data = []
         self.is_running = True
-        self.N_acquired_samples = 0
+        self.N_acquired_samples  = 0  # number of samples acquired from run
+        self.N_retrieved_samples = 0  # number of samples since they were last retrieved
         self.external_trigger = False
         
         # child class needs to have variables below:
@@ -73,29 +74,39 @@ class BaseAcquisition:
         self.Trigger.add_data(acquired_data)
             
         if self.Trigger.finished or not self.is_running:
-            self.time, self.data = self.get_data(last_N_points=self.N_acquired_samples)
+            self.time, self.data = self.get_data(N_points=self.N_acquired_samples)
             self.stop()
             self.terminate_data_source()
 
-    def get_data(self, last_N_points=None):
+    def get_data(self, N_points=None):
         """Reads and returns data from the pyTrigger buffer.
-
+        :param N_points: number of last N points to read from pyTrigger buffer. 
+                            if N_points="new", then only new points will be retrieved.
+                            if None whole buffer is returned.
         Returns:
             tuple: (time, data) - 1D time vector and 2D measured data, both np.ndarray
         """
-        if last_N_points is None:
+        if N_points is None:
             data = self.Trigger.get_data()
+        elif N_points == "new":
+            N_points = self.N_acquired_samples - self.N_retrieved_samples
+            if N_points == 0:
+                data = np.empty(shape=(0, self.n_channels) )
+            else:
+                data = self.Trigger.get_data()[-N_points:]
+                self.N_retrieved_samples = self.N_acquired_samples
         else:
-            data = self.Trigger.get_data()[-last_N_points:]
+            data = self.Trigger.get_data()[-N_points:]
             
         time = np.arange(data.shape[0])/self.sample_rate
         return time, data
+
     
-    def get_measurement_dict(self, last_N_points=None):
-        if last_N_points is None:
-            time, data = self.get_data(last_N_points=self.N_acquired_samples)
+    def get_measurement_dict(self, N_points=None):
+        if N_points is None:
+            time, data = self.get_data(N_points=self.N_acquired_samples)
         else:
-            time, data = self.get_data(last_N_points=last_N_points)
+            time, data = self.get_data(N_points=N_points)
         
         self.measurement_dict = {
             'data': data,
@@ -116,7 +127,10 @@ class BaseAcquisition:
                  If None acquisition runs indefinitely until self.is_running variable is set
                  False externally (i.e. in a different process)
         """
+        # reset both sample counters:
         self.N_acquired_samples = 0
+        self.N_retrieved_samples = 0
+        
         self.is_running = True
 
         #self.plot_data = np.zeros((2, len(self.channel_names)))

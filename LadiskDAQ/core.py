@@ -38,8 +38,6 @@ class Core():
         self.acquisition_names = [acq.acquisition_name for acq in self.acquisitions]
         if any(self.acquisition_names.count(s) > 1 for s in set(self.acquisition_names)): # check for duplicate acq. names
             raise Exception("Two or more acquisition sources have the same name. Please make them unique.")
-        
-        self.FREEZE_PLOT = False
 
     def synchronize_acquisitions(self):
         """
@@ -51,10 +49,13 @@ class Core():
         pass
     
     
-    def run(self, run_time=None, verbose=2):
+    def run(self, run_time=None, save_periodically=False, verbose=2):
         """
         :param run_time: measurement duration in seconds, from trigger event of any of the sources. 
                          If None the measurement runs for ever until manually stopped.
+        :param save_periodically: (float) data is saved every 'save_periodically' seconds. Defaults to None,
+                                    meaning data is not saved. The time stamp on measured data will equal to
+                                    beggining of the measurement.
         :param verbose: 0 (print nothing), 1 (print status) or 2 (print status and hotkey legend). 
         """
         self.verbose  = verbose
@@ -241,8 +242,7 @@ class Core():
         """
         id1 = keyboard.add_hotkey('s', self.start_acquisition)
         id2 = keyboard.add_hotkey('q', self.stop_acquisition_and_generation)
-        id3 = keyboard.add_hotkey('f', self.freeze_plot_toggle)
-        self.hotkey_ids = [id1, id2, id3]
+        self.hotkey_ids = [id1, id2]
         
     def keyboard_hotkeys_remove(self):
         """Removes all keyboard hotkeys defined by 'keyboard_hotkeys_setup'.
@@ -269,18 +269,11 @@ class Core():
                 acquisition.trigger()
             print('triggered.') 
             print('\tRecording...', end='') 
-            
-    def freeze_plot_toggle(self):
-        if self.FREEZE_PLOT == True:
-             self.FREEZE_PLOT = False
-        else:
-            self.FREEZE_PLOT = True
-        
+    
     def _print_table(self):
         table = BeautifulTable()
         table.rows.append(["s", "Start the measurement manually (ignore trigger)"])
         table.rows.append(["q", "Stop the measurement"])
-        table.rows.append(["f", "Freeze the plot (toggle)"])
         table.columns.header = ["HOTKEY", "DESCRIPTION"]
         print(table)
         
@@ -294,16 +287,31 @@ class Core():
         for fun in args:
             self.additional_check_functions.append(fun)
      
-    def get_measurement_dict(self, last_N_seconds=None):
+    def get_measurement_dict(self, N_seconds=None):
+        """Returns measured data from all sources
+
+        Args:
+            N_seconds (float, str, optional): last number of seconds of the measurement. 
+                                    if "new" then only new data is returned. Defaults to None.
+
+        Returns:
+            dict: Measurement dictionary
+            """
         self.measurement_dict = {}
         for idx, name in enumerate(self.acquisition_names):
-            if last_N_seconds is None:
-                last_N_points = None
+            if N_seconds is None:
+                N_points = None
+            elif type(N_seconds)==float or type(N_seconds)==int:
+                N_points = int( N_seconds * self.acquisitions[idx].sample_rate ) 
+            elif N_seconds=="new":
+                N_points = N_seconds
             else:
-                last_N_points = int( last_N_seconds * self.acquisitions[idx].sample_rate ) 
-            self.measurement_dict[ name ] = self.acquisitions[idx].get_measurement_dict(last_N_points)
+                raise KeyError("Wrong argument type passed to N_seconds.")
+                
+            self.measurement_dict[ name ] = self.acquisitions[idx].get_measurement_dict(N_points)
             
         return self.measurement_dict
+    
     
     def save_measurement(self, name, root='', timestamp=True, comment=None):
         """Save acquired data from all sources into one dictionary saved as pickle.
@@ -329,14 +337,6 @@ class Core():
         filename = f'{stamp}{name}.pkl'
         path = os.path.join(root, filename)
         pickle.dump(self.measurement_dict, open(path, 'wb'), protocol=-1)           
-
-class Visualization:
-    def __init__(self, plot_config=None):
-        self.plot_config = plot_config if plot_config is not None else {}
-
-    def plot(self, acquisitions):
-        # Implement the plotting code for the given acquisitions based on the plot_config
-        pass 
     
 class LDAQ():
     """Visualization and triggering."""

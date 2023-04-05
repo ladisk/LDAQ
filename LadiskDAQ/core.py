@@ -107,19 +107,22 @@ class Core():
             self.thread_list.append(thread_global_trigger)
            
         # visualization:
-        if self.visualization is not None:
-            thread_visualization = threading.Thread(target=self.visualization.run, args=(self.get_measurement_dict))
-            self.thread_list.append(thread_visualization)
+        # if self.visualization is not None:
+        #     thread_visualization = threading.Thread(target=self.visualization.run, args=(self,))
+        #     self.thread_list.append(thread_visualization)
               
         # start all threads:
         for thread in self.thread_list:
             thread.start()
         time.sleep(0.2)
+
+        if self.visualization is not None:
+            self.visualization.run(self)
         
         # Main Loop:
         while self.is_running_global: #self.is_running():
-            time.sleep(0.5) 
-            
+            time.sleep(0.5)
+
         # on exit:
         self.stop_acquisition_and_generation()
         

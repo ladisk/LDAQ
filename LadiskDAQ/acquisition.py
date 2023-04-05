@@ -12,8 +12,16 @@ from PyDAQmx.Task import Task
 from pyTrigger import pyTrigger
 
 from .daqtask import DAQTask
+    
+import threading
 
+class DummyLock:
+    def __enter__(self):
+        return self
 
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+    
 class BaseAcquisition:
     def __init__(self):
         """EDIT in child class"""
@@ -24,6 +32,8 @@ class BaseAcquisition:
         self.N_acquired_samples  = 0  # number of samples acquired from run
         self.N_retrieved_samples = 0  # number of samples since they were last retrieved
         self.external_trigger = False
+    
+        self.lock = threading.Lock() # ensures acquisition class runs properly if used in multiple threads.
         
         # child class needs to have variables below:
         self.n_channels = 0
@@ -56,7 +66,7 @@ class BaseAcquisition:
     def clear_buffer(self):
         """EDIT in child class
         
-        The source buffer should be cleared with this method.
+        The source buffer should be cleared (all data deleted) with this method.
         """
 
     # The following methods should work without changing.
@@ -65,7 +75,8 @@ class BaseAcquisition:
     
     def acquire(self):
         acquired_data = self.read_data()
-        self.N_acquired_samples += acquired_data.shape[0]
+        with self.lock:
+            self.N_acquired_samples += acquired_data.shape[0]
         
         #self.plot_data = np.vstack((self.plot_data, acquired_data))
         #self.plot_time = np.concatenate((self.plot_time, 
@@ -74,7 +85,7 @@ class BaseAcquisition:
         self.Trigger.add_data(acquired_data)
             
         if self.Trigger.finished or not self.is_running:
-            self.time, self.data = self.get_data(N_points=self.N_acquired_samples)
+            self.time, self.data = self.get_data(N_points=self.N_acquired_samples)                
             self.stop()
             self.terminate_data_source()
 
@@ -89,24 +100,31 @@ class BaseAcquisition:
         if N_points is None:
             data = self.Trigger.get_data()
         elif N_points == "new":
-            N_points = self.N_acquired_samples - self.N_retrieved_samples
-            if N_points == 0:
-                data = np.empty(shape=(0, self.n_channels) )
-            else:
-                data = self.Trigger.get_data()[-N_points:]
-                self.N_retrieved_samples = self.N_acquired_samples
+            with self.lock:
+                N_points = self.N_acquired_samples - self.N_retrieved_samples
+                if N_points == 0:
+                    data = np.empty(shape=(0, self.n_channels) )
+                else:
+                    data = self.Trigger.get_data()[-N_points:]
+                    self.N_retrieved_samples = self.N_acquired_samples
         else:
             data = self.Trigger.get_data()[-N_points:]
             
         time = np.arange(data.shape[0])/self.sample_rate
+        
         return time, data
-
     
     def get_measurement_dict(self, N_points=None):
         if N_points is None:
             time, data = self.get_data(N_points=self.N_acquired_samples)
         else:
             time, data = self.get_data(N_points=N_points)
+        
+        # if time.shape[0] >0:
+        #     last = time[-1]
+        # else:
+        #     last = 0
+        # print(self.acquisition_name, last)
         
         self.measurement_dict = {
             'data': data,

@@ -78,29 +78,33 @@ class Core():
         # Thread setting:  #
         ####################
         
-        self.lock = threading.Lock() # for locking a thread if needed.
+        self.lock = threading.Lock() # for locking a thread if needed.    
         self.triggered_globally = False
         self.thread_list = []
 
         # Make separate threads for data acquisition
         for acquisition in self.acquisitions:
+            print("acq")
             # update triggers from acquisition to match acquired samples to run_time:
-            acquisition.update_trigger_parameters(duration=self.run_time, duration_unit="seconds") 
+            acquisition.update_trigger_parameters(duration=self.run_time, duration_unit="seconds")   
             thread_acquisition = threading.Thread(target=acquisition.run_acquisition )
             self.thread_list.append(thread_acquisition)
 
         # If generation is present, create generation thread
         for generation in self.generations:
+            print("gen")
             thread_generation  = threading.Thread(target=generation.run_generation )
             self.thread_list.append(thread_generation)
 
         for control in self.controls:
+            print("con")
             thread_control = threading.Thread(target=control.run)
             self.thread_list.append(thread_control)
              
         # check events:
         thread_check_events = threading.Thread(target=self._check_events)
         self.thread_list.append(thread_check_events)
+        print("check")
         
         # if global trigger is set run the trigger in separate thread:
         if hasattr(self, "global_Trigger"):
@@ -109,14 +113,17 @@ class Core():
             
             thread_global_trigger = threading.Thread(target=self._run_global_trigger)
             self.thread_list.append(thread_global_trigger)
+            print("glob_trigger")
            
         # visualization:
         if self.visualization is not None:
+            print("vis")
             thread_visualization = threading.Thread(target=self.visualization.run, args=(self, ))
             self.thread_list.append(thread_visualization)
             
         # periodic data saving:
         if self.save_interval is not None:
+            print("per_save")
             thread_periodic_saving = threading.Thread(target=self._save_measurement_periodically)
             self.thread_list.append(thread_periodic_saving)
             
@@ -170,8 +177,7 @@ class Core():
             self.is_running_global = acquisition_running and generation_running
             
             # Check if any acquisition sources are triggered:
-            self.lock.acquire() 
-            try:
+            with self.lock:
                 if not self.triggered_globally: # only if measurement is not already running
                     for acquisition in self.acquisitions:
                         if acquisition.is_triggered():
@@ -179,9 +185,6 @@ class Core():
                             break
                         else:
                             pass
-                        
-            finally:
-                self.lock.release()
                             
             # additional functionalities added with 'add_check_events()' method:   
             if hasattr(self, "additional_check_functions"):
@@ -239,7 +242,8 @@ class Core():
     def _run_global_trigger(self):
         time.sleep(0.5)
         while not self.triggered_globally:
-            _, data = self.acquisitions[self.trigger_source].get_data()
+            with self.lock:
+                _, data = self.acquisitions[self.trigger_source].get_data()
             data = data[-self.global_trigger_buffer_samples:, self.trigger_channel:self.trigger_channel+1]
             self.global_Trigger.add_data(data)
             
@@ -359,47 +363,60 @@ class Core():
         
         start_time = time.time()
         file_created = False
-        file_path = None
-
+        file_path = None      
+            
         while self.is_running_global:
-            elapsed_time = time.time() - start_time
-            if elapsed_time >= self.save_interval:
-                start_time = time.time()
-
-                if not file_created:
-                    now = datetime.datetime.now()
-                    file_name = f"{now.strftime('%Y%m%d_%H%M%S')}_{name}.pkl"
-                    file_path = os.path.join(root, file_name)
-                    file_created = True
-
-                # Load existing data
-                if os.path.exists(file_path):
-                    data = load_measurement(file_name, root)
-                    #with open(file_path, 'rb') as f:
-                    #    data = pickle.load(f)
-                else:
-                    data = {}
-
-                # Update data with new measurements
-                self.lock.acquire() 
-                for acq in self.acquisitions:
-                    name = acq.acquisition_name
-                    measurement = acq.get_measurement_dict(N_points = "new")
-
-                    if name not in data:
-                        data[name] = measurement
+            time.sleep(0.2)
+            if self.triggered_globally:
+                elapsed_time = time.time() - start_time
+                if elapsed_time >= self.save_interval:
+                    start_time = time.time()
+                    
+                    if not file_created:
+                        now = datetime.datetime.now()
+                        file_name = f"{now.strftime('%Y%m%d_%H%M%S')}_{name}.pkl"
+                        file_path = os.path.join(root, file_name)
+                        file_created = True
+                        
+                    # Load existing data
+                    if os.path.exists(file_path):
+                        data = load_measurement(file_name, root)
                     else:
-                        new_data = measurement['data']
-                        new_time = measurement['time'] + data[name]['time'][-1] + 1/acq.sample_rate
-                        data[name]['data'] = np.concatenate((data[name]['data'], new_data), axis=0)
-                        data[name]['time'] = np.concatenate((data[name]['time'], new_time), axis=0)
-                self.lock.release()
-                
-                # Save updated data
-                with open(file_path, 'wb') as f:
-                    pickle.dump(data, f, protocol=-1)
+                        data = {}
 
-            time.sleep(0.1)        
+                    # Update data with new measurements
+                    for acq in self.acquisitions:
+                        name = acq.acquisition_name
+                        with self.lock:
+                            measurement = acq.get_measurement_dict(N_points = "new")
+                            
+                            time_ = measurement['time']
+                            if time_.shape[0] >0:
+                                last = time_[-1]
+                            else:
+                                last = 0
+            
+                            
+                        if name not in data:
+                            data[name] = measurement
+                        else:
+                            new_data = measurement['data']
+                            
+                            if len(data[name]['time']) > 0:
+                                time_last = data[name]['time'][-1]
+                            else:
+                                time_last = 0    
+                            print("core", name, time_last, last)
+                                
+                            new_time = measurement['time'] + time_last + 1/acq.sample_rate
+                            
+                            data[name]['data'] = np.concatenate((data[name]['data'], new_data), axis=0)
+                            data[name]['time'] = np.concatenate((data[name]['time'], new_time), axis=0)
+
+                    # Save updated data
+                    with open(file_path, 'wb') as f:
+                        pickle.dump(data, f, protocol=-1)            
+              
     
 class LDAQ():
     """Visualization and triggering."""
@@ -906,8 +923,6 @@ class LDAQ():
         :param comment: commentary on the saved file
         """
         self.acquisition.save( name, root, save_channels, timestamp, comment)
-
-
 
 # ------------------------------------------------------------------------------
 #  Prepared plot Functions

@@ -49,17 +49,21 @@ class Core():
         pass
     
     
-    def run(self, run_time=None, save_periodically=False, verbose=2):
+    def run(self, run_time=None, run_name="Run", save_interval=None, root='', verbose=2):
         """
         :param run_time: measurement duration in seconds, from trigger event of any of the sources. 
                          If None the measurement runs for ever until manually stopped.
-        :param save_periodically: (float) data is saved every 'save_periodically' seconds. Defaults to None,
+        :param save_interval: (float) data is saved every 'save_periodically' seconds. Defaults to None,
                                     meaning data is not saved. The time stamp on measured data will equal to
                                     beggining of the measurement.
+        :param run_name: name of the run. This name is used for periodic saving
         :param verbose: 0 (print nothing), 1 (print status) or 2 (print status and hotkey legend). 
         """
+        self.run_name = run_name
         self.verbose  = verbose
         self.run_time = run_time
+        self.save_interval = save_interval
+        self.root = root
         self.is_running_global = True
         
         self.keyboard_hotkeys_setup()
@@ -108,9 +112,14 @@ class Core():
            
         # visualization:
         if self.visualization is not None:
-            thread_visualization = threading.Thread(target=self.visualization.run, args=(self.get_measurement_dict))
+            thread_visualization = threading.Thread(target=self.visualization.run, args=(self, ))
             self.thread_list.append(thread_visualization)
-              
+            
+        # periodic data saving:
+        if self.save_interval is not None:
+            thread_periodic_saving = threading.Thread(target=self._save_measurement_periodically)
+            self.thread_list.append(thread_periodic_saving)
+            
         # start all threads:
         for thread in self.thread_list:
             thread.start()
@@ -313,14 +322,19 @@ class Core():
         return self.measurement_dict
     
     
-    def save_measurement(self, name, root='', timestamp=True, comment=None):
+    def save_measurement(self, name=None, root=None, timestamp=True, comment=None):
         """Save acquired data from all sources into one dictionary saved as pickle.
         
-        :param name: filename
+        :param name: filename, if None filename defaults to run name specified in run() method.
         :param root: directory to save to
         :param timestamp: include timestamp before 'filename'
         :param comment: comment on the saved file
         """
+        if name is None:
+            name = self.run_name
+        if root is None:
+            root = self.root
+            
         self.measurement_dict = self.get_measurement_dict()
         if comment is not None:
             self.measurement_dict['comment'] = comment
@@ -336,7 +350,56 @@ class Core():
 
         filename = f'{stamp}{name}.pkl'
         path = os.path.join(root, filename)
-        pickle.dump(self.measurement_dict, open(path, 'wb'), protocol=-1)           
+        pickle.dump(self.measurement_dict, open(path, 'wb'), protocol=-1)   
+        
+    def _save_measurement_periodically(self):
+        """Periodically save acquired data from all sources."""
+        name = self.run_name
+        root = self.root
+        
+        start_time = time.time()
+        file_created = False
+        file_path = None
+
+        while self.is_running_global:
+            elapsed_time = time.time() - start_time
+            if elapsed_time >= self.save_interval:
+                start_time = time.time()
+
+                if not file_created:
+                    now = datetime.datetime.now()
+                    file_name = f"{now.strftime('%Y%m%d_%H%M%S')}_{name}.pkl"
+                    file_path = os.path.join(root, file_name)
+                    file_created = True
+
+                # Load existing data
+                if os.path.exists(file_path):
+                    data = load_measurement(file_name, root)
+                    #with open(file_path, 'rb') as f:
+                    #    data = pickle.load(f)
+                else:
+                    data = {}
+
+                # Update data with new measurements
+                self.lock.acquire() 
+                for acq in self.acquisitions:
+                    name = acq.acquisition_name
+                    measurement = acq.get_measurement_dict(N_points = "new")
+
+                    if name not in data:
+                        data[name] = measurement
+                    else:
+                        new_data = measurement['data']
+                        new_time = measurement['time'] + data[name]['time'][-1] + 1/acq.sample_rate
+                        data[name]['data'] = np.concatenate((data[name]['data'], new_data), axis=0)
+                        data[name]['time'] = np.concatenate((data[name]['time'], new_time), axis=0)
+                self.lock.release()
+                
+                # Save updated data
+                with open(file_path, 'wb') as f:
+                    pickle.dump(data, f, protocol=-1)
+
+            time.sleep(0.1)        
     
 class LDAQ():
     """Visualization and triggering."""

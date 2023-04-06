@@ -84,12 +84,19 @@ INBUILT_FUNCTIONS = {'fft': _fun_fft, 'frf_amp': _fun_frf_amplitude, 'frf_phase'
 
 
 class Visualization:
-    def __init__(self, layout):
+    def __init__(self, layout=None, subplot_options=None):
         self.layout = layout
         
 
     def run(self, core):
         self.core = core
+
+        if self.layout is None:
+            self.layout = {}
+            for source in self.core.acquisition_names:
+                acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
+                self.layout[source] = {(0, 0): list(range(acq.n_channels))}
+
         self.app = QApplication.instance()
         if self.app is None:
             self.app = QApplication(sys.argv)

@@ -7,29 +7,109 @@ import random
 import time
 import types
 
+# ------------------------------------------------------------------------------
+#  Prepared plot Functions
+# ------------------------------------------------------------------------------
+
+def _fun_fft(self, data):
+   amp = np.fft.rfft(data) * 2 / len(data)
+   freq = np.fft.rfftfreq(len(data), d=1/self.acquisition.sample_rate)
+
+   return np.array([freq, np.abs(amp)]).T
+
+# TODO: write only 1 function for amplitude and phase, implement function arguments (*args)
+
+def _fun_frf_amplitude(self, data):
+    ch1, ch2 = data[-self.max_samples:].T
+    
+    # this code part is necessary for proper creation of new additional variables
+    # used in this function:
+    if not hasattr(self, 'var_H1'):
+        self.var_freq = np.fft.rfftfreq(self.max_samples, d=1/self.acquisition.sample_rate)
+        self.var_H1 = np.zeros(len(self.var_freq))
+        self.var_n  = 0
+        
+        # these variables will be deleted from LDAQ class after acquisition run is stopped: 
+        self.temp_variables.extend(["var_freq", "var_n", "var_H1" ]) 
+
+
+    if len(ch1) == int(self.max_samples):
+        ch1 = np.fft.rfft(ch1)
+        ch2 = np.fft.rfft(ch2)
+        Sxx = ch1 * np.conj(ch1)
+        Sxy = ch2 * np.conj(ch1)
+        H1 = Sxy / Sxx # frequency response function
+       
+         # FRF averaging:
+        self.var_H1 = (self.var_H1 * self.var_n + H1) / (self.var_n + 1)
+        self.var_n += 1
+
+        return np.array([self.var_freq, np.abs(self.var_H1) ]).T
+    
+    else:
+        return np.array([self.var_freq, np.abs(self.var_H1) ]).T
+
+def _fun_frf_phase(self, data):
+    ch1, ch2 = data[-self.max_samples:].T
+    
+    # this code part is necessary for proper creation of new additional variables
+    # used in this function:
+    if not hasattr(self, 'var_H1_2'):
+        self.var_freq_2 = np.fft.rfftfreq(self.max_samples, d=1/self.acquisition.sample_rate)
+        self.var_H1_2 = np.zeros(len(self.var_freq_2))
+        self.var_n_2  = 0
+        
+        # these variables will be deleted from LDAQ class after acquisition run is stopped: 
+        self.temp_variables.extend(["var_freq_2", "var_n_2", "var_H1_2" ]) 
+
+
+    if len(ch1) == int(self.max_samples):
+        ch1 = np.fft.rfft(ch1)
+        ch2 = np.fft.rfft(ch2)
+        Sxx = ch1 * np.conj(ch1)
+        Sxy = ch2 * np.conj(ch1)
+        H1 = Sxy / Sxx # frequency response function
+       
+         # FRF averaging:
+        self.var_H1_2 = (self.var_H1_2 * self.var_n_2 + H1) / (self.var_n_2 + 1)
+        self.var_n_2 += 1
+
+        return np.array([self.var_freq_2, 180/np.pi* np.angle(self.var_H1_2) ]).T
+    
+    else:
+        return np.array([self.var_freq_2, 180/np.pi* np.angle(self.var_H1_2) ]).T
+
+
+INBUILT_FUNCTIONS = {'fft': _fun_fft, 'frf_amp': _fun_frf_amplitude, 'frf_phase': _fun_frf_phase}
+
+
 class Visualization:
     def __init__(self, layout):
         self.layout = layout
         
 
     def run(self, core):
+        self.core = core
         self.app = QApplication.instance()
         if self.app is None:
             self.app = QApplication(sys.argv)
 
         with self.app:
-            self.main_window = MainWindow(self.layout, core, self.app)
+            self.main_window = MainWindow(self, self.core, self.app)
             self.main_window.show()
             self.app.exec_()
         
-        core.is_running_global = False
+        self.core.is_running_global = False
 
 class MainWindow(QMainWindow):
-    def __init__(self, layout, core, app):
+    def __init__(self, vis, core, app):
         super().__init__()
+        
+        self.vis = vis
         self.app = app
-        self.layout = layout
         self.core = core
+
+        self.layout = self.vis.layout
         self.setWindowTitle('Data Acquisition and Visualization')
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -55,18 +135,24 @@ class MainWindow(QMainWindow):
             for pos, channels in positions.items():
                 if pos not in self.subplots.keys():
                     self.subplots[pos] = grid_layout.addPlot(*pos)
-
-
+                
+                apply_function = lambda core, x: x
+                for ch in channels:
+                    if isinstance(ch, types.FunctionType):
+                        apply_function = ch
+                    elif ch in INBUILT_FUNCTIONS.keys():
+                        apply_function = INBUILT_FUNCTIONS[ch]
+                    
                 for ch in channels:
                     if isinstance(ch, tuple):
                         x, y = ch
                         line = self.subplots[pos].plot(pen=pg.mkPen(color=random_color()))
-                        plot_channels.append((line, x, y))
-                    elif isinstance(ch, types.FunctionType):
-                        print('function')
-                    else:
+                        plot_channels.append((line, apply_function, x, y))
+                    elif isinstance(ch, int):
                         line = self.subplots[pos].plot(pen=pg.mkPen(color=random_color()))
-                        plot_channels.append((line, ch))
+                        plot_channels.append((line, apply_function, ch))
+                    elif isinstance(ch, types.FunctionType):
+                        pass
 
             self.plots[source] = plot_channels
 
@@ -83,14 +169,28 @@ class MainWindow(QMainWindow):
 
         new_data = self.core.get_measurement_dict(2)
         for source, plot_channels in self.plots.items():
-            for line, *channels in plot_channels:
-                if len(channels) == 1:
+            self.vis.acquisition = self.core.acquisitions[self.core.acquisition_names.index(source)]
+
+            for line, apply_function, *channels in plot_channels:
+                if len(channels) == 1: # plot a single channel
                     ch = channels[0]
-                    line.setData(new_data[source]["time"], new_data[source]["data"][:, ch])
-                else:
-                    x_ch, y_ch = channels
-                    x = new_data[source]['data'][:, x_ch]
-                    y = new_data[source]['data'][:, y_ch]
+                    fun_return = apply_function(self.vis, new_data[source]["data"][:, ch])
+                    if len(fun_return.shape) == 1: # if function returns only 1D array
+                        y = fun_return
+                        x = new_data[source]["time"]
+                    else:  # function returns 2D array (e.g. fft returns freq and amplitude)
+                        x, y = fun_return.T # expects 2D array to be returned
+
+                    line.setData(x, y)
+
+                else: # channel vs. channel
+                    channel_x, channel_y = channels
+                    fun_return = apply_function(self.vis, new_data[source]['data'][:, [channel_x, channel_y]])
+                    x, y = fun_return.T
+                    # x_ch, y_ch = channels
+                    # x = new_data[source]['data'][:, x_ch]
+                    # y = new_data[source]['data'][:, y_ch]
+
                     line.setData(x, y)
 
 
@@ -102,3 +202,6 @@ class MainWindow(QMainWindow):
 
 def random_color():
     return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+
+
+

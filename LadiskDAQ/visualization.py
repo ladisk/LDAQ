@@ -1,86 +1,214 @@
-from flask import Flask, render_template
-from flask import request
-from flask_socketio import SocketIO, emit
-from simple_websocket_server import WebSocket
-from werkzeug.serving import make_server
-import webbrowser
-import json
-from threading import Thread
-import time
-import subprocess
-import sys
-import os
-import numpy as np
-import logging
+import pyqtgraph as pg
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QPushButton, QHBoxLayout
+from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtGui import QColor
 
-logger = logging.getLogger()
-logging.basicConfig(filename='visualization.log', level=logging.INFO)
+import numpy as np
+import sys
+import random
+import time
+import types
+
+from .visualization_helpers import _fun_fft
+
+
+INBUILT_FUNCTIONS = {'fft': _fun_fft}
 
 
 class Visualization:
-    def __init__(self):
-        self.app = Flask(__name__)
-        self.app.config['SECRET_KEY'] = 'sadfahsdgijweoifjačlrgijačlkgjčlkj234512352315'
-        self.app.config['UPGRADE_WEBSOCKET'] = WebSocket
-        # self.socketio = SocketIO(self.app, async_mode='threading')
-        self.socketio = SocketIO(self.app)
+    def __init__(self, max_plot_time=1, layout=None, subplot_options=None, show_legend=True):
+        self.layout = layout
+        self.subplot_options = subplot_options
+        self.max_plot_time = max_plot_time
+        self.show_legend = show_legend
 
-        self.running = False
+        self.max_plot_time_per_subplot = {}
+        if self.subplot_options is not None:
+            for pos, options in self.subplot_options.items():
+                if 'xlim' in options.keys():
+                    self.max_plot_time_per_subplot[pos] = options['xlim'][1] - options['xlim'][0]
+
         
-        @self.app.route('/')
-        def index():
-            return render_template('index.html')
+    def run(self, core):
+        self.core = core
 
-        @self.socketio.on('connect')
-        def on_connect():
-            logger.info('Client connected')
+        if self.layout is None:
+            self.layout = {}
+            for source in self.core.acquisition_names:
+                acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
+                self.layout[source] = {(0, 0): list(range(acq.n_channels))}
 
-        @self.socketio.on('disconnect')
-        def on_disconnect():
-            logger.info('Client disconnected')
+        self.app = QApplication.instance()
+        if self.app is None:
+            self.app = QApplication(sys.argv)
 
-        @self.socketio.on('start')
-        def on_start():
-            self.running = True
-            self.socketio.start_background_task(self.generate_data)
+        with self.app:
+            self.main_window = MainWindow(self, self.core, self.app)
+            self.main_window.show()
+            self.app.exec_()
+        
+        self.core.is_running_global = False
 
-        @self.socketio.on('stop')
-        def on_stop():
-            logger.info('stop')
-            self.running = False
+class MainWindow(QMainWindow):
+    def __init__(self, vis, core, app):
+        super().__init__()
+        
+        self.vis = vis
+        self.core = core
+        self.app = app
 
-        @self.socketio.on('close')
-        def on_close():
-            from win32api import GenerateConsoleCtrlEvent
-            CTRL_C_EVENT = 0
-            GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)
-            logger.info('Client closed')
+        self.triggered = False
 
+        self.layout = self.vis.layout
+        self.setWindowTitle('Data Acquisition and Visualization')
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        self.layout_widget = QVBoxLayout(self.central_widget)
+        self.layout_widget.setContentsMargins(20, 20, 20, 20) # set the padding
 
-    def generate_data(self):
-        x = np.arange(1000)
-        y = np.zeros(1000)
-        while True:
-            if self.running:
-                y_new = np.random.rand(100)
-                y = np.roll(y, -len(y_new))
-                y[-len(y_new):] = y_new
-                data = {
-                    'x': x.tolist(),
-                    'y': y.tolist()
-                }
+        self.add_buttons()
+
+        self.init_plots()
+        self.init_timer()
+
+    def add_buttons(self):
+        self.button_layout = QHBoxLayout()
+
+        self.close_button = QPushButton('Trigger')
+        self.close_button.clicked.connect(self.trigger_measurement)
+        self.button_layout.addWidget(self.close_button)
+
+        self.close_button = QPushButton('Close')
+        self.close_button.clicked.connect(self.close_app)
+        self.button_layout.addWidget(self.close_button)
+
+        self.layout_widget.addLayout(self.button_layout)
+
+    
+    def init_plots(self):
+        pg.setConfigOption('background', 'w')
+        pg.setConfigOption('foreground', 'k')
+
+        self.time_start = time.time()
+        self.plots = {}
+        grid_layout = pg.GraphicsLayoutWidget()
+
+        self.layout_widget.addWidget(grid_layout)
+        self.subplots = {}
+
+        for source, positions in self.layout.items():
+            channel_names = self.core.acquisitions[self.core.acquisition_names.index(source)].channel_names
+            plot_channels = []
+            for pos, channels in positions.items():
+                if pos not in self.subplots.keys():
+                    self.subplots[pos] = grid_layout.addPlot(*pos)
+                    # self.subplots[pos].setContentsMargins(50, 10, 50, 10) # set the padding
+
+                    if self.vis.subplot_options is not None and pos in self.vis.subplot_options:
+                        options = self.vis.subplot_options[pos]
+                        if 'axis_style' in options:
+                            if options['axis_style'] == 'semilogy':
+                                self.subplots[pos].setLogMode(y=True)
+                            elif options['axis_style'] == 'semilogx':
+                                self.subplots[pos].setLogMode(x=True)
+                            elif options['axis_style'] == 'loglog':
+                                self.subplots[pos].setLogMode(x=True, y=True)
+                            elif options['axis_style'] == 'linear':
+                                self.subplots[pos].setLogMode(y=False)
+
+                        if 'xlim' in options:
+                            self.subplots[pos].setXRange(*options['xlim'])
+                        if 'ylim' in options:
+                            self.subplots[pos].setYRange(*options['ylim'])
                 
-                self.socketio.emit('data', json.dumps(data))
-                self.socketio.sleep(0.1)
-            else:
-                self.running = False
-                break
+                apply_function = lambda vis, x: x
+                for ch in channels:
+                    if isinstance(ch, types.FunctionType):
+                        apply_function = ch
+                    elif ch in INBUILT_FUNCTIONS.keys():
+                        apply_function = INBUILT_FUNCTIONS[ch]
+                    
+                for ch in channels:
+                    if isinstance(ch, tuple):
+                        x, y = ch
+                        line = self.subplots[pos].plot(pen=pg.mkPen(color=random_color()), name=f"{channel_names[x]} vs. {channel_names[y]}")
+                        plot_channels.append((line, pos, apply_function, x, y))
+                    elif isinstance(ch, int):
+                        line = self.subplots[pos].plot(pen=pg.mkPen(color=random_color()), name=f"{channel_names[ch]}")
+                        plot_channels.append((line, pos, apply_function, ch))
+                    elif isinstance(ch, types.FunctionType):
+                        pass
+                
+                if self.vis.show_legend:
+                    # Add legend to the subplot
+                    legend = self.subplots[pos].addLegend()
+                    for item in self.subplots[pos].items:
+                        if isinstance(item, pg.PlotDataItem):
+                            legend.addItem(item, item.opts['name'])
+
+            self.plots[source] = plot_channels
 
 
-    def run(self):
-        webbrowser.open('http://127.0.0.1:5000')
-        self.socketio.run(self.app, allow_unsafe_werkzeug=True)
+    def init_timer(self):
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_plots)
+        self.timer.start(100)
 
-if __name__ == '__main__':
-    visualizer = Visualization()
-    visualizer.run()
+
+    def update_plots(self):
+        if not self.core.is_running_global:
+            self.close_app()
+
+        if self.core.triggered_globally and not self.triggered:
+            self.set_triggered_color()
+
+        new_data = self.core.get_measurement_dict(self.vis.max_plot_time)
+        for source, plot_channels in self.plots.items():
+            self.vis.acquisition = self.core.acquisitions[self.core.acquisition_names.index(source)]
+
+            for line, pos, apply_function, *channels in plot_channels:
+                # only plot data that are within xlim (applies only for normal plot, not ch vs. ch)
+                max_plot_samples =  int(self.vis.max_plot_time_per_subplot[pos] * self.vis.acquisition.sample_rate)
+
+                if len(channels) == 1: # plot a single channel
+                    ch = channels[0]
+                    fun_return = apply_function(self.vis, new_data[source]["data"][:, ch])
+                    if len(fun_return.shape) == 1: # if function returns only 1D array
+                        y = fun_return
+                        x = new_data[source]["time"]
+                    else:  # function returns 2D array (e.g. fft returns freq and amplitude)
+                        x, y = fun_return.T # expects 2D array to be returned
+
+                    line.setData(x[:max_plot_samples], y[-max_plot_samples:])
+
+                else: # channel vs. channel
+                    channel_x, channel_y = channels
+                    fun_return = apply_function(self.vis, new_data[source]['data'][:, [channel_x, channel_y]])
+                    x, y = fun_return.T
+                    line.setData(x, y)
+
+
+
+    def close_app(self):
+        self.timer.stop()
+        self.app.quit()
+        self.close()
+
+
+    def trigger_measurement(self):
+        self.core.start_acquisition()
+
+
+    def set_triggered_color(self):
+        self.triggered = True
+        palette = self.palette()
+        palette.setColor(self.backgroundRole(), QColor(152, 251, 152))
+        self.setPalette(palette)
+
+
+
+def random_color():
+    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+
+
+

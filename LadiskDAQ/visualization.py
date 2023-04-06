@@ -86,6 +86,7 @@ INBUILT_FUNCTIONS = {'fft': _fun_fft, 'frf_amp': _fun_frf_amplitude, 'frf_phase'
 class Visualization:
     def __init__(self, layout=None, subplot_options=None):
         self.layout = layout
+        self.subplot_options = subplot_options
         
 
     def run(self, core):
@@ -142,8 +143,25 @@ class MainWindow(QMainWindow):
             for pos, channels in positions.items():
                 if pos not in self.subplots.keys():
                     self.subplots[pos] = grid_layout.addPlot(*pos)
+                    
+                    if self.vis.subplot_options is not None and pos in self.vis.subplot_options:
+                        options = self.vis.subplot_options[pos]
+                        if 'axis_style' in options:
+                            if options['axis_style'] == 'semilogy':
+                                self.subplots[pos].setLogMode(y=True)
+                            elif options['axis_style'] == 'semilogx':
+                                self.subplots[pos].setLogMode(x=True)
+                            elif options['axis_style'] == 'loglog':
+                                self.subplots[pos].setLogMode(x=True, y=True)
+                            elif options['axis_style'] == 'linear':
+                                self.subplots[pos].setLogMode(y=False)
+
+                        if 'xlim' in options:
+                            self.subplots[pos].setXRange(*options['xlim'])
+                        if 'ylim' in options:
+                            self.subplots[pos].setYRange(*options['ylim'])
                 
-                apply_function = lambda core, x: x
+                apply_function = lambda vis, x: x
                 for ch in channels:
                     if isinstance(ch, types.FunctionType):
                         apply_function = ch

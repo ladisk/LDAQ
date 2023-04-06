@@ -7,80 +7,10 @@ import random
 import time
 import types
 
-# ------------------------------------------------------------------------------
-#  Prepared plot Functions
-# ------------------------------------------------------------------------------
-
-def _fun_fft(self, data):
-   amp = np.fft.rfft(data) * 2 / len(data)
-   freq = np.fft.rfftfreq(len(data), d=1/self.acquisition.sample_rate)
-
-   return np.array([freq, np.abs(amp)]).T
-
-# TODO: write only 1 function for amplitude and phase, implement function arguments (*args)
-
-def _fun_frf_amplitude(self, data):
-    ch1, ch2 = data[-self.max_samples:].T
-    
-    # this code part is necessary for proper creation of new additional variables
-    # used in this function:
-    if not hasattr(self, 'var_H1'):
-        self.var_freq = np.fft.rfftfreq(self.max_samples, d=1/self.acquisition.sample_rate)
-        self.var_H1 = np.zeros(len(self.var_freq))
-        self.var_n  = 0
-        
-        # these variables will be deleted from LDAQ class after acquisition run is stopped: 
-        self.temp_variables.extend(["var_freq", "var_n", "var_H1" ]) 
+from visualization_helpers import _fun_fft
 
 
-    if len(ch1) == int(self.max_samples):
-        ch1 = np.fft.rfft(ch1)
-        ch2 = np.fft.rfft(ch2)
-        Sxx = ch1 * np.conj(ch1)
-        Sxy = ch2 * np.conj(ch1)
-        H1 = Sxy / Sxx # frequency response function
-       
-         # FRF averaging:
-        self.var_H1 = (self.var_H1 * self.var_n + H1) / (self.var_n + 1)
-        self.var_n += 1
-
-        return np.array([self.var_freq, np.abs(self.var_H1) ]).T
-    
-    else:
-        return np.array([self.var_freq, np.abs(self.var_H1) ]).T
-
-def _fun_frf_phase(self, data):
-    ch1, ch2 = data[-self.max_samples:].T
-    
-    # this code part is necessary for proper creation of new additional variables
-    # used in this function:
-    if not hasattr(self, 'var_H1_2'):
-        self.var_freq_2 = np.fft.rfftfreq(self.max_samples, d=1/self.acquisition.sample_rate)
-        self.var_H1_2 = np.zeros(len(self.var_freq_2))
-        self.var_n_2  = 0
-        
-        # these variables will be deleted from LDAQ class after acquisition run is stopped: 
-        self.temp_variables.extend(["var_freq_2", "var_n_2", "var_H1_2" ]) 
-
-
-    if len(ch1) == int(self.max_samples):
-        ch1 = np.fft.rfft(ch1)
-        ch2 = np.fft.rfft(ch2)
-        Sxx = ch1 * np.conj(ch1)
-        Sxy = ch2 * np.conj(ch1)
-        H1 = Sxy / Sxx # frequency response function
-       
-         # FRF averaging:
-        self.var_H1_2 = (self.var_H1_2 * self.var_n_2 + H1) / (self.var_n_2 + 1)
-        self.var_n_2 += 1
-
-        return np.array([self.var_freq_2, 180/np.pi* np.angle(self.var_H1_2) ]).T
-    
-    else:
-        return np.array([self.var_freq_2, 180/np.pi* np.angle(self.var_H1_2) ]).T
-
-
-INBUILT_FUNCTIONS = {'fft': _fun_fft, 'frf_amp': _fun_frf_amplitude, 'frf_phase': _fun_frf_phase}
+INBUILT_FUNCTIONS = {'fft': _fun_fft}
 
 
 class Visualization:
@@ -122,8 +52,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         
         self.vis = vis
-        self.app = app
         self.core = core
+        self.app = app
 
         self.layout = self.vis.layout
         self.setWindowTitle('Data Acquisition and Visualization')

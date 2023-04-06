@@ -116,10 +116,10 @@ class Core():
             #print("glob_trigger")
            
         # visualization:
-        if self.visualization is not None:
-            #print("vis")
-            thread_visualization = threading.Thread(target=self.visualization.run, args=(self, ))
-            self.thread_list.append(thread_visualization)
+        # if self.visualization is not None:
+        #     #print("vis")
+        #     thread_visualization = threading.Thread(target=self.visualization.run, args=(self, ))
+        #     self.thread_list.append(thread_visualization)
             
         # periodic data saving:
         if self.save_interval is not None:

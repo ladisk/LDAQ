@@ -84,11 +84,18 @@ INBUILT_FUNCTIONS = {'fft': _fun_fft, 'frf_amp': _fun_frf_amplitude, 'frf_phase'
 
 
 class Visualization:
-    def __init__(self, layout=None, subplot_options=None):
+    def __init__(self, max_plot_time=1, layout=None, subplot_options=None):
         self.layout = layout
         self.subplot_options = subplot_options
-        
+        self.max_plot_time = max_plot_time
 
+        self.max_plot_time_per_subplot = {}
+        if self.subplot_options is not None:
+            for pos, options in self.subplot_options.items():
+                if 'xlim' in options.keys():
+                    self.max_plot_time_per_subplot[pos] = options['xlim'][1] - options['xlim'][0]
+
+        
     def run(self, core):
         self.core = core
 
@@ -172,10 +179,10 @@ class MainWindow(QMainWindow):
                     if isinstance(ch, tuple):
                         x, y = ch
                         line = self.subplots[pos].plot(pen=pg.mkPen(color=random_color()))
-                        plot_channels.append((line, apply_function, x, y))
+                        plot_channels.append((line, pos, apply_function, x, y))
                     elif isinstance(ch, int):
                         line = self.subplots[pos].plot(pen=pg.mkPen(color=random_color()))
-                        plot_channels.append((line, apply_function, ch))
+                        plot_channels.append((line, pos, apply_function, ch))
                     elif isinstance(ch, types.FunctionType):
                         pass
 
@@ -192,11 +199,14 @@ class MainWindow(QMainWindow):
         if not self.core.is_running_global:
             self.close_app()
 
-        new_data = self.core.get_measurement_dict(2)
+        new_data = self.core.get_measurement_dict(self.vis.max_plot_time)
         for source, plot_channels in self.plots.items():
             self.vis.acquisition = self.core.acquisitions[self.core.acquisition_names.index(source)]
 
-            for line, apply_function, *channels in plot_channels:
+            for line, pos, apply_function, *channels in plot_channels:
+                # only plot data that are within xlim (applies only for normal plot, not ch vs. ch)
+                max_plot_samples =  int(self.vis.max_plot_time_per_subplot[pos] * self.vis.acquisition.sample_rate)
+
                 if len(channels) == 1: # plot a single channel
                     ch = channels[0]
                     fun_return = apply_function(self.vis, new_data[source]["data"][:, ch])
@@ -206,16 +216,12 @@ class MainWindow(QMainWindow):
                     else:  # function returns 2D array (e.g. fft returns freq and amplitude)
                         x, y = fun_return.T # expects 2D array to be returned
 
-                    line.setData(x, y)
+                    line.setData(x[:max_plot_samples], y[-max_plot_samples:])
 
                 else: # channel vs. channel
                     channel_x, channel_y = channels
                     fun_return = apply_function(self.vis, new_data[source]['data'][:, [channel_x, channel_y]])
                     x, y = fun_return.T
-                    # x_ch, y_ch = channels
-                    # x = new_data[source]['data'][:, x_ch]
-                    # y = new_data[source]['data'][:, y_ch]
-
                     line.setData(x, y)
 
 

@@ -161,27 +161,34 @@ class Core():
         """
         while self.is_running_global:
             # Check if all acquisition sources are running:
+            # acquisition_running = True
+            # for acquisition in self.acquisitions:
+            #     if acquisition.is_running:
+            #         pass
+            #     else:
+            #         acquisition_running = False
+            #         break
             acquisition_running = True
-            for acquisition in self.acquisitions:
-                if acquisition.is_running:
-                    pass
-                else:
-                    acquisition_running = False
-                    break
+            if all(not acquisition.is_running for acquisition in self.acquisitions) and len(self.acquisitions) > 0:
+                acquisition_running = False # end if all acquisitions are ended
             
             # Check if all generation sources are running:       
+            # generation_running = True
+            # for generation in self.generations:
+            #     if generation.is_running:
+            #         pass
+            #     else:
+            #         generation_running = False
+            #         break
             generation_running = True
-            for generation in self.generations:
-                if generation.is_running:
-                    pass
-                else:
-                    generation_running = False
-                    break
+            if all(not generation.is_running for generation in self.generations) and len(self.generations) > 0:
+                generation_running = False
+                
             self.is_running_global = acquisition_running and generation_running
             
             # Check if any acquisition sources are triggered:
-            with self.lock:
-                if not self.triggered_globally: # only if measurement is not already running
+            if not self.triggered_globally: # only if measurement is not already running
+                with self.lock:
                     for acquisition in self.acquisitions:
                         if acquisition.is_triggered():
                             self.start_acquisition()
@@ -195,7 +202,7 @@ class Core():
                     if fun(self):
                         self.stop_acquisition_and_generation()
                                                 
-            time.sleep(0.01)      
+            time.sleep(0.05)      
 
     def set_global_trigger(self, trigger_source, trigger_channel, trigger_level, trigger_type='abs'):
         """Sets global trigger of the acquisition. NOTE: since acquisition sources may not be synchronized,
@@ -281,8 +288,9 @@ class Core():
             self.triggered_globally = True
             
             for acquisition in self.acquisitions:
-                acquisition.clear_buffer()
-                acquisition.trigger()
+                with acquisition.lock_acquisition: 
+                    acquisition.clear_buffer()
+                    acquisition.trigger()
             print('triggered.') 
             print('\tRecording...', end='') 
     
@@ -368,8 +376,22 @@ class Core():
         file_created = False
         file_path = None      
             
-        while self.is_running_global:
-            time.sleep(0.2)
+        running = True
+        delay_saving = 0.5 # seconds
+        delay_start  = time.time()
+        
+        while running:            
+            time.sleep(0.2)  
+                      
+            # implemented time delay:
+            if self.is_running_global:
+                delay_start = time.time()
+            elif time.time()-delay_start > delay_saving:
+                running = False
+            else:
+                pass
+            
+            # periodic saving: 
             if self.triggered_globally:
                 elapsed_time = time.time() - start_time
                 if elapsed_time >= self.save_interval:
@@ -390,16 +412,16 @@ class Core():
                     # Update data with new measurements
                     for acq in self.acquisitions:
                         name = acq.acquisition_name
-                        with self.lock:
-                            measurement = acq.get_measurement_dict(N_points = "new")
-                            
-                            time_ = measurement['time']
-                            if time_.shape[0] >0:
-                                last = time_[-1]
-                            else:
-                                last = 0
+                        #with acq.lock_acquisition:
+                       
+                        measurement = acq.get_measurement_dict(N_points = "new")
+                    
+                        #time_ = measurement['time']
+                        #if time_.shape[0] >0:
+                        #    last = time_[-1]
+                        #else:
+                        #    last = 0
             
-                            
                         if name not in data:
                             data[name] = measurement
                         else:
@@ -418,8 +440,8 @@ class Core():
 
                     # Save updated data
                     with open(file_path, 'wb') as f:
-                        pickle.dump(data, f, protocol=-1)            
-              
+                        pickle.dump(data, f, protocol=-1)       
+                        
     
 class LDAQ():
     """Visualization and triggering."""

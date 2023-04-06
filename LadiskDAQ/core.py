@@ -84,7 +84,7 @@ class Core():
 
         # Make separate threads for data acquisition
         for acquisition in self.acquisitions:
-            print("acq")
+            #print("acq")
             # update triggers from acquisition to match acquired samples to run_time:
             acquisition.update_trigger_parameters(duration=self.run_time, duration_unit="seconds")   
             thread_acquisition = threading.Thread(target=acquisition.run_acquisition )
@@ -92,19 +92,19 @@ class Core():
 
         # If generation is present, create generation thread
         for generation in self.generations:
-            print("gen")
+            #print("gen")
             thread_generation  = threading.Thread(target=generation.run_generation )
             self.thread_list.append(thread_generation)
 
         for control in self.controls:
-            print("con")
+            #print("con")
             thread_control = threading.Thread(target=control.run)
             self.thread_list.append(thread_control)
              
         # check events:
         thread_check_events = threading.Thread(target=self._check_events)
         self.thread_list.append(thread_check_events)
-        print("check")
+        #print("check")
         
         # if global trigger is set run the trigger in separate thread:
         if hasattr(self, "global_Trigger"):
@@ -113,17 +113,17 @@ class Core():
             
             thread_global_trigger = threading.Thread(target=self._run_global_trigger)
             self.thread_list.append(thread_global_trigger)
-            print("glob_trigger")
+            #print("glob_trigger")
            
         # visualization:
         if self.visualization is not None:
-            print("vis")
+            #print("vis")
             thread_visualization = threading.Thread(target=self.visualization.run, args=(self, ))
             self.thread_list.append(thread_visualization)
             
         # periodic data saving:
         if self.save_interval is not None:
-            print("per_save")
+            #print("per_save")
             thread_periodic_saving = threading.Thread(target=self._save_measurement_periodically)
             self.thread_list.append(thread_periodic_saving)
             
@@ -406,7 +406,7 @@ class Core():
                                 time_last = data[name]['time'][-1]
                             else:
                                 time_last = 0    
-                            print("core", name, time_last, last)
+                            #print("core", name, time_last, last)
                                 
                             new_time = measurement['time'] + time_last + 1/acq.sample_rate
                             

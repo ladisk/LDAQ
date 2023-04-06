@@ -1,13 +1,15 @@
 import pyqtgraph as pg
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QPushButton
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QPushButton, QHBoxLayout
 from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtGui import QColor
+
 import numpy as np
 import sys
 import random
 import time
 import types
 
-from visualization_helpers import _fun_fft
+from .visualization_helpers import _fun_fft
 
 
 INBUILT_FUNCTIONS = {'fft': _fun_fft}
@@ -55,24 +57,42 @@ class MainWindow(QMainWindow):
         self.core = core
         self.app = app
 
+        self.triggered = False
+
         self.layout = self.vis.layout
         self.setWindowTitle('Data Acquisition and Visualization')
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.layout_widget = QVBoxLayout(self.central_widget)
+        self.layout_widget.setContentsMargins(20, 20, 20, 20) # set the padding
 
-        self.close_button = QPushButton('Close')
-        self.close_button.clicked.connect(self.close_app)
-        self.layout_widget.addWidget(self.close_button)
+        self.add_buttons()
 
         self.init_plots()
         self.init_timer()
 
+    def add_buttons(self):
+        self.button_layout = QHBoxLayout()
+
+        self.close_button = QPushButton('Trigger')
+        self.close_button.clicked.connect(self.trigger_measurement)
+        self.button_layout.addWidget(self.close_button)
+
+        self.close_button = QPushButton('Close')
+        self.close_button.clicked.connect(self.close_app)
+        self.button_layout.addWidget(self.close_button)
+
+        self.layout_widget.addLayout(self.button_layout)
+
     
     def init_plots(self):
+        pg.setConfigOption('background', 'w')
+        pg.setConfigOption('foreground', 'k')
+
         self.time_start = time.time()
         self.plots = {}
         grid_layout = pg.GraphicsLayoutWidget()
+
         self.layout_widget.addWidget(grid_layout)
         self.subplots = {}
 
@@ -82,7 +102,8 @@ class MainWindow(QMainWindow):
             for pos, channels in positions.items():
                 if pos not in self.subplots.keys():
                     self.subplots[pos] = grid_layout.addPlot(*pos)
-                    
+                    # self.subplots[pos].setContentsMargins(50, 10, 50, 10) # set the padding
+
                     if self.vis.subplot_options is not None and pos in self.vis.subplot_options:
                         options = self.vis.subplot_options[pos]
                         if 'axis_style' in options:
@@ -138,6 +159,9 @@ class MainWindow(QMainWindow):
         if not self.core.is_running_global:
             self.close_app()
 
+        if self.core.triggered_globally and not self.triggered:
+            self.set_triggered_color()
+
         new_data = self.core.get_measurement_dict(self.vis.max_plot_time)
         for source, plot_channels in self.plots.items():
             self.vis.acquisition = self.core.acquisitions[self.core.acquisition_names.index(source)]
@@ -169,6 +193,19 @@ class MainWindow(QMainWindow):
         self.timer.stop()
         self.app.quit()
         self.close()
+
+
+    def trigger_measurement(self):
+        self.core.start_acquisition()
+
+
+    def set_triggered_color(self):
+        self.triggered = True
+        palette = self.palette()
+        palette.setColor(self.backgroundRole(), QColor(152, 251, 152))
+        self.setPalette(palette)
+
+
 
 def random_color():
     return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))

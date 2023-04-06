@@ -22,6 +22,25 @@ class DummyLock:
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
     
+class CustomPyTrigger(pyTrigger):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.samples_written = 0
+
+    def _add_data_to_buffer(self, data):
+        super()._add_data_to_buffer(data)
+        if self.triggered:
+            if self.rows_left > len(data):
+                take_rows = len(data)
+            else:
+                take_rows = self.rows_left
+            self.samples_written = take_rows
+
+    def get_samples_written(self):
+        """Get the number of samples written into the ring buffer in last add_data() call."""
+        return self.samples_written
+
+    
 class BaseAcquisition:
     def __init__(self):
         """EDIT in child class"""
@@ -33,7 +52,7 @@ class BaseAcquisition:
         self.N_retrieved_samples = 0  # number of samples since they were last retrieved
         self.external_trigger = False
     
-        self.lock = threading.Lock() # ensures acquisition class runs properly if used in multiple threads.
+        self.lock_acquisition = threading.Lock() # ensures acquisition class runs properly if used in multiple threads.
         
         # child class needs to have variables below:
         self.n_channels = 0
@@ -74,20 +93,20 @@ class BaseAcquisition:
         self.is_running = False
     
     def acquire(self):
-        acquired_data = self.read_data()
-        with self.lock:
+        with self.lock_acquisition: # lock to secure variables
+            acquired_data = self.read_data()
+            self.Trigger.add_data(acquired_data)
             self.N_acquired_samples += acquired_data.shape[0]
-        
-        #self.plot_data = np.vstack((self.plot_data, acquired_data))
-        #self.plot_time = np.concatenate((self.plot_time, 
-        #                self.plot_time[-1] + 1/self.sample_rate + np.arange(acquired_data.shape[0])/self.sample_rate ))
-        
-        self.Trigger.add_data(acquired_data)
             
-        if self.Trigger.finished or not self.is_running:
-            self.time, self.data = self.get_data(N_points=self.N_acquired_samples)                
+            if self.N_acquired_samples > self.Trigger.ringbuff.data.shape[0]:
+                self.N_acquired_samples = self.Trigger.ringbuff.data.shape[0]
+                #TODO: this will cause problems when self.N_retrieved_data will become greater than this value!
+                # self.get_data("new") will not return any new data from this points on!
+                
+        if self.Trigger.finished or not self.is_running:            
             self.stop()
             self.terminate_data_source()
+            
 
     def get_data(self, N_points=None):
         """Reads and returns data from the pyTrigger buffer.
@@ -97,21 +116,24 @@ class BaseAcquisition:
         Returns:
             tuple: (time, data) - 1D time vector and 2D measured data, both np.ndarray
         """
-        if N_points is None:
-            data = self.Trigger.get_data()
-        elif N_points == "new":
-            with self.lock:
-                N_points = self.N_acquired_samples - self.N_retrieved_samples
-                if N_points == 0:
-                    data = np.empty(shape=(0, self.n_channels) )
-                else:
-                    data = self.Trigger.get_data()[-N_points:]
+        with self.lock_acquisition:
+            if N_points is None:
+                data = self.Trigger.get_data()
+                
+            elif N_points == "new":
+                    N_points = self.N_acquired_samples - self.N_retrieved_samples
+                    
+                    if N_points == 0:
+                        data = np.empty(shape=(0, self.n_channels) )
+                    else:
+                        data = self.Trigger.get_data()[-N_points:]
+                        
                     self.N_retrieved_samples = self.N_acquired_samples
-        else:
-            data = self.Trigger.get_data()[-N_points:]
+            else:
+                data = self.Trigger.get_data()[-N_points:]
+                
+        time = np.arange(data.shape[0])/self.sample_rate #+ self.N_acquired_samples/self.sample_rate
             
-        time = np.arange(data.shape[0])/self.sample_rate
-        
         return time, data
     
     def get_measurement_dict(self, N_points=None):
@@ -175,6 +197,9 @@ class BaseAcquisition:
 
                 time.sleep(0.01)
                 self.acquire()
+        
+        print(self.N_acquired_samples, self.Trigger.ringbuff.data.shape[0], self.Trigger.get_samples_written())
+        
 
     def set_trigger_parameters(self, level, channel, duration=1, duration_unit='seconds', presamples=0, type='abs'):
         """Set parameters for triggering the measurement.
@@ -205,7 +230,7 @@ class BaseAcquisition:
         }
 
     def set_trigger_instance(self):
-        self.Trigger = pyTrigger(
+        self.Trigger = CustomPyTrigger( #pyTrigger
             rows=self.trigger_settings['duration_samples'], 
             channels=self.n_channels,
             trigger_type=self.trigger_settings['type'],
@@ -235,7 +260,9 @@ class BaseAcquisition:
         """Sets trigger off manually. Useful if the acquisition class is trigered by another process.
         """
         self.Trigger.triggered = True
+        
         self.N_acquired_samples = 0   # reset count of acquired data points
+        self.N_retrieved_samples = 0
         
     def is_triggered(self):
         """Checks if acquisition class has been triggered during measurement.

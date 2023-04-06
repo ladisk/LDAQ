@@ -17,6 +17,150 @@ INBUILT_FUNCTIONS = {'fft': _fun_fft}
 
 class Visualization:
     def __init__(self, max_plot_time=1, layout=None, subplot_options=None, show_legend=True):
+        """Live visualization of the measured data.
+        
+        :param max_plot_time: Maximum time that can be plotted.
+        :param layout: Dictionary containing the source names and subplot layout with channel definitions.
+            See examples below.
+        :param subplot_options: Dictionary containing the options for each of the subplots (xlim, ylim, axis_style).
+        :param show_legend: bool, defaults to True.
+
+        Plot layout
+        -----------
+        NORMAL TIME PLOTS: With plot layout, the user can define on which subplot the channels will be plotted. An example of
+        plot layout is:
+        >>> plot_layout = {
+            (0, 0): [0, 1],
+            (0, 1): [2, 3]
+        }
+
+        On first subplot (0, 0), channels 0 and 1 will be plotted, on the second subplot (0, 1), channels 2 and 3 will be plotted.
+        Channels can also be plotted one against another. 
+        
+        CHANNEL vs. CHANNEL PLOT: If, for example, we wish to plot channel 1 as a function of channel 0, input
+        channel indices in a tuple; first the channel to be plotted on x-axis, and second the channel to be plotted on y-axis:
+        >>> plot_layout = {
+            (0, 0): [0, 1],
+            (0, 1): [2, 3],
+            (1, 0): [(0, 1)]
+        }
+
+        FOURIER TRANSFORM PLOT: The DFT of the signal can be computed on the fly. To define the subplots and channels where the FFT is computed, 
+        add "fft" as an element into channel list. Additionaly 'logy' and 'logx' scalings can be set:
+        >>> plot_layout = {
+            (0, 0): [0, 1],               # Time series
+            (0, 1): [2, 3],               # Time series
+            (1, 0): [(0, 1)],             # ch1 = f( ch0 )
+            (1, 1): [2, 3, "fft", "logy"] # FFT(2) & FFT(3), log y scale
+        }
+
+        CUSTOM FUNCTION PLOT: Lastly, the signals can be modified for visualization by specifying a custom function, that is passed to the channel list.
+        Example below computes the square of the signal coming from channels 1 and 2. 
+        >>> plot_layout = {
+            (0, 0): [0, 1],               # Time series
+            (0, 1): [2, 3],               # Time series
+            (1, 0): [(0, 1)],             # ch1 = f( ch0 )
+            (1, 1): [2, 3, fun]           # fun(2) & fun(3)
+        }
+
+        function definition example:
+
+        def fun(self, channel_data):
+            '''
+            :param self:         instance of the acquisition object (has to be there so the function is called properly)
+            :param channel_data: channel data
+            '''
+            return channel_data**2
+
+        CUSTOM FUNCTION PLOT (channel vs. channel): 
+        >>> plot_layout = {
+            (0, 0): [(0, 1), fun]         # 2Darray = fun( np.array([ch0, ch1]).T )
+        }
+    	
+        function definition examples:
+
+        def fun(self, channel_data):
+            '''
+            :param self:         instance of the acquisition object (has to be there so the function is called properly)
+            :param channel_data: 2D channel data array of size (N, 2)
+
+            :return: 2D array np.array([x, y]).T that will be plotted on the subplot.
+            '''
+            ch0, ch1 = channel_data.T
+
+            x =  np.arange(len(ch1)) / self.acquisition.sample_rate # time array
+            y = ch1**2 + ch0 - 10
+
+            return np.array([x, y]).T
+
+         def fun(self, channel_data):
+            '''
+            :param self:         instance of the acquisition object (has to be there so the function is called properly)
+            :param channel_data: 2D channel data array of size (N, 2)
+
+            :return: 2D array np.array([x, y]).T that will be plotted on the subplot.
+            '''
+            ch0, ch1 = channel_data.T
+
+            x = np.arange(len(ch0)) / self.acquisition.sample_rate # time array
+            y = ch1 + ch0 # sum up two channels
+
+            # ---------------------------------------
+            # average across whole acquisition:
+            # ---------------------------------------
+            # ensure number of samples is the same and perform averaging:
+            if len(ch0) == int(self.max_samples): # at acquisition start, len(ch0) is less than self.max_samples
+                
+                # create class variables:
+                if not hasattr(self, 'var_y'):
+                    self.var_y = y
+                    self.var_x = x
+                    self.var_i = 0
+
+                    # these variables will be deleted from LDAQ class after acquisition run is stopped: 
+                    self.temp_variables.extend(["var_y", "var_x", "var_i"]) 
+                
+                self.var_y = (self.var_y * self.var_i + y) / (self.var_i + 1)
+                self.var_i += 1
+
+                return np.array([self.var_x, self.var_y]).T
+
+            else:
+                return np.array([x, y]).T
+
+
+        Subplot options
+        ---------------
+
+        >>> subplot_options = {
+            (0, 0): {
+                'xlim': (0, 2),
+                'ylim': (-1, 1),
+                'axis_style': 'linear'
+            },
+            (0, 1): {
+                'xlim': (0, 25),
+                'ylim': (1e-5, 10),
+                'axis_style': 'semilogy'
+            },
+            (1, 0): {
+                'xlim': (0, 5),
+                'axis_style': 'linear'
+            },
+            (1, 1): {
+                'xlim': (0, 2),
+                'axis_style': 'linear'
+            }
+        }
+
+        For each subplot, e.g., (0, 0), the xlim and ylim can be set. Additionally, the axis style can be selected.
+        Valid axis styles are:
+        
+        - linera (default)
+        - semilogy
+        - semilogx
+        - loglog
+        """
         self.layout = layout
         self.subplot_options = subplot_options
         self.max_plot_time = max_plot_time

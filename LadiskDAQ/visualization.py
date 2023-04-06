@@ -84,10 +84,11 @@ INBUILT_FUNCTIONS = {'fft': _fun_fft, 'frf_amp': _fun_frf_amplitude, 'frf_phase'
 
 
 class Visualization:
-    def __init__(self, max_plot_time=1, layout=None, subplot_options=None):
+    def __init__(self, max_plot_time=1, layout=None, subplot_options=None, show_legend=True):
         self.layout = layout
         self.subplot_options = subplot_options
         self.max_plot_time = max_plot_time
+        self.show_legend = show_legend
 
         self.max_plot_time_per_subplot = {}
         if self.subplot_options is not None:
@@ -146,6 +147,7 @@ class MainWindow(QMainWindow):
         self.subplots = {}
 
         for source, positions in self.layout.items():
+            channel_names = self.core.acquisitions[self.core.acquisition_names.index(source)].channel_names
             plot_channels = []
             for pos, channels in positions.items():
                 if pos not in self.subplots.keys():
@@ -178,13 +180,20 @@ class MainWindow(QMainWindow):
                 for ch in channels:
                     if isinstance(ch, tuple):
                         x, y = ch
-                        line = self.subplots[pos].plot(pen=pg.mkPen(color=random_color()))
+                        line = self.subplots[pos].plot(pen=pg.mkPen(color=random_color()), name=f"{channel_names[x]} vs. {channel_names[y]}")
                         plot_channels.append((line, pos, apply_function, x, y))
                     elif isinstance(ch, int):
-                        line = self.subplots[pos].plot(pen=pg.mkPen(color=random_color()))
+                        line = self.subplots[pos].plot(pen=pg.mkPen(color=random_color()), name=f"{channel_names[ch]}")
                         plot_channels.append((line, pos, apply_function, ch))
                     elif isinstance(ch, types.FunctionType):
                         pass
+                
+                if self.vis.show_legend:
+                    # Add legend to the subplot
+                    legend = self.subplots[pos].addLegend()
+                    for item in self.subplots[pos].items:
+                        if isinstance(item, pg.PlotDataItem):
+                            legend.addItem(item, item.opts['name'])
 
             self.plots[source] = plot_channels
 

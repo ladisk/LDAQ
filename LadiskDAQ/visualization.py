@@ -16,14 +16,13 @@ INBUILT_FUNCTIONS = {'fft': _fun_fft}
 
 
 class Visualization:
-    def __init__(self, max_plot_time=1, layout=None, subplot_options=None, show_legend=True):
+    def __init__(self, max_plot_time=1, layout=None, subplot_options=None):
         """Live visualization of the measured data.
         
         :param max_plot_time: Maximum time that can be plotted.
         :param layout: Dictionary containing the source names and subplot layout with channel definitions.
             See examples below.
         :param subplot_options: Dictionary containing the options for each of the subplots (xlim, ylim, axis_style).
-        :param show_legend: bool, defaults to True.
 
         Plot layout
         -----------
@@ -155,7 +154,7 @@ class Visualization:
 
         For each subplot, e.g., (0, 0), the xlim and ylim can be set. Additionally, the axis style can be selected.
         Valid axis styles are:
-        
+
         - linera (default)
         - semilogy
         - semilogx
@@ -164,7 +163,7 @@ class Visualization:
         self.layout = layout
         self.subplot_options = subplot_options
         self.max_plot_time = max_plot_time
-        self.show_legend = show_legend
+        self.show_legend = True
 
         self.max_plot_time_per_subplot = {}
         if self.subplot_options is not None:
@@ -215,6 +214,8 @@ class MainWindow(QMainWindow):
         self.init_plots()
         self.init_timer()
 
+        self.showFullScreen()
+
     def add_buttons(self):
         self.button_layout = QHBoxLayout()
 
@@ -225,6 +226,14 @@ class MainWindow(QMainWindow):
         self.close_button = QPushButton('Close')
         self.close_button.clicked.connect(self.close_app)
         self.button_layout.addWidget(self.close_button)
+
+        self.full_screen_button = QPushButton('Exit Full Screen')
+        self.full_screen_button.clicked.connect(self.toggle_full_screen)
+        self.button_layout.addWidget(self.full_screen_button)
+
+        self.legend_button = QPushButton('Toggle Legends')
+        self.legend_button.clicked.connect(self.toggle_legends)
+        self.button_layout.addWidget(self.legend_button)
 
         self.layout_widget.addLayout(self.button_layout)
 
@@ -239,6 +248,7 @@ class MainWindow(QMainWindow):
 
         self.layout_widget.addWidget(grid_layout)
         self.subplots = {}
+        self.legends = []
 
         for source, positions in self.layout.items():
             channel_names = self.core.acquisitions[self.core.acquisition_names.index(source)].channel_names
@@ -289,6 +299,7 @@ class MainWindow(QMainWindow):
                     for item in self.subplots[pos].items:
                         if isinstance(item, pg.PlotDataItem):
                             legend.addItem(item, item.opts['name'])
+                    self.legends.append(legend)
 
             self.plots[source] = plot_channels
 
@@ -341,6 +352,25 @@ class MainWindow(QMainWindow):
 
     def trigger_measurement(self):
         self.core.start_acquisition()
+
+
+    def toggle_full_screen(self):
+        if self.isFullScreen():
+            self.showNormal()
+            self.full_screen_button.setText('Full Screen')
+        else:
+            self.showFullScreen()
+            self.full_screen_button.setText('Exit Full Screen')
+
+
+    def toggle_legends(self):
+        if self.vis.show_legend:
+            self.vis.show_legend = False
+        else:
+            self.vis.show_legend = True
+
+        for legend in self.legends:
+            legend.setVisible(self.vis.show_legend)
 
 
     def set_triggered_color(self):

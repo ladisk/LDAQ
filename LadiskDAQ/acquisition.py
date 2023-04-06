@@ -46,7 +46,6 @@ class BaseAcquisition:
         """EDIT in child class"""
         self.acquisition_name = "DefaultAcquisition"
         self.channel_names = []
-        #self.plot_data = []
         self.is_running = True
         self.N_acquired_samples  = 0  # number of samples acquired from run
         self.N_retrieved_samples = 0  # number of samples since they were last retrieved
@@ -132,7 +131,7 @@ class BaseAcquisition:
             else:
                 data = self.Trigger.get_data()[-N_points:]
                 
-        time = np.arange(data.shape[0])/self.sample_rate #+ self.N_acquired_samples/self.sample_rate
+        time = np.arange(data.shape[0])/self.sample_rate 
             
         return time, data
     
@@ -141,12 +140,6 @@ class BaseAcquisition:
             time, data = self.get_data(N_points=self.N_acquired_samples)
         else:
             time, data = self.get_data(N_points=N_points)
-        
-        # if time.shape[0] >0:
-        #     last = time[-1]
-        # else:
-        #     last = 0
-        # print(self.acquisition_name, last)
         
         self.measurement_dict = {
             'data': data,
@@ -172,9 +165,6 @@ class BaseAcquisition:
         self.N_retrieved_samples = 0
         
         self.is_running = True
-
-        #self.plot_data = np.zeros((2, len(self.channel_names)))
-        #self.plot_time = np.zeros(2)
         
         if not self.external_trigger:
             self.set_trigger_instance()
@@ -197,9 +187,6 @@ class BaseAcquisition:
 
                 time.sleep(0.01)
                 self.acquire()
-        
-        print(self.N_acquired_samples, self.Trigger.ringbuff.data.shape[0], self.Trigger.get_samples_written())
-        
 
     def set_trigger_parameters(self, level, channel, duration=1, duration_unit='seconds', presamples=0, type='abs'):
         """Set parameters for triggering the measurement.

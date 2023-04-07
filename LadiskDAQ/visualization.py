@@ -9,20 +9,22 @@ import random
 import time
 import types
 
-from .visualization_helpers import _fun_fft
+from .visualization_helpers import auto_nth_point, _fun_fft
 
 
 INBUILT_FUNCTIONS = {'fft': _fun_fft}
 
 
 class Visualization:
-    def __init__(self, max_plot_time=1, layout=None, subplot_options=None):
+    def __init__(self, max_plot_time=1, layout=None, subplot_options=None, nth='auto', refresh_rate=100):
         """Live visualization of the measured data.
         
         :param max_plot_time: Maximum time that can be plotted.
         :param layout: Dictionary containing the source names and subplot layout with channel definitions.
             See examples below.
         :param subplot_options: Dictionary containing the options for each of the subplots (xlim, ylim, axis_style).
+        :param nth: Number of points to skip when plotting. If 'auto', the number of points to skip is automatically determined.
+        :param refresh_rate: Refresh rate of the plot in ms.
 
         Plot layout
         -----------
@@ -164,6 +166,10 @@ class Visualization:
         self.subplot_options = subplot_options
         self.max_plot_time = max_plot_time
         self.show_legend = True
+        self.nth = nth
+        self.refresh_rate = refresh_rate
+
+        self.max_points_to_refresh = 1e5 # max number of points to refresh in all plots combined
 
         self.max_plot_time_per_subplot = {}
         if self.subplot_options is not None:
@@ -174,6 +180,10 @@ class Visualization:
         
     def run(self, core):
         self.core = core
+
+        if self.nth == 'auto':
+            sample_rate = max([_.sample_rate for _ in self.core.acquisitions])
+            self.nth = auto_nth_point(self.layout, self.max_plot_time, sample_rate, max_points_to_refresh=self.max_points_to_refresh)
 
         if self.layout is None:
             self.layout = {}
@@ -309,7 +319,7 @@ class MainWindow(QMainWindow):
     def init_timer(self):
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_plots)
-        self.timer.start(100)
+        self.timer.start(self.vis.refresh_rate)
 
 
     def update_plots(self):
@@ -331,8 +341,8 @@ class MainWindow(QMainWindow):
                     ch = channels[0]
                     fun_return = apply_function(self.vis, new_data[source]["data"][:, ch])
                     if len(fun_return.shape) == 1: # if function returns only 1D array
-                        y = fun_return
-                        x = new_data[source]["time"]
+                        y = fun_return[::self.vis.nth]
+                        x = new_data[source]["time"][::self.vis.nth]
                     else:  # function returns 2D array (e.g. fft returns freq and amplitude)
                         x, y = fun_return.T # expects 2D array to be returned
 

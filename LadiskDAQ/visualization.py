@@ -16,10 +16,9 @@ INBUILT_FUNCTIONS = {'fft': _fun_fft}
 
 
 class Visualization:
-    def __init__(self, max_plot_time=1, layout=None, subplot_options=None, nth='auto', refresh_rate=100):
+    def __init__(self, layout=None, subplot_options=None, nth='auto', refresh_rate=100):
         """Live visualization of the measured data.
         
-        :param max_plot_time: Maximum time that can be plotted.
         :param layout: Dictionary containing the source names and subplot layout with channel definitions.
             See examples below.
         :param subplot_options: Dictionary containing the options for each of the subplots (xlim, ylim, axis_style).
@@ -164,7 +163,7 @@ class Visualization:
         """
         self.layout = layout
         self.subplot_options = subplot_options
-        self.max_plot_time = max_plot_time
+        self.max_plot_time = 1
         self.show_legend = True
         self.nth = nth
         self.refresh_rate = refresh_rate
@@ -176,6 +175,8 @@ class Visualization:
             for pos, options in self.subplot_options.items():
                 if 'xlim' in options.keys():
                     self.max_plot_time_per_subplot[pos] = options['xlim'][1] - options['xlim'][0]
+
+            self.max_plot_time = max(self.max_plot_time_per_subplot.values())
 
         
     def run(self, core):
@@ -341,18 +342,20 @@ class MainWindow(QMainWindow):
                     ch = channels[0]
                     fun_return = apply_function(self.vis, new_data[source]["data"][:, ch])
                     if len(fun_return.shape) == 1: # if function returns only 1D array
-                        y = fun_return[::self.vis.nth]
-                        x = new_data[source]["time"][::self.vis.nth]
+                        y = fun_return[-max_plot_samples:][::self.vis.nth]
+                        x = new_data[source]["time"][:max_plot_samples][::self.vis.nth]
                     else:  # function returns 2D array (e.g. fft returns freq and amplitude)
                         x, y = fun_return.T # expects 2D array to be returned
+                        x = x[:max_plot_samples]
+                        y = y[:max_plot_samples]
 
-                    line.setData(x[:max_plot_samples], y[-max_plot_samples:])
+                    line.setData(x, y)
 
                 else: # channel vs. channel
                     channel_x, channel_y = channels
                     fun_return = apply_function(self.vis, new_data[source]['data'][:, [channel_x, channel_y]])
                     x, y = fun_return.T
-                    line.setData(x, y)
+                    line.setData(x[::self.vis.nth], y[::self.vis.nth])
 
 
 

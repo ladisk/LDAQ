@@ -250,13 +250,15 @@ class MainWindow(QMainWindow):
         self.subplots = {}
         self.legends = []
 
+        color_dict = {}
         for source, positions in self.layout.items():
             channel_names = self.core.acquisitions[self.core.acquisition_names.index(source)].channel_names
+            color_dict.update({ch: ind+len(color_dict) for ind, ch in enumerate(channel_names)})
+
             plot_channels = []
             for pos, channels in positions.items():
                 if pos not in self.subplots.keys():
                     self.subplots[pos] = grid_layout.addPlot(*pos)
-                    # self.subplots[pos].setContentsMargins(50, 10, 50, 10) # set the padding
 
                     if self.vis.subplot_options is not None and pos in self.vis.subplot_options:
                         options = self.vis.subplot_options[pos]
@@ -285,10 +287,10 @@ class MainWindow(QMainWindow):
                 for ch in channels:
                     if isinstance(ch, tuple):
                         x, y = ch
-                        line = self.subplots[pos].plot(pen=pg.mkPen(color=random_color()), name=f"{channel_names[x]} vs. {channel_names[y]}")
+                        line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[y]], width=2), name=f"{channel_names[x]} vs. {channel_names[y]}")
                         plot_channels.append((line, pos, apply_function, x, y))
                     elif isinstance(ch, int):
-                        line = self.subplots[pos].plot(pen=pg.mkPen(color=random_color()), name=f"{channel_names[ch]}")
+                        line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[ch]], width=2), name=f"{channel_names[ch]}")
                         plot_channels.append((line, pos, apply_function, ch))
                     elif isinstance(ch, types.FunctionType):
                         pass
@@ -378,11 +380,5 @@ class MainWindow(QMainWindow):
         palette = self.palette()
         palette.setColor(self.backgroundRole(), QColor(152, 251, 152))
         self.setPalette(palette)
-
-
-
-def random_color():
-    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-
 
 

@@ -188,7 +188,7 @@ class BaseAcquisition:
                 time.sleep(0.01)
                 self.acquire()
 
-    def set_trigger_parameters(self, level, channel, duration=1, duration_unit='seconds', presamples=0, type='abs'):
+    def set_trigger(self, level, channel, duration=1, duration_unit='seconds', presamples=0, type='abs'):
         """Set parameters for triggering the measurement.
         
         :param level: trigger level
@@ -215,6 +215,8 @@ class BaseAcquisition:
             'duration_samples': duration_samples,
             'duration_seconds': duration_seconds,
         }
+        
+        self.set_trigger_instance()
 
     def set_trigger_instance(self):
         self.Trigger = CustomPyTrigger( #pyTrigger
@@ -242,6 +244,9 @@ class BaseAcquisition:
     
     def set_external_trigger(self):
         self.external_trigger = True
+        
+    def set_internal_trigger(self):
+        self.external_trigger = False
            
     def trigger(self):
         """Sets trigger off manually. Useful if the acquisition class is trigered by another process.
@@ -343,6 +348,7 @@ class SerialAcquisition(BaseAcquisition):
     
         self.set_unpack_data_settings() # sets unpack_string, expected_number_of_bytes, n_channels
         self.set_channel_names()        # sets channel names if none were given to the class
+        
         self.set_data_source()          # initializes serial connection
     
         self.buffer = b""                # buffer to which recieved data is added
@@ -351,7 +357,7 @@ class SerialAcquisition(BaseAcquisition):
         self.pretest_time = pretest_time if pretest_time is not None else 10.
         self.sample_rate = sample_rate if sample_rate is not None else self.get_sample_rate()
         # set default trigger, so the signal will not be trigered:
-        self.set_trigger_parameters(1e20, 0, duration=600)
+        self.set_trigger(1e20, 0, duration=600)
 
     def set_data_source(self):
         # open terminal:
@@ -556,7 +562,7 @@ class NIAcquisition(BaseAcquisition):
         self.n_channels = self.Task.number_of_ch
 
         # set default trigger, so the signal will not be trigered:
-        self.set_trigger_parameters(1e20, 0, duration=600)
+        self.set_trigger(1e20, 0, duration=600)
 
     def clear_task(self):
         """Clear a task."""

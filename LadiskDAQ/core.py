@@ -20,6 +20,7 @@ import threading
 import types
 import pickle
 
+
 AXIS_SCALES       = ['logx', 'logy']
 INBUILT_FUNCTIONS = ['fft', 'frf_amp', 'frf_phase']
 
@@ -49,9 +50,9 @@ class Core():
         pass
     
     
-    def run(self, run_time=None, run_name="Run", save_interval=None, root='', verbose=2):
+    def run(self, measurement_duration=None, run_name="Run", save_interval=None, root='', verbose=2):
         """
-        :param run_time: measurement duration in seconds, from trigger event of any of the sources. 
+        :param measurement_duration: measurement duration in seconds, from trigger event of any of the sources. 
                          If None the measurement runs for ever until manually stopped.
         :param save_interval: (float) data is saved every 'save_periodically' seconds. Defaults to None,
                                     meaning data is not saved. The time stamp on measured data will equal to
@@ -61,7 +62,7 @@ class Core():
         """
         self.run_name = run_name
         self.verbose  = verbose
-        self.run_time = run_time
+        self.measurement_duration = measurement_duration
         self.save_interval = save_interval
         self.root = root
         self.is_running_global = True
@@ -84,27 +85,24 @@ class Core():
 
         # Make separate threads for data acquisition
         for acquisition in self.acquisitions:
-            #print("acq")
             # update triggers from acquisition to match acquired samples to run_time:
-            acquisition.update_trigger_parameters(duration=self.run_time, duration_unit="seconds")   
+            if self.measurement_duration is not None:
+                acquisition.update_trigger_parameters(duration=self.measurement_duration, duration_unit="seconds")   
             thread_acquisition = threading.Thread(target=acquisition.run_acquisition )
             self.thread_list.append(thread_acquisition)
 
         # If generation is present, create generation thread
         for generation in self.generations:
-            #print("gen")
             thread_generation  = threading.Thread(target=generation.run_generation )
             self.thread_list.append(thread_generation)
 
         for control in self.controls:
-            #print("con")
             thread_control = threading.Thread(target=control.run)
             self.thread_list.append(thread_control)
              
         # check events:
         thread_check_events = threading.Thread(target=self._check_events)
         self.thread_list.append(thread_check_events)
-        #print("check")
         
         # if global trigger is set run the trigger in separate thread:
         if hasattr(self, "global_Trigger"):
@@ -113,17 +111,9 @@ class Core():
             
             thread_global_trigger = threading.Thread(target=self._run_global_trigger)
             self.thread_list.append(thread_global_trigger)
-            #print("glob_trigger")
            
-        # visualization:
-        # if self.visualization is not None:
-        #     #print("vis")
-        #     thread_visualization = threading.Thread(target=self.visualization.run, args=(self, ))
-        #     self.thread_list.append(thread_visualization)
-            
         # periodic data saving:
         if self.save_interval is not None:
-            #print("per_save")
             thread_periodic_saving = threading.Thread(target=self._save_measurement_periodically)
             self.thread_list.append(thread_periodic_saving)
             
@@ -134,10 +124,10 @@ class Core():
 
         if self.visualization is not None:
             self.visualization.run(self)
-        
-        # Main Loop:
-        while self.is_running_global: #self.is_running():
-            time.sleep(0.5)
+        else:
+            # Main Loop if no visualization:
+            while self.is_running_global:
+                time.sleep(0.5)
 
         # on exit:
         self.stop_acquisition_and_generation()
@@ -160,26 +150,10 @@ class Core():
         Executed in a separate thread.
         """
         while self.is_running_global:
-            # Check if all acquisition sources are running:
-            # acquisition_running = True
-            # for acquisition in self.acquisitions:
-            #     if acquisition.is_running:
-            #         pass
-            #     else:
-            #         acquisition_running = False
-            #         break
             acquisition_running = True
             if all(not acquisition.is_running for acquisition in self.acquisitions) and len(self.acquisitions) > 0:
                 acquisition_running = False # end if all acquisitions are ended
             
-            # Check if all generation sources are running:       
-            # generation_running = True
-            # for generation in self.generations:
-            #     if generation.is_running:
-            #         pass
-            #     else:
-            #         generation_running = False
-            #         break
             generation_running = True
             if all(not generation.is_running for generation in self.generations) and len(self.generations) > 0:
                 generation_running = False
@@ -204,9 +178,9 @@ class Core():
                                                 
             time.sleep(0.05)      
 
-    def set_global_trigger(self, trigger_source, trigger_channel, trigger_level, trigger_type='abs'):
+    def set_global_trigger(self, source, channel, level, trigger_type='abs'):
         """Sets global trigger of the acquisition. NOTE: since acquisition sources may not be synchronized,
-        expect up to 0.5 second delay between different acquisition sources.
+        expect up to 0.5 second delay between different acquisition sources. 
 
         Args:
             trigger_source (int, str): acquisition source index (position in the 'acquisitions' list) or
@@ -219,27 +193,28 @@ class Core():
             acq.set_external_trigger()
         
         # set up global trigger:
-        if type(trigger_source) == int:
-            acquisition_trigger = self.acquisitions[trigger_source]
+        if type(source) == int:
+            acquisition_trigger = self.acquisitions[source]
             
-        elif type(trigger_source) == str:
+        elif type(source) == str:
             for idx, acq in enumerate(self.acquisitions):
-                if trigger_source == acq.acquisition_name:
+                if source == acq.acquisition_name:
                     acquisition_trigger = acq
-                    trigger_source = idx
+                    source = idx
                     break
-            if trigger_source is None:
+            if source is None:
                 raise Exception("Trigger source name was not found in any of the acquisition sources.")
         else:
             raise TypeError("trigger_source type can only be index or string.")
         
-        self.trigger_source  = trigger_source
-        self.trigger_channel = trigger_channel
-        self.trigger_level   = trigger_level
+        self.trigger_source  = source
+        self.trigger_channel = channel
+        self.trigger_level   = level
         self.trigger_type    = trigger_type
 
         duration = 5. # does not matter, since this pyTrigger is only used for triggering not data storing
         self.global_trigger_buffer_samples = int( duration * acquisition_trigger.sample_rate )
+
         
         self.global_Trigger = pyTrigger(
                 rows= self.global_trigger_buffer_samples, 
@@ -259,6 +234,40 @@ class Core():
             
             if self.global_Trigger.triggered:
                 self.start_acquisition()
+                
+    def set_trigger(self, source, channel, level, duration, duration_unit='seconds', presamples=0, trigger_type='abs'):
+        """Sets trigger to one of acquisition sources. NOTE: since acquisition sources may not be synchronized,
+        expect delay between different acquisition sources. 
+
+        Args:
+            trigger_source (int, str): acquisition source index (position in the 'acquisitions' list) or
+                                       name of the acquisition source as string (acquisition.acquistion_name)
+            trigger_channel (int): channel number used for trigger
+            trigger_level (float): trigger_level
+        """
+        # set external trigger option to all acquisition sources:
+        if type(source) == str:
+            source = self.acquisition_names.index(source)
+        
+        for idx, acq in enumerate(self.acquisitions):
+            if idx == source: #set trigger
+                acq.set_internal_trigger()
+                acq.set_trigger(
+                    level=level, 
+                    channel=channel, 
+                    duration=duration, 
+                    duration_unit=duration_unit, 
+                    presamples=presamples, 
+                    type=trigger_type
+                )
+            else:
+                duration_seconds = duration
+                if duration_unit == "samples": # if specified as samples convert to seconds for other acquisition sources.
+                    source_sample_rate = self.acquisitions[source].sample_rate
+                    duration_seconds = duration*source_sample_rate
+                    
+                acq.update_trigger_parameters(duration=duration_seconds, duration_unit="seconds")
+                acq.set_external_trigger()
             
     def keyboard_hotkeys_setup(self):
         """Adds keyboard hotkeys for interaction.
@@ -1048,4 +1057,50 @@ def auto_nth_point(plot_layout, max_time, sample_rate, max_points_to_refresh=1e5
     return nth
         
         
-    
+def identify_time_delay(measurement_dict, sourceA, sourceB, duration=10, freq_range=(1, 12)):
+    """
+    Identify the time delay between two sources by analyzing their cross-spectral density (CSD).
+
+    Parameters:
+    ldaq (object): An instance of the data acquisition class.
+    sourceA (str): The key for the first source in the measurement dictionary.
+    sourceB (str): The key for the second source in the measurement dictionary.
+    duration (int, optional): Duration of the acquisition in seconds. Default is 10 seconds.
+    freq_range (tuple, optional): A tuple specifying the frequency range [Hz] for analysis. Default is (1, 12).
+
+    Returns:
+    float: The estimated time delay between the two sources.
+    """
+    from scipy.interpolate import interp1d
+    from scipy.signal import csd
+
+    # Extract data and time for both sources
+    dataA = measurement_dict[sourceA]['data']
+    timeA = measurement_dict[sourceA]['time']
+    dataB = measurement_dict[sourceB]['data']
+    timeB = measurement_dict[sourceB]['time']
+
+    # Interpolate data onto a common time vector
+    t_int = np.linspace(0, min(timeA[-1], timeB[-1]), 100000 )
+    fs = 1/(t_int[1]-t_int[0])
+    v1_a, v2_a = interp1d(timeA, dataA.T)(t_int)
+    v1_b, v2_b = interp1d(timeB, dataB.T)(t_int)
+
+    # Calculate the cross-spectral density (CSD)
+    nperseg = fs*4
+    freq, _ = csd(v1_a, v1_b, fs=fs, nperseg=nperseg)
+    sel = (freq < freq_range[1]) & (freq > freq_range[0])
+
+    # Compute the transfer function
+    H_v1 = csd(v1_a, v1_b, fs=fs, nperseg=nperseg)[1] / csd(v1_a, v1_a, fs=fs, nperseg=nperseg)[1]
+    H_v1 = H_v1[sel]
+    freq = freq[sel]
+
+    # Calculate the phase and fit a linear function to the unwrapped phase
+    phase = np.unwrap(np.angle(H_v1))
+    k, n = np.polyfit(freq, phase, deg=1)
+
+    # Calculate the time delay
+    time_delay = k / (2 * np.pi)
+
+    return time_delay

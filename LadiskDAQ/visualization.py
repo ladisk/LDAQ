@@ -168,13 +168,15 @@ class Visualization:
         self.nth = nth
         self.refresh_rate = refresh_rate
 
-        self.max_points_to_refresh = 1e5 # max number of points to refresh in all plots combined
+        self.max_points_to_refresh = 1e4
 
         self.max_plot_time_per_subplot = {}
         if self.subplot_options is not None:
             for pos, options in self.subplot_options.items():
                 if 'xlim' in options.keys():
                     self.max_plot_time_per_subplot[pos] = options['xlim'][1] - options['xlim'][0]
+                else:
+                    self.max_plot_time_per_subplot[pos] = 1
 
             self.max_plot_time = max(self.max_plot_time_per_subplot.values())
 
@@ -182,9 +184,8 @@ class Visualization:
     def run(self, core):
         self.core = core
 
-        if self.nth == 'auto':
-            sample_rate = max([_.sample_rate for _ in self.core.acquisitions])
-            self.nth = auto_nth_point(self.layout, self.max_plot_time, sample_rate, max_points_to_refresh=self.max_points_to_refresh)
+        if self.nth == 'auto' and self.layout is not None and self.subplot_options is not None:
+            self.nth = auto_nth_point(self.layout, self.subplot_options, self.core, max_points_to_refresh=self.max_points_to_refresh)
 
         if self.layout is None:
             self.layout = {}
@@ -273,20 +274,24 @@ class MainWindow(QMainWindow):
 
                     if self.vis.subplot_options is not None and pos in self.vis.subplot_options:
                         options = self.vis.subplot_options[pos]
+                        transform_lim_x = lambda x: x
+                        transform_lim_y = lambda x: x
                         if 'axis_style' in options:
                             if options['axis_style'] == 'semilogy':
                                 self.subplots[pos].setLogMode(y=True)
+                                transform_lim_y = lambda x: np.log10(x)
                             elif options['axis_style'] == 'semilogx':
                                 self.subplots[pos].setLogMode(x=True)
+                                transform_lim_x = lambda x: np.log10(x)
                             elif options['axis_style'] == 'loglog':
                                 self.subplots[pos].setLogMode(x=True, y=True)
                             elif options['axis_style'] == 'linear':
                                 self.subplots[pos].setLogMode(y=False)
 
                         if 'xlim' in options:
-                            self.subplots[pos].setXRange(*options['xlim'])
+                            self.subplots[pos].setXRange(transform_lim_x(options['xlim'][0]), transform_lim_x(options['xlim'][1]))
                         if 'ylim' in options:
-                            self.subplots[pos].setYRange(*options['ylim'])
+                            self.subplots[pos].setYRange(transform_lim_y(options['ylim'][0]), transform_lim_y(options['ylim'][1]))
                 
                 apply_function = lambda vis, x: x
                 for ch in channels:
@@ -337,13 +342,15 @@ class MainWindow(QMainWindow):
             for line, pos, apply_function, *channels in plot_channels:
                 # only plot data that are within xlim (applies only for normal plot, not ch vs. ch)
                 max_plot_samples =  int(self.vis.max_plot_time_per_subplot[pos] * self.vis.acquisition.sample_rate)
+                
+                nth = self.vis.nth[source][pos][channels[0]]
 
                 if len(channels) == 1: # plot a single channel
                     ch = channels[0]
                     fun_return = apply_function(self.vis, new_data[source]["data"][:, ch])
                     if len(fun_return.shape) == 1: # if function returns only 1D array
-                        y = fun_return[-max_plot_samples:][::self.vis.nth]
-                        x = new_data[source]["time"][:max_plot_samples][::self.vis.nth]
+                        y = fun_return[-max_plot_samples:][::nth]
+                        x = new_data[source]["time"][:max_plot_samples][::nth]
                     else:  # function returns 2D array (e.g. fft returns freq and amplitude)
                         x, y = fun_return.T # expects 2D array to be returned
                         x = x[:max_plot_samples]
@@ -355,7 +362,7 @@ class MainWindow(QMainWindow):
                     channel_x, channel_y = channels
                     fun_return = apply_function(self.vis, new_data[source]['data'][:, [channel_x, channel_y]])
                     x, y = fun_return.T
-                    line.setData(x[::self.vis.nth], y[::self.vis.nth])
+                    line.setData(x[::nth], y[::nth])
 
 
 

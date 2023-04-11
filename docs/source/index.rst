@@ -6,11 +6,26 @@
 Welcome to the LadiskDAQ documentation!
 ===============================================================
 
+This package provides an extendable interface for data acquisition and generation. It is designed to be quickly set-up, easy to use and accomodate a wide range of data sources.
+
+The package enables data **acquisition** from multiple sources, signal **generation** on multiple ouputs, and costumizable **live data visualization**.
+
+Examples of the acquisition/generation code for commonly used sources are presented in the showcase notebooks:
+
+- `National Instruments <https://github.com/ladisk/LadiskDAQ/blob/master/Showcase%20-%20National%20Instruments.ipynb>`_
+- `Serial communication <https://github.com/ladisk/LadiskDAQ/blob/master/Showcase%20-%20Serial.ipynb>`_
+
+For the more in-depth documentation, start with the :doc:`simple_start` page.
+
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
 
-   getting_started
+   simple_start
+   generation
+   visualization
+   multiple_sources
+   sample_rate_detection
    code
 
 

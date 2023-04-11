@@ -22,7 +22,9 @@ class Visualization:
         :param layout: Dictionary containing the source names and subplot layout with channel definitions.
             See examples below.
         :param subplot_options: Dictionary containing the options for each of the subplots (xlim, ylim, axis_style).
-        :param nth: Number of points to skip when plotting. If 'auto', the number of points to skip is automatically determined.
+        :param nth: Number of points to skip when plotting. If 'auto', the number of points to skip is automatically determined
+            in a way to make ``max_points_to_refresh = 1e4``. ``max_points_to_refresh`` is the attribute of the Visualization class and
+            can be changed by the user.
         :param refresh_rate: Refresh rate of the plot in ms.
 
         Plot layout

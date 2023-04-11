@@ -15,6 +15,7 @@ a wrapper for the National Instruments DAQmx driver. The class accepts the name 
     acq = LadiskDAQ.NIAcquisition(input_task_name, acquisition_name='DataSource')
 
 If the  ``acquisition_name`` argument is not specified, the name of the acquisition object will be set to the value of ``input_task_name``.
+
 The ``acquisition_name`` argument is important when using multiple acquisition objects in the same measurement, and when specifying the layout of the
 live `visualization <visualization.html>`_.
 

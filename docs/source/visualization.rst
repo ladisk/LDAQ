@@ -74,9 +74,11 @@ When plotting from multiple sources, the layout is defined:
         }
     }
 
-Notice the different names of the sources. Each name corresponds to the name of the acquisition source, defined in the acquisition class (see `first example <simple_start.html>`_).
+Notice the different names of the sources. Each name corresponds to the name of the acquisition source, defined in the acquisition class (see `first example <simple_start.html>`_ and `using multiple sources <multiple_sources.html>`_ example).
 
-It is important to note that the subplot locations are the same for all acquisition sources, but the indices of the data are different. For example, the subplot at location (0, 0)
+It is important to note that the subplot locations are the same for all acquisition sources, but the indices of the data are different. 
+
+For example, the subplot at location (0, 0)
 will containt the plots from source "DataSource1" with indices 0 and 1, and the plots from source "DataSource2" with indices 0.
 
 Channel vs. channel plot

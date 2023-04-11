@@ -10,3 +10,4 @@ keyboard
 pyTrigger
 PyDAQmx
 sphinx-copybutton
+serial

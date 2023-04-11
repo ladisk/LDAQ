@@ -15,6 +15,8 @@ Examples of the acquisition/generation code for commonly used sources are presen
 - `National Instruments <https://github.com/ladisk/LadiskDAQ/blob/master/Showcase%20-%20National%20Instruments.ipynb>`_
 - `Serial communication <https://github.com/ladisk/LadiskDAQ/blob/master/Showcase%20-%20Serial.ipynb>`_
 
+To quickly add acquisition code to your project, go to the :doc:`snippets` page, where you can copy and paste the code you need.
+
 For the more in-depth documentation, start with the :doc:`simple_start` page.
 
 .. toctree::
@@ -26,6 +28,7 @@ For the more in-depth documentation, start with the :doc:`simple_start` page.
    visualization
    multiple_sources
    sample_rate_detection
+   snippets
    code
 
 

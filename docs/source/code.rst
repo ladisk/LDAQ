@@ -3,7 +3,7 @@ Code documentation
 
 Core
 -----
-.. autoclass:: LadiskDAQ.core.LDAQ
+.. autoclass:: LadiskDAQ.core.Core
     :members:
 
 Acquisition
@@ -11,7 +11,15 @@ Acquisition
 .. autoclass:: LadiskDAQ.acquisition.NIAcquisition
     :members:
 
+.. autoclass:: LadiskDAQ.acquisition.SerialAcquisition
+    :members:
+
 Generation
 ----------
 .. autoclass:: LadiskDAQ.generation.NIGenerator
+    :members:
+
+Visualization
+-------------
+.. autoclass:: LadiskDAQ.visualization.Visualization
     :members:

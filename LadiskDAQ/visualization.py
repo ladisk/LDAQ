@@ -213,6 +213,7 @@ class MainWindow(QMainWindow):
         self.app = app
 
         self.triggered = False
+        self.freeze_plot = False
 
         self.layout = self.vis.layout
         self.setWindowTitle('Data Acquisition and Visualization')
@@ -246,6 +247,10 @@ class MainWindow(QMainWindow):
         self.legend_button = QPushButton('Toggle Legends')
         self.legend_button.clicked.connect(self.toggle_legends)
         self.button_layout.addWidget(self.legend_button)
+
+        self.freeze_button = QPushButton('Freeze')
+        self.freeze_button.clicked.connect(self.toggle_freeze_plot)
+        self.button_layout.addWidget(self.freeze_button)
 
         self.layout_widget.addLayout(self.button_layout)
 
@@ -335,34 +340,35 @@ class MainWindow(QMainWindow):
         if self.core.triggered_globally and not self.triggered:
             self.set_triggered_color()
 
-        new_data = self.core.get_measurement_dict(self.vis.max_plot_time)
-        for source, plot_channels in self.plots.items():
-            self.vis.acquisition = self.core.acquisitions[self.core.acquisition_names.index(source)]
+        if not self.freeze_plot:
+            new_data = self.core.get_measurement_dict(self.vis.max_plot_time)
+            for source, plot_channels in self.plots.items():
+                self.vis.acquisition = self.core.acquisitions[self.core.acquisition_names.index(source)]
 
-            for line, pos, apply_function, *channels in plot_channels:
-                # only plot data that are within xlim (applies only for normal plot, not ch vs. ch)
-                max_plot_samples =  int(self.vis.max_plot_time_per_subplot[pos] * self.vis.acquisition.sample_rate)
-                
-                nth = self.vis.nth[source][pos][channels[0]]
+                for line, pos, apply_function, *channels in plot_channels:
+                    # only plot data that are within xlim (applies only for normal plot, not ch vs. ch)
+                    max_plot_samples =  int(self.vis.max_plot_time_per_subplot[pos] * self.vis.acquisition.sample_rate)
+                    
+                    nth = self.vis.nth[source][pos][channels[0]]
 
-                if len(channels) == 1: # plot a single channel
-                    ch = channels[0]
-                    fun_return = apply_function(self.vis, new_data[source]["data"][:, ch])
-                    if len(fun_return.shape) == 1: # if function returns only 1D array
-                        y = fun_return[-max_plot_samples:][::nth]
-                        x = new_data[source]["time"][:max_plot_samples][::nth]
-                    else:  # function returns 2D array (e.g. fft returns freq and amplitude)
-                        x, y = fun_return.T # expects 2D array to be returned
-                        x = x[:max_plot_samples]
-                        y = y[:max_plot_samples]
+                    if len(channels) == 1: # plot a single channel
+                        ch = channels[0]
+                        fun_return = apply_function(self.vis, new_data[source]["data"][:, ch])
+                        if len(fun_return.shape) == 1: # if function returns only 1D array
+                            y = fun_return[-max_plot_samples:][::nth]
+                            x = new_data[source]["time"][:max_plot_samples][::nth]
+                        else:  # function returns 2D array (e.g. fft returns freq and amplitude)
+                            x, y = fun_return.T # expects 2D array to be returned
+                            x = x[:max_plot_samples]
+                            y = y[:max_plot_samples]
 
-                    line.setData(x, y)
+                        line.setData(x, y)
 
-                else: # channel vs. channel
-                    channel_x, channel_y = channels
-                    fun_return = apply_function(self.vis, new_data[source]['data'][:, [channel_x, channel_y]])
-                    x, y = fun_return.T
-                    line.setData(x[::nth], y[::nth])
+                    else: # channel vs. channel
+                        channel_x, channel_y = channels
+                        fun_return = apply_function(self.vis, new_data[source]['data'][:, [channel_x, channel_y]])
+                        x, y = fun_return.T
+                        line.setData(x[::nth], y[::nth])
 
 
 
@@ -401,4 +407,12 @@ class MainWindow(QMainWindow):
         palette.setColor(self.backgroundRole(), QColor(152, 251, 152))
         self.setPalette(palette)
 
+
+    def toggle_freeze_plot(self):
+        if self.freeze_plot:
+            self.freeze_plot = False
+            self.freeze_button.setText('Freeze')
+        else:
+            self.freeze_plot = True
+            self.freeze_button.setText('Unfreeze')
 

@@ -9,3 +9,4 @@ beautifultable>=1.1.0
 keyboard
 pyTrigger
 PyDAQmx
+sphinx-copybutton

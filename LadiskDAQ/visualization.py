@@ -469,6 +469,7 @@ class MainWindow(QMainWindow):
         self.core.triggered_globally = True # dummy start measurement
         self.timer.stop()
         self.core.stop_acquisition_and_generation()
+
         self.trigger_button.setText('Start measurement')
         self.trigger_button.setEnabled(False)
         self.measurement_stopped = True
@@ -479,6 +480,9 @@ class MainWindow(QMainWindow):
         palette = self.palette()
         palette.setColor(self.backgroundRole(), QColor(152, 251, 251))
         self.setPalette(palette)
+
+        if self.core.autoclose:
+            self.close_app()
 
 
     def trigger_measurement(self):

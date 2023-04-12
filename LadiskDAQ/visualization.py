@@ -472,6 +472,12 @@ class MainWindow(QMainWindow):
         self.app.quit()
         self.close()
 
+    
+    def closeEvent(self, a0):
+        """Call close_app() when the user closes the window by pressing the X button."""
+        self.close_app()
+        return super().closeEvent(a0)
+
 
     def stop_measurement(self, mode='finished'):
         self.core.triggered_globally = True # dummy start measurement

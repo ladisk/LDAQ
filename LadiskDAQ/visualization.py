@@ -236,6 +236,7 @@ class MainWindow(QMainWindow):
         self.app = app
 
         self.triggered = False
+        self.measurement_stopped = False
         self.freeze_plot = False
 
         self.layout = self.vis.layout
@@ -260,9 +261,9 @@ class MainWindow(QMainWindow):
     def add_buttons(self):
         self.button_layout = QVBoxLayout()
 
-        self.close_button = QPushButton('Start Measurement')
-        self.close_button.clicked.connect(self.trigger_measurement)
-        self.button_layout.addWidget(self.close_button)
+        self.trigger_button = QPushButton('Start Measurement')
+        self.trigger_button.clicked.connect(self.trigger_measurement)
+        self.button_layout.addWidget(self.trigger_button)
 
         self.close_button = QPushButton('Close')
         self.close_button.clicked.connect(self.close_app)
@@ -403,15 +404,28 @@ class MainWindow(QMainWindow):
 
 
     def close_app(self):
-        self.core.triggered_globally = True # dummy start measurement
-        self.timer.stop()
+        if not self.measurement_stopped:
+            self.stop_measurement()
+
         self.app.quit()
         self.close()
 
 
+    def stop_measurement(self):
+        self.core.triggered_globally = True # dummy start measurement
+        self.timer.stop()
+        self.core.stop_acquisition_and_generation()
+
+
     def trigger_measurement(self):
-        self.core.start_acquisition()
-        self.close_button.setText('Stop and Close')
+        if not self.triggered:
+            self.core.start_acquisition()
+        else:
+            self.stop_measurement()
+            self.trigger_button.setText('Start measurement')
+            self.trigger_button.setEnabled(False)
+            self.measurement_stopped = True
+
 
 
     def toggle_full_screen(self):
@@ -435,6 +449,7 @@ class MainWindow(QMainWindow):
 
     def set_triggered_color(self):
         self.triggered = True
+        self.trigger_button.setText('Stop measurement')
         palette = self.palette()
         palette.setColor(self.backgroundRole(), QColor(152, 251, 152))
         self.setPalette(palette)

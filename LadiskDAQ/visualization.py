@@ -242,7 +242,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('Data Acquisition and Visualization')
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
-        self.layout_widget = QVBoxLayout(self.central_widget)
+        self.layout_widget = QHBoxLayout(self.central_widget)
         self.layout_widget.setContentsMargins(20, 20, 20, 20) # set the padding
 
         self.add_buttons()
@@ -251,14 +251,14 @@ class MainWindow(QMainWindow):
         self.init_timer()
 
         desktop = QDesktopWidget().screenGeometry()
-        self.resize(int(desktop.width()*0.9), int(desktop.height()*0.75))
+        self.resize(int(desktop.width()*0.95), int(desktop.height()*0.8))
         window_geometry = self.frameGeometry()
-        window_geometry.moveCenter(desktop.center())
-        self.move(window_geometry.topLeft())
+        center_offset = desktop.center() - window_geometry.center()
+        self.move(self.pos() + center_offset)
 
 
     def add_buttons(self):
-        self.button_layout = QHBoxLayout()
+        self.button_layout = QVBoxLayout()
 
         self.close_button = QPushButton('Start Measurement')
         self.close_button.clicked.connect(self.trigger_measurement)
@@ -279,6 +279,8 @@ class MainWindow(QMainWindow):
         self.freeze_button = QPushButton('Freeze')
         self.freeze_button.clicked.connect(self.toggle_freeze_plot)
         self.button_layout.addWidget(self.freeze_button)
+
+        self.button_layout.addStretch(1)
 
         self.layout_widget.addLayout(self.button_layout)
 

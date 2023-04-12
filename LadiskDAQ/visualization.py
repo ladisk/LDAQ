@@ -1,7 +1,7 @@
 import pyqtgraph as pg
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QPushButton, QHBoxLayout, QDesktopWidget
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QPushButton, QHBoxLayout, QDesktopWidget, QProgressBar
 from PyQt5.QtCore import QTimer, Qt
-from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QColor, QPainter, QBrush, QPen
 
 import numpy as np
 import sys
@@ -285,7 +285,27 @@ class MainWindow(QMainWindow):
         self.freeze_button.clicked.connect(self.toggle_freeze_plot)
         self.button_layout.addWidget(self.freeze_button)
 
+        self.progress_bar = QProgressBar(self)
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(0)
+        self.progress_bar.setOrientation(Qt.Vertical)
+
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                width: 100px;
+                height: 500px;
+                padding: 0px;
+                align: center;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                background-color: #05B8CC;
+            }
+        """)
+
         self.button_layout.addStretch(1)
+
+        self.button_layout.addWidget(self.progress_bar)
 
         self.layout_widget.addLayout(self.button_layout)
 
@@ -385,10 +405,16 @@ class MainWindow(QMainWindow):
 
     def update_plots(self):
         if not self.core.is_running_global:
-            self.close_app()
+            self.stop_measurement()
 
         if self.core.triggered_globally and not self.triggered:
-            self.set_triggered_color()
+            self.on_measurement_start()
+
+            self.time_start = time.time()
+            self.progress_bar.setMaximum(int(1000*self.core.acquisitions[0].trigger_settings['duration']))
+
+        if self.triggered:
+            self.progress_bar.setValue(int(1000*(time.time() - self.time_start)))
 
         if not self.freeze_plot:
             new_data = self.core.get_measurement_dict(self.vis.max_plot_time)
@@ -430,22 +456,28 @@ class MainWindow(QMainWindow):
         self.close()
 
 
-    def stop_measurement(self):
+    def stop_measurement(self, mode='finished'):
         self.core.triggered_globally = True # dummy start measurement
         self.timer.stop()
         self.core.stop_acquisition_and_generation()
+        self.trigger_button.setText('Start measurement')
+        self.trigger_button.setEnabled(False)
+        self.measurement_stopped = True
+
+        if mode == 'finished':
+            self.progress_bar.setValue(self.progress_bar.maximum())
+
+        palette = self.palette()
+        palette.setColor(self.backgroundRole(), QColor(152, 251, 251))
+        self.setPalette(palette)
 
 
     def trigger_measurement(self):
         if not self.triggered:
             self.core.start_acquisition()
         else:
-            self.stop_measurement()
-            self.trigger_button.setText('Start measurement')
-            self.trigger_button.setEnabled(False)
-            self.measurement_stopped = True
-
-
+            self.stop_measurement(mode='manual')
+            
 
     def toggle_full_screen(self):
         if self.isFullScreen():
@@ -466,11 +498,11 @@ class MainWindow(QMainWindow):
             legend.setVisible(self.vis.show_legend)
 
 
-    def set_triggered_color(self):
+    def on_measurement_start(self):
         self.triggered = True
         self.trigger_button.setText('Stop measurement')
         palette = self.palette()
-        palette.setColor(self.backgroundRole(), QColor(152, 251, 152))
+        palette.setColor(self.backgroundRole(), QColor(152, 251, 177))
         self.setPalette(palette)
 
 
@@ -481,4 +513,3 @@ class MainWindow(QMainWindow):
         else:
             self.freeze_plot = True
             self.freeze_button.setText('Unfreeze')
-

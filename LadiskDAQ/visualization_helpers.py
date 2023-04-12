@@ -95,7 +95,9 @@ def auto_nth_point(layout, subplot_options, core, max_points_to_refresh):
 
                     acq_index = core.acquisition_names.index(acq_name)
                     sample_rate = core.acquisitions[acq_index].sample_rate
-                    nth[acq_name][subplot][channel] = int(np.ceil(sample_rate * (xlim[1] - xlim[0]) / (max_points_to_refresh/get_nr_of_lines(layout))))
+                
+                    points_per_line = max_points_to_refresh/get_nr_of_lines(layout)
+                    nth[acq_name][subplot][channel] = int(np.ceil(sample_rate * (xlim[1] - xlim[0]) / points_per_line))
     return nth
 
 def get_nr_of_lines(layout):

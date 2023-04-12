@@ -14,8 +14,6 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
 import sys
 
-from pyTrigger import pyTrigger
-
 import threading
 import types
 import pickle
@@ -40,6 +38,8 @@ class Core():
         if any(self.acquisition_names.count(s) > 1 for s in set(self.acquisition_names)): # check for duplicate acq. names
             raise Exception("Two or more acquisition sources have the same name. Please make them unique.")
 
+        self.trigger_source_index = None
+        
     def synchronize_acquisitions(self):
         """
         TODO: maybe there is a way to sync all acquisition sources.
@@ -67,6 +67,8 @@ class Core():
         self.root = root
         self.is_running_global = True
         
+        self.first = True # for printing trigger the first time.
+        
         self.keyboard_hotkeys_setup()
         if verbose == 2:
             self._print_table()
@@ -74,7 +76,6 @@ class Core():
         if self.verbose in [1, 2]:
             print('\tWaiting for trigger...', end='')
 
-     
         ####################
         # Thread setting:  #
         ####################
@@ -86,6 +87,8 @@ class Core():
         # Make separate threads for data acquisition
         for acquisition in self.acquisitions:
             # update triggers from acquisition to match acquired samples to run_time:
+            acquisition.is_standalone = False
+            acquisition.reset_trigger()
             if self.measurement_duration is not None:
                 acquisition.update_trigger_parameters(duration=self.measurement_duration, duration_unit="seconds")   
             thread_acquisition = threading.Thread(target=acquisition.run_acquisition )
@@ -104,19 +107,12 @@ class Core():
         thread_check_events = threading.Thread(target=self._check_events)
         self.thread_list.append(thread_check_events)
         
-        # if global trigger is set run the trigger in separate thread:
-        if hasattr(self, "global_Trigger"):
-            self.set_global_trigger(self.trigger_source, self.trigger_channel, 
-                                    self.trigger_level,   self.trigger_type)
-            
-            thread_global_trigger = threading.Thread(target=self._run_global_trigger)
-            self.thread_list.append(thread_global_trigger)
-           
         # periodic data saving:
         if self.save_interval is not None:
             thread_periodic_saving = threading.Thread(target=self._save_measurement_periodically)
             self.thread_list.append(thread_periodic_saving)
             
+        self.run_start_global = time.time()
         # start all threads:
         for thread in self.thread_list:
             thread.start()
@@ -160,15 +156,20 @@ class Core():
                 
             self.is_running_global = acquisition_running and generation_running
             
-            # Check if any acquisition sources are triggered:
-            if not self.triggered_globally: # only if measurement is not already running
-                with self.lock:
-                    for acquisition in self.acquisitions:
-                        if acquisition.is_triggered():
-                            self.start_acquisition()
-                            break
-                        else:
-                            pass
+            # check that all acquisitions are ready:
+            if not self.acquisitions[0].all_acquisitions_ready:
+                all_acquisitions_ready = all(acq.is_ready for acq in self.acquisitions)
+                if all_acquisitions_ready:
+                    self.acquisitions[0]._all_acquisitions_ready()
+            
+            if any(acq.is_triggered() for acq in self.acquisitions) and not self.triggered_globally:
+                self.triggered_globally = True
+                
+            if self.first and self.triggered_globally:
+                print()
+                print('triggered.') 
+                print('\tRecording...', end='') 
+                self.first = False
                             
             # additional functionalities added with 'add_check_events()' method:   
             if hasattr(self, "additional_check_functions"):
@@ -177,63 +178,6 @@ class Core():
                         self.stop_acquisition_and_generation()
                                                 
             time.sleep(0.05)      
-
-    def set_global_trigger(self, source, channel, level, trigger_type='abs'):
-        """Sets global trigger of the acquisition. NOTE: since acquisition sources may not be synchronized,
-        expect up to 0.5 second delay between different acquisition sources. 
-
-        Args:
-            trigger_source (int, str): acquisition source index (position in the 'acquisitions' list) or
-                                       name of the acquisition source as string (acquisition.acquistion_name)
-            trigger_channel (int): channel number used for trigger
-            trigger_level (float): trigger_level
-        """
-        # set external trigger option to all acquisition sources:
-        for acq in self.acquisitions:
-            acq.set_external_trigger()
-        
-        # set up global trigger:
-        if type(source) == int:
-            acquisition_trigger = self.acquisitions[source]
-            
-        elif type(source) == str:
-            for idx, acq in enumerate(self.acquisitions):
-                if source == acq.acquisition_name:
-                    acquisition_trigger = acq
-                    source = idx
-                    break
-            if source is None:
-                raise Exception("Trigger source name was not found in any of the acquisition sources.")
-        else:
-            raise TypeError("trigger_source type can only be index or string.")
-        
-        self.trigger_source  = source
-        self.trigger_channel = channel
-        self.trigger_level   = level
-        self.trigger_type    = trigger_type
-
-        duration = 5. # does not matter, since this pyTrigger is only used for triggering not data storing
-        self.global_trigger_buffer_samples = int( duration * acquisition_trigger.sample_rate )
-
-        
-        self.global_Trigger = pyTrigger(
-                rows= self.global_trigger_buffer_samples, 
-                channels=1, # only the triggering chanel will be passed to this pyTrigger instance
-                trigger_type=self.trigger_type,
-                trigger_channel=0, 
-                trigger_level=self.trigger_level,
-                presamples=0)
-        
-    def _run_global_trigger(self):
-        time.sleep(0.5)
-        while not self.triggered_globally:
-            with self.lock:
-                _, data = self.acquisitions[self.trigger_source].get_data()
-            data = data[-self.global_trigger_buffer_samples:, self.trigger_channel:self.trigger_channel+1]
-            self.global_Trigger.add_data(data)
-            
-            if self.global_Trigger.triggered:
-                self.start_acquisition()
                 
     def set_trigger(self, source, channel, level, duration, duration_unit='seconds', presamples=0, trigger_type='abs'):
         """Sets trigger to one of acquisition sources. NOTE: since acquisition sources may not be synchronized,
@@ -245,13 +189,16 @@ class Core():
             trigger_channel (int): channel number used for trigger
             trigger_level (float): trigger_level
         """
+        if duration_unit=="samples":
+            duration = int(duration)
+            
         # set external trigger option to all acquisition sources:
         if type(source) == str:
             source = self.acquisition_names.index(source)
+        self.trigger_source_index = source # save source index on which trigger is set
         
         for idx, acq in enumerate(self.acquisitions):
             if idx == source: #set trigger
-                acq.set_internal_trigger()
                 acq.set_trigger(
                     level=level, 
                     channel=channel, 
@@ -261,13 +208,20 @@ class Core():
                     type=trigger_type
                 )
             else:
-                duration_seconds = duration
-                if duration_unit == "samples": # if specified as samples convert to seconds for other acquisition sources.
-                    source_sample_rate = self.acquisitions[source].sample_rate
-                    duration_seconds = duration*source_sample_rate
+                source_sample_rate = self.acquisitions[source].sample_rate
+                presamples_seconds = presamples/source_sample_rate
+                presamples_other   = int(presamples_seconds*acq.sample_rate)
+                
+                if duration_unit == "seconds":
+                    duration_seconds = duration
+                    acq.update_trigger_parameters(duration=duration_seconds, duration_unit="seconds", presamples=presamples_other)
+                elif duration_unit == "samples": # if specified as samples convert to seconds for other acquisition sources.
+                    duration_seconds = duration/source_sample_rate
+                    duration_samples = int(duration_seconds*acq.sample_rate)
+                    acq.update_trigger_parameters(duration=duration_samples, duration_unit="samples", presamples=presamples_other)
                     
-                acq.update_trigger_parameters(duration=duration_seconds, duration_unit="seconds")
-                acq.set_external_trigger()
+                else:
+                   raise KeyError("Invalid duration unit specified. Only 'seconds' and 'samples' are possible.")
             
     def keyboard_hotkeys_setup(self):
         """Adds keyboard hotkeys for interaction.
@@ -296,12 +250,9 @@ class Core():
         if not self.triggered_globally:
             self.triggered_globally = True
             
-            for acquisition in self.acquisitions:
-                with acquisition.lock_acquisition: 
-                    acquisition.clear_buffer()
-                    acquisition.trigger()
-            print('triggered.') 
-            print('\tRecording...', end='') 
+            # 1 acq source triggers others through CustomPyTrigger parent class
+            with self.acquisitions[0].lock_acquisition: 
+                self.acquisitions[0].activate_trigger()
     
     def _print_table(self):
         table = BeautifulTable()
@@ -320,7 +271,7 @@ class Core():
         for fun in args:
             self.additional_check_functions.append(fun)
      
-    def get_measurement_dict(self, N_seconds=None):
+    def get_measurement_dict(self, N_seconds=None, correct_delay=False):
         """Returns measured data from all sources
 
         Args:
@@ -330,6 +281,13 @@ class Core():
         Returns:
             dict: Measurement dictionary
             """
+        if correct_delay: # measurements has been finished:
+            delay_dict = {}
+            
+            trigger_run_time = self.acquisitions[self.trigger_source_index].run_time
+            for acq in self.acquisitions:
+                delay_dict[acq.acquisition_name] = acq.run_time - trigger_run_time
+        
         self.measurement_dict = {}
         for idx, name in enumerate(self.acquisition_names):
             if N_seconds is None:
@@ -342,6 +300,20 @@ class Core():
                 raise KeyError("Wrong argument type passed to N_seconds.")
                 
             self.measurement_dict[ name ] = self.acquisitions[idx].get_measurement_dict(N_points)
+            
+            if correct_delay: # adjust time delays betwene sources:
+                # ts = trigger source
+                ts_run_time = self.acquisitions[self.trigger_source_index].run_time
+                delay1 = self.acquisitions[idx].run_time - ts_run_time
+                
+                #ts_trigger_time = self.acquisitions[self.trigger_source_index].Trigger.time_triggered
+                #delay2 = self.acquisitions[idx].Trigger.time_triggered - ts_trigger_time
+                
+                #delay = delay1 + delay2
+                self.measurement_dict[name]["time"] += delay1
+                
+        if correct_delay:
+            print("Corrected delay.")
             
         return self.measurement_dict
     
@@ -421,16 +393,9 @@ class Core():
                     # Update data with new measurements
                     for acq in self.acquisitions:
                         name = acq.acquisition_name
-                        #with acq.lock_acquisition:
-                       
+
                         measurement = acq.get_measurement_dict(N_points = "new")
-                    
-                        #time_ = measurement['time']
-                        #if time_.shape[0] >0:
-                        #    last = time_[-1]
-                        #else:
-                        #    last = 0
-            
+                          
                         if name not in data:
                             data[name] = measurement
                         else:

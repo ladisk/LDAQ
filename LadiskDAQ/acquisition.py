@@ -8,54 +8,93 @@ import struct
 
 from PyDAQmx.DAQmxFunctions import *
 from PyDAQmx.Task import Task
-
 from pyTrigger import pyTrigger
-
 from .daqtask import DAQTask
-    
 import threading
 
 class DummyLock:
     def __enter__(self):
         return self
-
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
     
 class CustomPyTrigger(pyTrigger):
+    """
+    Upgrades pyTrigger class with features needed for acquisition class BaseAcquisition.
+    """
+    triggered_global = False
+    time_global = time.time()
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.samples_written = 0
+        self.N_acquired_samples  = 0  # number of samples acquired from run
+        self.N_retrieved_samples = 0  # number of samples since they were last retrieved
+        self.time_triggered = time.time()
+        self.N_triggers = 0
+        self.trigger_index = None
+        
+        self.first_trigger = True
 
     def _add_data_to_buffer(self, data):
         super()._add_data_to_buffer(data)
+        self.N_acquired_samples += data.shape[0]
+        
+    def _add_data_chunk(self, data):
+        super()._add_data_chunk(data)
         if self.triggered:
-            if self.rows_left > len(data):
-                take_rows = len(data)
-            else:
-                take_rows = self.rows_left
-            self.samples_written = take_rows
-
-    def get_samples_written(self):
-        """Get the number of samples written into the ring buffer in last add_data() call."""
-        return self.samples_written
+            CustomPyTrigger.triggered_global = True
+            
+        elif CustomPyTrigger.triggered_global:
+            self.triggered = True
+        else:
+            pass
+        
+        if CustomPyTrigger.triggered_global and self.first_trigger:
+            self.time_triggered = time.time()
+            self.N_triggers += 1
+            self.first_trigger = False
+        return 
+        
+    def add_data(self, data):
+        finished = super().add_data(data)  
+        
+              
+        return finished
+    
+    def get_data_new(self):
+        data = self.ringbuff.get_data()
+        N_points = self.N_acquired_samples - self.N_retrieved_samples
+        if N_points == 0:
+            data = np.empty(shape=(0, self.n_channels) )
+        else:
+            data = data[-N_points:]
+        self.N_retrieved_samples = self.N_acquired_samples
+        return data
+    
+    def _trigger_index(self, data):
+        trigger = super()._trigger_index(data)
+        if type(trigger) != np.ndarray:
+            self.trigger_index = trigger
+        return trigger
 
     
 class BaseAcquisition:
+    all_acquisitions_ready = False
+    
     def __init__(self):
         """EDIT in child class"""
         self.acquisition_name = "DefaultAcquisition"
         self.channel_names = []
         self.is_running = True
-        self.N_acquired_samples  = 0  # number of samples acquired from run
-        self.N_retrieved_samples = 0  # number of samples since they were last retrieved
-        self.external_trigger = False
+        self.is_standalone = True # if this is part of bigger system or used as standalone object
+        self.is_ready = False
     
         self.lock_acquisition = threading.Lock() # ensures acquisition class runs properly if used in multiple threads.
         
         # child class needs to have variables below:
-        self.n_channels = 0
+        self.n_channels  = 0
         self.sample_rate = 0
+        
+        CustomPyTrigger.time_global = time.time()
         
     def read_data(self):
         """EDIT in child class
@@ -95,13 +134,7 @@ class BaseAcquisition:
         with self.lock_acquisition: # lock to secure variables
             acquired_data = self.read_data()
             self.Trigger.add_data(acquired_data)
-            self.N_acquired_samples += acquired_data.shape[0]
-            
-            if self.N_acquired_samples > self.Trigger.ringbuff.data.shape[0]:
-                self.N_acquired_samples = self.Trigger.ringbuff.data.shape[0]
-                #TODO: this will cause problems when self.N_retrieved_data will become greater than this value!
-                # self.get_data("new") will not return any new data from this points on!
-                
+           
         if self.Trigger.finished or not self.is_running:            
             self.stop()
             self.terminate_data_source()
@@ -115,29 +148,32 @@ class BaseAcquisition:
         Returns:
             tuple: (time, data) - 1D time vector and 2D measured data, both np.ndarray
         """
-        with self.lock_acquisition:
-            if N_points is None:
-                data = self.Trigger.get_data()
-                
-            elif N_points == "new":
-                    N_points = self.N_acquired_samples - self.N_retrieved_samples
-                    
-                    if N_points == 0:
-                        data = np.empty(shape=(0, self.n_channels) )
-                    else:
-                        data = self.Trigger.get_data()[-N_points:]
-                        
-                    self.N_retrieved_samples = self.N_acquired_samples
-            else:
-                data = self.Trigger.get_data()[-N_points:]
+        
+        if N_points is None:
+            data = self.Trigger.get_data()
+            
+        elif N_points == "new":
+            with self.lock_acquisition:
+                data = self.Trigger.get_data_new()
+                #N_points = self.Trigger.N_acquired_samples - self.Trigger.N_retrieved_samples
+                #
+                #if N_points == 0:
+                #    data = np.empty(shape=(0, self.n_channels) )
+                #else:
+                #    data = self.Trigger.get_data()[-N_points:]
+                #    
+                #self.Trigger.N_retrieved_samples = self.Trigger.N_acquired_samples
+        else:
+            data = self.Trigger.get_data()[-N_points:]
                 
         time = np.arange(data.shape[0])/self.sample_rate 
-            
+        
+        #time += time[-1]-self.run_time         
         return time, data
     
     def get_measurement_dict(self, N_points=None):
         if N_points is None:
-            time, data = self.get_data(N_points=self.N_acquired_samples)
+            time, data = self.get_data(N_points=self.Trigger.N_acquired_samples)
         else:
             time, data = self.get_data(N_points=N_points)
         
@@ -160,21 +196,25 @@ class BaseAcquisition:
                  If None acquisition runs indefinitely until self.is_running variable is set
                  False externally (i.e. in a different process)
         """
-        # reset both sample counters:
-        self.N_acquired_samples = 0
-        self.N_retrieved_samples = 0
-        
+        BaseAcquisition.all_acquisitions_ready = False 
+        self.is_ready = False
         self.is_running = True
-        
-        if not self.external_trigger:
-            self.set_trigger_instance()
-        else:
-            # if there's an external trigger set unachievable setting since the source will be triggered
-            # with .trigger() method:
-            self.update_trigger_parameters(level=1e30, type='abs', presamples=0)
-        
+
+        self.set_trigger_instance()
         self.set_data_source()
         
+        # if acquisition is used in some other classes, wait until all acquisition sources are ready:
+        if not self.is_standalone:
+            self.is_ready = True    # this source is ready (other may not be)
+            while not BaseAcquisition.all_acquisitions_ready: # until every source is ready
+                self.clear_buffer()                           # reads data, does not store in anywhere
+                #self.acquire()
+                time.sleep(0.01)
+                if not self.is_running:
+                    break
+        
+        self.run_time = 0 # actual time run to obtain all samples
+        time_start_acq = time.time()
         if run_time == None:
             while self.is_running:
                 time.sleep(0.01)
@@ -187,6 +227,8 @@ class BaseAcquisition:
 
                 time.sleep(0.01)
                 self.acquire()
+        time_end_acq  = time.time()
+        self.run_time = time_end_acq-time_start_acq
 
     def set_trigger(self, level, channel, duration=1, duration_unit='seconds', presamples=0, type='abs'):
         """Set parameters for triggering the measurement.
@@ -217,15 +259,6 @@ class BaseAcquisition:
         }
         
         self.set_trigger_instance()
-
-    def set_trigger_instance(self):
-        self.Trigger = CustomPyTrigger( #pyTrigger
-            rows=self.trigger_settings['duration_samples'], 
-            channels=self.n_channels,
-            trigger_type=self.trigger_settings['type'],
-            trigger_channel=self.trigger_settings['channel'], 
-            trigger_level=self.trigger_settings['level'],
-            presamples=self.trigger_settings['presamples'])
         
     def update_trigger_parameters(self, **kwargs):
         """
@@ -236,25 +269,35 @@ class BaseAcquisition:
             
         if self.trigger_settings['duration_unit'] == 'seconds':
             self.trigger_settings['duration_samples'] = int(self.sample_rate*self.trigger_settings['duration'])
+            self.trigger_settings['duration_seconds'] = self.trigger_settings['duration']
          
         elif self.trigger_settings['duration_unit'] == 'samples':
             self.trigger_settings['duration_seconds'] = self.trigger_settings['duration']/self.sample_rate
+            self.trigger_settings['duration_samples'] = self.trigger_settings['duration']
             
+        #TODO: some parameters in dict - duration_smaples, duration_seconds are not updated
         self.set_trigger_instance()
-    
-    def set_external_trigger(self):
-        self.external_trigger = True
         
-    def set_internal_trigger(self):
-        self.external_trigger = False
+    def set_trigger_instance(self):
+        self.Trigger = CustomPyTrigger( #pyTrigger
+        rows=self.trigger_settings['duration_samples'], 
+        channels=self.n_channels,
+        trigger_type=self.trigger_settings['type'],
+        trigger_channel=self.trigger_settings['channel'], 
+        trigger_level=self.trigger_settings['level'],
+        presamples=self.trigger_settings['presamples'])
            
-    def trigger(self):
-        """Sets trigger off manually. Useful if the acquisition class is trigered by another process.
+    def activate_trigger(self, all_sources=True):
+        """Sets trigger off. Useful if the acquisition class is trigered by another process.
+            This trigger can also trigger other acquisition sources by setting property class
         """
+        if all_sources:
+            CustomPyTrigger.triggered_global = True
         self.Trigger.triggered = True
-        
-        self.N_acquired_samples = 0   # reset count of acquired data points
-        self.N_retrieved_samples = 0
+
+    def reset_trigger(self):
+        CustomPyTrigger.triggered_global = False
+        self.Trigger.triggered = False
         
     def is_triggered(self):
         """Checks if acquisition class has been triggered during measurement.
@@ -264,6 +307,9 @@ class BaseAcquisition:
         """
         return self.Trigger.triggered
         
+    def _all_acquisitions_ready(self):
+        BaseAcquisition.all_acquisitions_ready = True
+    
     def save(self, name, root='', timestamp=True, comment=None):
         """Save acquired data.
         
@@ -390,7 +436,7 @@ class SerialAcquisition(BaseAcquisition):
     def read_data(self):
         # 1) read all data from serial
         self.buffer += self.ser.read_all()
-        #print(self.buffer)
+
         # 2) split data into lines
         parsed_lines = self.buffer.split(self.end_bytes + self.start_bytes)
         if len(parsed_lines) == 1 or len(parsed_lines) == 0: # not enough data
@@ -517,14 +563,14 @@ class SerialAcquisition(BaseAcquisition):
                     data.append(line_decoded)
                 else:
                     pass
-            self.N_acquired_samples = len(data)
+            self.Trigger.N_acquired_samples = len(data)
             
             # calculate sample_rate:
-            self.sample_rate = int( self.N_acquired_samples / (time_end - time_start ) )
+            self.sample_rate = int( self.Trigger.N_acquired_samples / (time_end - time_start ) )
             
             # this is overcomplicating things:   :)
             t_cycle = (time_end - time_start )/n_cycles
-            self.sample_rate = int( (self.N_acquired_samples + t_cycle*self.sample_rate) / (time_end - time_start ) )
+            self.sample_rate = int( (self.Trigger.N_acquired_samples + t_cycle*self.sample_rate) / (time_end - time_start ) )
         
         if self.sample_rate == 0:
             print("Something went wrong. Please check 'byte_sequence' input parameter if recieved byte sequence is correct.")

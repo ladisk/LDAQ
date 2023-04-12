@@ -1,5 +1,5 @@
 import pyqtgraph as pg
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QPushButton, QHBoxLayout, QDesktopWidget, QProgressBar
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QPushButton, QHBoxLayout, QDesktopWidget, QProgressBar, QLabel
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QColor, QPainter, QBrush, QPen
 
@@ -250,27 +250,26 @@ class MainWindow(QMainWindow):
         self.layout_widget = QHBoxLayout(self.central_widget)
         self.layout_widget.setContentsMargins(20, 20, 20, 20) # set the padding
 
+        self.desktop = QDesktopWidget().screenGeometry()
+        if hasattr(self.vis, 'last_position'):
+            self.move(self.vis.last_position)
+            self.resize(self.vis.last_size)
+        else:
+            self.resize(int(self.desktop.width()*0.95), int(self.desktop.height()*0.8))
+
+            window_geometry = self.frameGeometry()
+            center_offset = self.desktop.center() - window_geometry.center()
+            self.move(self.pos() + center_offset)
+
         self.add_buttons()
 
         self.init_plots()
         self.init_timer()
 
-        
-
-        if hasattr(self.vis, 'last_position'):
-            self.move(self.vis.last_position)
-            self.resize(self.vis.last_size)
-        else:
-            desktop = QDesktopWidget().screenGeometry()
-            self.resize(int(desktop.width()*0.95), int(desktop.height()*0.8))
-
-            window_geometry = self.frameGeometry()
-            center_offset = desktop.center() - window_geometry.center()
-            self.move(self.pos() + center_offset)
-
 
     def add_buttons(self):
         self.button_layout = QVBoxLayout()
+        self.button_layout.setContentsMargins(5, 5, int(self.desktop.width()*0.01), 5)
 
         self.trigger_button = QPushButton('Start Measurement')
         self.trigger_button.clicked.connect(self.trigger_measurement)
@@ -291,6 +290,14 @@ class MainWindow(QMainWindow):
         self.freeze_button = QPushButton('Freeze')
         self.freeze_button.clicked.connect(self.toggle_freeze_plot)
         self.button_layout.addWidget(self.freeze_button)
+
+        label = QLabel(self)
+        label.setText("Measurement status:")
+        self.button_layout.addWidget(label)
+
+        self.label = QLabel(self)
+        self.label.setText("Not started.")
+        self.button_layout.addWidget(self.label)
 
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setMinimum(0)
@@ -420,8 +427,9 @@ class MainWindow(QMainWindow):
             self.time_start = time.time()
             self.progress_bar.setMaximum(int(1000*self.core.acquisitions[0].trigger_settings['duration']))
 
-        if self.triggered:
+        if self.triggered and self.core.is_running_global:
             self.progress_bar.setValue(int(1000*(time.time() - self.time_start)))
+            self.label.setText(f"{time.time() - self.time_start:.1f}/{self.core.acquisitions[0].trigger_settings['duration']:.1f} s")
 
         if not self.freeze_plot:
             new_data = self.core.get_measurement_dict(self.vis.max_plot_time)
@@ -474,15 +482,17 @@ class MainWindow(QMainWindow):
         self.trigger_button.setEnabled(False)
         self.measurement_stopped = True
 
-        if mode == 'finished':
-            self.progress_bar.setValue(self.progress_bar.maximum())
-
         palette = self.palette()
         palette.setColor(self.backgroundRole(), QColor(152, 251, 251))
         self.setPalette(palette)
 
+        if mode == 'finished':
+            self.label.setText(f"Finished.")
+            self.progress_bar.setValue(self.progress_bar.maximum())
+
         if self.core.autoclose:
             self.close_app()
+
 
 
     def trigger_measurement(self):
@@ -526,3 +536,5 @@ class MainWindow(QMainWindow):
         else:
             self.freeze_plot = True
             self.freeze_button.setText('Unfreeze')
+
+        

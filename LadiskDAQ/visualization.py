@@ -255,11 +255,18 @@ class MainWindow(QMainWindow):
         self.init_plots()
         self.init_timer()
 
-        desktop = QDesktopWidget().screenGeometry()
-        self.resize(int(desktop.width()*0.95), int(desktop.height()*0.8))
-        window_geometry = self.frameGeometry()
-        center_offset = desktop.center() - window_geometry.center()
-        self.move(self.pos() + center_offset)
+        
+
+        if hasattr(self.vis, 'last_position'):
+            self.move(self.vis.last_position)
+            self.resize(self.vis.last_size)
+        else:
+            desktop = QDesktopWidget().screenGeometry()
+            self.resize(int(desktop.width()*0.95), int(desktop.height()*0.8))
+
+            window_geometry = self.frameGeometry()
+            center_offset = desktop.center() - window_geometry.center()
+            self.move(self.pos() + center_offset)
 
 
     def add_buttons(self):
@@ -446,9 +453,11 @@ class MainWindow(QMainWindow):
                         x, y = fun_return.T
                         line.setData(x[::nth], y[::nth])
 
-
-
+        
     def close_app(self):
+        self.vis.last_position = self.pos()
+        self.vis.last_size = self.size()
+
         if not self.measurement_stopped:
             self.stop_measurement()
 

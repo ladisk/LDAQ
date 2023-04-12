@@ -100,6 +100,48 @@ def get_nr_of_lines(layout):
     return nr_of_lines
 
 
+def check_subplot_options_validity(subplot_options):
+    """
+    Check if the plot layout is valid with the given rowspan and colspan.
+
+    Parameters:
+    -----------
+    subplot_options: dict
+        Dictionary containing plot layout information, with keys in the form of tuples indicating subplot position
+        and values in the form of dictionaries containing plot options.
+
+    Returns:
+    --------
+    bool:
+        True if the layout is valid, False otherwise.
+    """
+    # Extract the maximum row and column values from the keys in subplot_options
+    max_row = max([key[0] for key in subplot_options.keys()])
+    max_col = max([key[1] for key in subplot_options.keys()])
+
+    # Create a matrix to keep track of the occupied cells in the subplot grid
+    occupied_cells = [[False] * (max_col + 1) for _ in range(max_row + 1)]
+
+    # Loop through each subplot and check if it is valid
+    for pos, options in subplot_options.items():
+        row, col = pos
+        rowspan = options.get('rowspan', 1)
+        colspan = options.get('colspan', 1)
+
+        # Check if the subplot is out of bounds
+        if row + rowspan - 1 > max_row or col + colspan - 1 > max_col:
+            return False
+
+        # Check if the subplot overlaps with another subplot
+        for i in range(row, row + rowspan):
+            for j in range(col, col + colspan):
+                if occupied_cells[i][j]:
+                    return False
+                occupied_cells[i][j] = True
+
+    # If all subplots are valid, return True
+    return True
+
 # ------------------------------------------------------------------------------
 #  Prepared plot Functions
 # ------------------------------------------------------------------------------

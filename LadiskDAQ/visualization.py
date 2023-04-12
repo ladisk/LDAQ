@@ -9,7 +9,7 @@ import random
 import time
 import types
 
-from .visualization_helpers import auto_nth_point, _fun_fft
+from .visualization_helpers import auto_nth_point, check_subplot_options_validity, _fun_fft
 
 
 INBUILT_FUNCTIONS = {'fft': _fun_fft}
@@ -183,6 +183,10 @@ class Visualization:
             pass
         else:
             raise ValueError('`nth` must be an integer or "auto".')
+        
+        if self.subplot_options is not None:
+            if not check_subplot_options_validity(self.subplot_options):
+                raise ValueError("Invalid subplot options. Check the `rowspan` and `colspan` values.")
 
         
     def run(self, core):
@@ -306,7 +310,22 @@ class MainWindow(QMainWindow):
             plot_channels = []
             for pos, channels in positions.items():
                 if pos not in self.subplots.keys():
-                    self.subplots[pos] = grid_layout.addPlot(*pos)
+                    if 'rowspan' in self.vis.subplot_options[pos].keys():
+                        rowspan = self.vis.subplot_options[pos]['rowspan']
+                    else:
+                        rowspan = 1
+                    
+                    if 'colspan' in self.vis.subplot_options[pos].keys():
+                        colspan = self.vis.subplot_options[pos]['colspan']
+                    else:
+                        colspan = 1
+
+                    if 'title' in self.vis.subplot_options[pos].keys():
+                        title = self.vis.subplot_options[pos]['title']
+                    else:
+                        title = None
+
+                    self.subplots[pos] = grid_layout.addPlot(*pos, rowspan=rowspan, colspan=colspan, title=title)
 
                     if self.vis.subplot_options is not None and pos in self.vis.subplot_options:
                         options = self.vis.subplot_options[pos]

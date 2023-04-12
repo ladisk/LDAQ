@@ -1,26 +1,8 @@
 import numpy as np
 import types
 
-# def auto_nth_point(plot_layout, max_time, sample_rate, max_points_to_refresh=1e5):
-#     """
-#     Automatically determine the skip interval for drawing points.
-#     """
-#     lines = 0
-#     for key, val in plot_layout.items():
-#         for k, v in val.items():
-#             for i in v:
-#                 if type(i) in [tuple, int]:
-#                     lines += 1
-    
-#     points_to_refresh = max_time*sample_rate*lines
-    
-#     if max_points_to_refresh < points_to_refresh:
-#         nth = int(np.ceil(points_to_refresh/max_points_to_refresh))
-#     else:
-#         nth = 1
-#     return nth
 
-def auto_nth_point(layout, subplot_options, core, max_points_to_refresh):
+def auto_nth_point(layout, subplot_options, core, max_points_to_refresh, known_nth='auto'):
     """For each channel in `layout` find the `nth` variable that says that every nth point
     is plotted.
     
@@ -81,23 +63,30 @@ def auto_nth_point(layout, subplot_options, core, max_points_to_refresh):
                 if not isinstance(channel, (types.FunctionType, str)):
                     if isinstance(channel, tuple):
                         channel = channel[0]
-                    
-                    if 'xlim' in subplot_options[subplot]:
-                        if subplot in subplot_options:
-                            xlim = subplot_options[subplot]['xlim']
-                        else:
-                            for subplot2, channels2 in acq_layout.items():
-                                if channel in channels2:
-                                    xlim = subplot_options[subplot2]['xlim']
-                                    break
-                    else:
-                        xlim = (0, 1)
 
-                    acq_index = core.acquisition_names.index(acq_name)
-                    sample_rate = core.acquisitions[acq_index].sample_rate
-                
-                    points_per_line = max_points_to_refresh/get_nr_of_lines(layout)
-                    nth[acq_name][subplot][channel] = int(np.ceil(sample_rate * (xlim[1] - xlim[0]) / points_per_line))
+                    if known_nth == 'auto':
+                    
+                        if 'xlim' in subplot_options[subplot]:
+                            if subplot in subplot_options:
+                                xlim = subplot_options[subplot]['xlim']
+                            else:
+                                for subplot2, channels2 in acq_layout.items():
+                                    if channel in channels2:
+                                        xlim = subplot_options[subplot2]['xlim']
+                                        break
+                        else:
+                            xlim = (0, 1)
+
+                        acq_index = core.acquisition_names.index(acq_name)
+                        sample_rate = core.acquisitions[acq_index].sample_rate
+                    
+                        points_per_line = max_points_to_refresh/get_nr_of_lines(layout)
+                        nth[acq_name][subplot][channel] = int(np.ceil(sample_rate * (xlim[1] - xlim[0]) / points_per_line))
+
+                    elif isinstance(known_nth, int):
+                        nth[acq_name][subplot][channel] = known_nth
+                    else:
+                        raise ValueError('`known_nth` should be either "auto" or an integer.')
     return nth
 
 def get_nr_of_lines(layout):
@@ -109,6 +98,7 @@ def get_nr_of_lines(layout):
                 if not isinstance(channel, (types.FunctionType, str)):
                     nr_of_lines += 1
     return nr_of_lines
+
 
 # ------------------------------------------------------------------------------
 #  Prepared plot Functions

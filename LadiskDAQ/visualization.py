@@ -1,5 +1,5 @@
 import pyqtgraph as pg
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QPushButton, QHBoxLayout
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QPushButton, QHBoxLayout, QDesktopWidget
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QColor
 
@@ -172,28 +172,49 @@ class Visualization:
 
         self.max_points_to_refresh = 1e4
 
-        self.max_plot_time_per_subplot = {}
-        if self.subplot_options is not None:
-            for pos, options in self.subplot_options.items():
-                if 'xlim' in options.keys():
-                    self.max_plot_time_per_subplot[pos] = options['xlim'][1] - options['xlim'][0]
-                else:
-                    self.max_plot_time_per_subplot[pos] = 1
+        if any(isinstance(k, tuple) for k in self.layout.keys()) and not all(isinstance(k, tuple) for k in self.layout.keys()):
+            raise ValueError("Invalid layout.")
 
-            self.max_plot_time = max(self.max_plot_time_per_subplot.values())
+        if self.nth == 'auto':
+            if self.subplot_options is None or self.layout is None:
+                print('Warning: `nth` could not be determined automatically. Using `nth=1`.')
+                self.nth = 1
+        elif isinstance(self.nth, int):
+            pass
+        else:
+            raise ValueError('`nth` must be an integer or "auto".')
 
         
     def run(self, core):
         self.core = core
 
-        if self.nth == 'auto' and self.layout is not None and self.subplot_options is not None:
-            self.nth = auto_nth_point(self.layout, self.subplot_options, self.core, max_points_to_refresh=self.max_points_to_refresh)
+        if not isinstance(self.nth, dict):
+            self.nth = auto_nth_point(self.layout, self.subplot_options, self.core, max_points_to_refresh=self.max_points_to_refresh, known_nth=self.nth)
 
         if self.layout is None:
             self.layout = {}
             for source in self.core.acquisition_names:
                 acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
                 self.layout[source] = {(0, 0): list(range(acq.n_channels))}
+        else:
+            if all(isinstance(k, tuple) for k in self.layout.keys()):
+                self.layout = {self.core.acquisition_names[0]: self.layout}
+
+        if self.subplot_options is None:
+            self.subplot_options = {}
+            for source in self.core.acquisition_names:
+                acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
+                for pos in self.layout[source].keys():
+                    self.subplot_options[pos] = {"xlim": (0, 1), "axis_style": "linear"}
+
+        self.max_plot_time_per_subplot = {}
+        for pos, options in self.subplot_options.items():
+            if 'xlim' in options.keys():
+                self.max_plot_time_per_subplot[pos] = options['xlim'][1] - options['xlim'][0]
+            else:
+                self.max_plot_time_per_subplot[pos] = 1
+
+        self.max_plot_time = max(self.max_plot_time_per_subplot.values())
 
         self.app = QApplication.instance()
         if self.app is None:
@@ -229,12 +250,17 @@ class MainWindow(QMainWindow):
         self.init_plots()
         self.init_timer()
 
-        self.showFullScreen()
+        desktop = QDesktopWidget().screenGeometry()
+        self.resize(int(desktop.width()*0.9), int(desktop.height()*0.75))
+        window_geometry = self.frameGeometry()
+        window_geometry.moveCenter(desktop.center())
+        self.move(window_geometry.topLeft())
+
 
     def add_buttons(self):
         self.button_layout = QHBoxLayout()
 
-        self.close_button = QPushButton('Trigger')
+        self.close_button = QPushButton('Start Measurement')
         self.close_button.clicked.connect(self.trigger_measurement)
         self.button_layout.addWidget(self.close_button)
 
@@ -242,7 +268,7 @@ class MainWindow(QMainWindow):
         self.close_button.clicked.connect(self.close_app)
         self.button_layout.addWidget(self.close_button)
 
-        self.full_screen_button = QPushButton('Exit Full Screen')
+        self.full_screen_button = QPushButton('Full Screen')
         self.full_screen_button.clicked.connect(self.toggle_full_screen)
         self.button_layout.addWidget(self.full_screen_button)
 
@@ -375,6 +401,7 @@ class MainWindow(QMainWindow):
 
 
     def close_app(self):
+        self.core.triggered_globally = True # dummy start measurement
         self.timer.stop()
         self.app.quit()
         self.close()
@@ -382,6 +409,7 @@ class MainWindow(QMainWindow):
 
     def trigger_measurement(self):
         self.core.start_acquisition()
+        self.close_button.setText('Stop and Close')
 
 
     def toggle_full_screen(self):

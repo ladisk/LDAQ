@@ -1,7 +1,7 @@
 import pyqtgraph as pg
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QPushButton, QHBoxLayout
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QPushButton, QHBoxLayout, QDesktopWidget, QProgressBar
 from PyQt5.QtCore import QTimer, Qt
-from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QColor, QPainter, QBrush, QPen
 
 import numpy as np
 import sys
@@ -9,7 +9,7 @@ import random
 import time
 import types
 
-from .visualization_helpers import auto_nth_point, _fun_fft
+from .visualization_helpers import auto_nth_point, check_subplot_options_validity, _fun_fft
 
 
 INBUILT_FUNCTIONS = {'fft': _fun_fft}
@@ -172,28 +172,53 @@ class Visualization:
 
         self.max_points_to_refresh = 1e4
 
-        self.max_plot_time_per_subplot = {}
-        if self.subplot_options is not None:
-            for pos, options in self.subplot_options.items():
-                if 'xlim' in options.keys():
-                    self.max_plot_time_per_subplot[pos] = options['xlim'][1] - options['xlim'][0]
-                else:
-                    self.max_plot_time_per_subplot[pos] = 1
+        if any(isinstance(k, tuple) for k in self.layout.keys()) and not all(isinstance(k, tuple) for k in self.layout.keys()):
+            raise ValueError("Invalid layout.")
 
-            self.max_plot_time = max(self.max_plot_time_per_subplot.values())
+        if self.nth == 'auto':
+            if self.subplot_options is None or self.layout is None:
+                print('Warning: `nth` could not be determined automatically. Using `nth=1`.')
+                self.nth = 1
+        elif isinstance(self.nth, int):
+            pass
+        else:
+            raise ValueError('`nth` must be an integer or "auto".')
+        
+        if self.subplot_options is not None:
+            if not check_subplot_options_validity(self.subplot_options):
+                raise ValueError("Invalid subplot options. Check the `rowspan` and `colspan` values.")
 
         
     def run(self, core):
         self.core = core
 
-        if self.nth == 'auto' and self.layout is not None and self.subplot_options is not None:
-            self.nth = auto_nth_point(self.layout, self.subplot_options, self.core, max_points_to_refresh=self.max_points_to_refresh)
+        if not isinstance(self.nth, dict):
+            self.nth = auto_nth_point(self.layout, self.subplot_options, self.core, max_points_to_refresh=self.max_points_to_refresh, known_nth=self.nth)
 
         if self.layout is None:
             self.layout = {}
             for source in self.core.acquisition_names:
                 acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
                 self.layout[source] = {(0, 0): list(range(acq.n_channels))}
+        else:
+            if all(isinstance(k, tuple) for k in self.layout.keys()):
+                self.layout = {self.core.acquisition_names[0]: self.layout}
+
+        if self.subplot_options is None:
+            self.subplot_options = {}
+            for source in self.core.acquisition_names:
+                acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
+                for pos in self.layout[source].keys():
+                    self.subplot_options[pos] = {"xlim": (0, 1), "axis_style": "linear"}
+
+        self.max_plot_time_per_subplot = {}
+        for pos, options in self.subplot_options.items():
+            if 'xlim' in options.keys():
+                self.max_plot_time_per_subplot[pos] = options['xlim'][1] - options['xlim'][0]
+            else:
+                self.max_plot_time_per_subplot[pos] = 1
+
+        self.max_plot_time = max(self.max_plot_time_per_subplot.values())
 
         self.app = QApplication.instance()
         if self.app is None:
@@ -215,13 +240,14 @@ class MainWindow(QMainWindow):
         self.app = app
 
         self.triggered = False
+        self.measurement_stopped = False
         self.freeze_plot = False
 
         self.layout = self.vis.layout
         self.setWindowTitle('Data Acquisition and Visualization')
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
-        self.layout_widget = QVBoxLayout(self.central_widget)
+        self.layout_widget = QHBoxLayout(self.central_widget)
         self.layout_widget.setContentsMargins(20, 20, 20, 20) # set the padding
 
         self.add_buttons()
@@ -229,20 +255,32 @@ class MainWindow(QMainWindow):
         self.init_plots()
         self.init_timer()
 
-        self.showFullScreen()
+        
+
+        if hasattr(self.vis, 'last_position'):
+            self.move(self.vis.last_position)
+            self.resize(self.vis.last_size)
+        else:
+            desktop = QDesktopWidget().screenGeometry()
+            self.resize(int(desktop.width()*0.95), int(desktop.height()*0.8))
+
+            window_geometry = self.frameGeometry()
+            center_offset = desktop.center() - window_geometry.center()
+            self.move(self.pos() + center_offset)
+
 
     def add_buttons(self):
-        self.button_layout = QHBoxLayout()
+        self.button_layout = QVBoxLayout()
 
-        self.close_button = QPushButton('Trigger')
-        self.close_button.clicked.connect(self.trigger_measurement)
-        self.button_layout.addWidget(self.close_button)
+        self.trigger_button = QPushButton('Start Measurement')
+        self.trigger_button.clicked.connect(self.trigger_measurement)
+        self.button_layout.addWidget(self.trigger_button)
 
         self.close_button = QPushButton('Close')
         self.close_button.clicked.connect(self.close_app)
         self.button_layout.addWidget(self.close_button)
 
-        self.full_screen_button = QPushButton('Exit Full Screen')
+        self.full_screen_button = QPushButton('Full Screen')
         self.full_screen_button.clicked.connect(self.toggle_full_screen)
         self.button_layout.addWidget(self.full_screen_button)
 
@@ -253,6 +291,28 @@ class MainWindow(QMainWindow):
         self.freeze_button = QPushButton('Freeze')
         self.freeze_button.clicked.connect(self.toggle_freeze_plot)
         self.button_layout.addWidget(self.freeze_button)
+
+        self.progress_bar = QProgressBar(self)
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(0)
+        self.progress_bar.setOrientation(Qt.Vertical)
+
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                width: 100px;
+                height: 500px;
+                padding: 0px;
+                align: center;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                background-color: #05B8CC;
+            }
+        """)
+
+        self.button_layout.addStretch(1)
+
+        self.button_layout.addWidget(self.progress_bar)
 
         self.layout_widget.addLayout(self.button_layout)
 
@@ -277,7 +337,22 @@ class MainWindow(QMainWindow):
             plot_channels = []
             for pos, channels in positions.items():
                 if pos not in self.subplots.keys():
-                    self.subplots[pos] = grid_layout.addPlot(*pos)
+                    if 'rowspan' in self.vis.subplot_options[pos].keys():
+                        rowspan = self.vis.subplot_options[pos]['rowspan']
+                    else:
+                        rowspan = 1
+                    
+                    if 'colspan' in self.vis.subplot_options[pos].keys():
+                        colspan = self.vis.subplot_options[pos]['colspan']
+                    else:
+                        colspan = 1
+
+                    if 'title' in self.vis.subplot_options[pos].keys():
+                        title = self.vis.subplot_options[pos]['title']
+                    else:
+                        title = None
+
+                    self.subplots[pos] = grid_layout.addPlot(*pos, rowspan=rowspan, colspan=colspan, title=title)
 
                     if self.vis.subplot_options is not None and pos in self.vis.subplot_options:
                         options = self.vis.subplot_options[pos]
@@ -337,10 +412,16 @@ class MainWindow(QMainWindow):
 
     def update_plots(self):
         if not self.core.is_running_global:
-            self.close_app()
+            self.stop_measurement()
 
         if self.core.triggered_globally and not self.triggered:
-            self.set_triggered_color()
+            self.on_measurement_start()
+
+            self.time_start = time.time()
+            self.progress_bar.setMaximum(int(1000*self.core.acquisitions[0].trigger_settings['duration']))
+
+        if self.triggered:
+            self.progress_bar.setValue(int(1000*(time.time() - self.time_start)))
 
         if not self.freeze_plot:
             new_data = self.core.get_measurement_dict(self.vis.max_plot_time)
@@ -372,17 +453,40 @@ class MainWindow(QMainWindow):
                         x, y = fun_return.T
                         line.setData(x[::nth], y[::nth])
 
-
-
+        
     def close_app(self):
-        self.timer.stop()
+        self.vis.last_position = self.pos()
+        self.vis.last_size = self.size()
+
+        if not self.measurement_stopped:
+            self.stop_measurement()
+
         self.app.quit()
         self.close()
 
 
-    def trigger_measurement(self):
-        self.core.start_acquisition()
+    def stop_measurement(self, mode='finished'):
+        self.core.triggered_globally = True # dummy start measurement
+        self.timer.stop()
+        self.core.stop_acquisition_and_generation()
+        self.trigger_button.setText('Start measurement')
+        self.trigger_button.setEnabled(False)
+        self.measurement_stopped = True
 
+        if mode == 'finished':
+            self.progress_bar.setValue(self.progress_bar.maximum())
+
+        palette = self.palette()
+        palette.setColor(self.backgroundRole(), QColor(152, 251, 251))
+        self.setPalette(palette)
+
+
+    def trigger_measurement(self):
+        if not self.triggered:
+            self.core.start_acquisition()
+        else:
+            self.stop_measurement(mode='manual')
+            
 
     def toggle_full_screen(self):
         if self.isFullScreen():
@@ -403,10 +507,11 @@ class MainWindow(QMainWindow):
             legend.setVisible(self.vis.show_legend)
 
 
-    def set_triggered_color(self):
+    def on_measurement_start(self):
         self.triggered = True
+        self.trigger_button.setText('Stop measurement')
         palette = self.palette()
-        palette.setColor(self.backgroundRole(), QColor(152, 251, 152))
+        palette.setColor(self.backgroundRole(), QColor(152, 251, 177))
         self.setPalette(palette)
 
 
@@ -417,4 +522,3 @@ class MainWindow(QMainWindow):
         else:
             self.freeze_plot = True
             self.freeze_button.setText('Unfreeze')
-

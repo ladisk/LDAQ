@@ -174,32 +174,68 @@ Example:
 .. code-block:: python
 
     subplot_options = {
-    (0, 0): {
-        'xlim': (0, 2),
-        'ylim': (-5, 5),
-        'axis_style': 'linear'
-    },
-    (0, 1): {
-        'xlim': (0, 25),
-        'ylim': (1e-5, 1e3),
-        'axis_style': 'semilogy'
-    },
-    (1, 0): {
-        'xlim': (-5, 5),
-        'ylim': (-5, 5),
-        'axis_style': 'linear'
-    },
-    (1, 1): {
-        'xlim': (0, 2),
-        'axis_style': 'linear'
+        (0, 0): {
+            'xlim': (0, 2),
+            'ylim': (-5, 5),
+            'axis_style': 'linear',
+            'title': 'My title 1'
+        },
+        (0, 1): {
+            'xlim': (0, 25),
+            'ylim': (1e-5, 1e3),
+            'axis_style': 'semilogy',
+            'title': 'My title 2'
+        },
+        (1, 0): {
+            'xlim': (-5, 5),
+            'ylim': (-5, 5),
+            'axis_style': 'linear',
+            'title': 'My title 3'
+        },
+        (1, 1): {
+            'xlim': (0, 2),
+            'axis_style': 'linear',
+            'title': 'My title 4'
+        }
     }
-}
 
 Currently, the following options are available:
 
 - ``xlim``: tuple of two floats, the limits of the x-axis
 - ``ylim``: tuple of two floats, the limits of the y-axis
 - ``axis_style``: string, the style of the axis. Can be "linear", "semilogx", "semilogy" or "loglog"
+- ``title``: string, the title of the subplot
+- ``rowspan``: int, the number of rows the subplot spans. Default is 1.
+- ``colspan``: int, the number of columns the subplot spans. Default is 1.
 
 .. note::
     The ``xlim`` defines the samples that are plotted on the x-axis, not only a narrowed view of the data. With this, the same data can be viewed with different zoom levels in an effcient way.
+
+An example of ``subplot_options`` with ``colspan``:
+
+.. code-block:: python
+
+    subplot_options = {
+        (0, 0): {
+            'xlim': (0, 2),
+            'ylim': (-5, 5),
+            'axis_style': 'linear',
+            'title': 'My title 1',
+            'colspan': 2,
+        },
+        (1, 0): {
+            'xlim': (-5, 5),
+            'ylim': (-5, 5),
+            'axis_style': 'linear',
+            'title': 'My title 3'
+        },
+        (1, 1): {
+            'xlim': (0, 2),
+            'axis_style': 'linear',
+            'title': 'My title 4',
+            'rowspan': 2
+        },
+    }
+
+Note that the subplot at location (0, 1) must be omitted, since it is spanned by the subplot at location (0, 0).
+The subplot at location (0, 1) must also be omitted in the ``layout``.

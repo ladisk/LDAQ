@@ -1,26 +1,8 @@
 import numpy as np
 import types
 
-# def auto_nth_point(plot_layout, max_time, sample_rate, max_points_to_refresh=1e5):
-#     """
-#     Automatically determine the skip interval for drawing points.
-#     """
-#     lines = 0
-#     for key, val in plot_layout.items():
-#         for k, v in val.items():
-#             for i in v:
-#                 if type(i) in [tuple, int]:
-#                     lines += 1
-    
-#     points_to_refresh = max_time*sample_rate*lines
-    
-#     if max_points_to_refresh < points_to_refresh:
-#         nth = int(np.ceil(points_to_refresh/max_points_to_refresh))
-#     else:
-#         nth = 1
-#     return nth
 
-def auto_nth_point(layout, subplot_options, core, max_points_to_refresh):
+def auto_nth_point(layout, subplot_options, core, max_points_to_refresh, known_nth='auto'):
     """For each channel in `layout` find the `nth` variable that says that every nth point
     is plotted.
     
@@ -81,21 +63,30 @@ def auto_nth_point(layout, subplot_options, core, max_points_to_refresh):
                 if not isinstance(channel, (types.FunctionType, str)):
                     if isinstance(channel, tuple):
                         channel = channel[0]
-                    
-                    if 'xlim' in subplot_options[subplot]:
-                        if subplot in subplot_options:
-                            xlim = subplot_options[subplot]['xlim']
-                        else:
-                            for subplot2, channels2 in acq_layout.items():
-                                if channel in channels2:
-                                    xlim = subplot_options[subplot2]['xlim']
-                                    break
-                    else:
-                        xlim = (0, 1)
 
-                    acq_index = core.acquisition_names.index(acq_name)
-                    sample_rate = core.acquisitions[acq_index].sample_rate
-                    nth[acq_name][subplot][channel] = int(np.ceil(sample_rate * (xlim[1] - xlim[0]) / (max_points_to_refresh/get_nr_of_lines(layout))))
+                    if known_nth == 'auto':
+                    
+                        if 'xlim' in subplot_options[subplot]:
+                            if subplot in subplot_options:
+                                xlim = subplot_options[subplot]['xlim']
+                            else:
+                                for subplot2, channels2 in acq_layout.items():
+                                    if channel in channels2:
+                                        xlim = subplot_options[subplot2]['xlim']
+                                        break
+                        else:
+                            xlim = (0, 1)
+
+                        acq_index = core.acquisition_names.index(acq_name)
+                        sample_rate = core.acquisitions[acq_index].sample_rate
+                    
+                        points_per_line = max_points_to_refresh/get_nr_of_lines(layout)
+                        nth[acq_name][subplot][channel] = int(np.ceil(sample_rate * (xlim[1] - xlim[0]) / points_per_line))
+
+                    elif isinstance(known_nth, int):
+                        nth[acq_name][subplot][channel] = known_nth
+                    else:
+                        raise ValueError('`known_nth` should be either "auto" or an integer.')
     return nth
 
 def get_nr_of_lines(layout):
@@ -107,6 +98,49 @@ def get_nr_of_lines(layout):
                 if not isinstance(channel, (types.FunctionType, str)):
                     nr_of_lines += 1
     return nr_of_lines
+
+
+def check_subplot_options_validity(subplot_options):
+    """
+    Check if the plot layout is valid with the given rowspan and colspan.
+
+    Parameters:
+    -----------
+    subplot_options: dict
+        Dictionary containing plot layout information, with keys in the form of tuples indicating subplot position
+        and values in the form of dictionaries containing plot options.
+
+    Returns:
+    --------
+    bool:
+        True if the layout is valid, False otherwise.
+    """
+    # Extract the maximum row and column values from the keys in subplot_options
+    max_row = max([key[0] for key in subplot_options.keys()])
+    max_col = max([key[1] for key in subplot_options.keys()])
+
+    # Create a matrix to keep track of the occupied cells in the subplot grid
+    occupied_cells = [[False] * (max_col + 1) for _ in range(max_row + 1)]
+
+    # Loop through each subplot and check if it is valid
+    for pos, options in subplot_options.items():
+        row, col = pos
+        rowspan = options.get('rowspan', 1)
+        colspan = options.get('colspan', 1)
+
+        # Check if the subplot is out of bounds
+        if row + rowspan - 1 > max_row or col + colspan - 1 > max_col:
+            return False
+
+        # Check if the subplot overlaps with another subplot
+        for i in range(row, row + rowspan):
+            for j in range(col, col + colspan):
+                if occupied_cells[i][j]:
+                    return False
+                occupied_cells[i][j] = True
+
+    # If all subplots are valid, return True
+    return True
 
 # ------------------------------------------------------------------------------
 #  Prepared plot Functions

@@ -23,54 +23,47 @@ class CustomPyTrigger(pyTrigger):
     Upgrades pyTrigger class with features needed for acquisition class BaseAcquisition.
     """
     triggered_global = False
-    time_global = time.time()
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.N_acquired_samples  = 0  # number of samples acquired from run
-        self.N_new_samples = 0
-        self.time_triggered = time.time()
-        self.N_triggers = 0
+        self.N_acquired_samples               = 0 # samples acquired throughout whole acquisition process
+        self.N_acquired_samples_since_trigger = 0 # samples acquired since trigger
+        self.N_new_samples                    = 0 # new samples that have not been retrieved yet
+        self.N_triggers                       = 0 # amount of time acquisition was triggered (should be 1 at the end of the measurement)
         
         self.first_trigger = True
 
     def _add_data_to_buffer(self, data):
+        """Upgrades parent _add_data_to_buffer() to track sample variables
+           N_acquired_samples, N_new_samples, N_acquired_samples_since_trigger
+        """
         rows_left_before = self.rows_left
         super()._add_data_to_buffer(data)
         N = rows_left_before - self.rows_left
         
         self.N_acquired_samples += data.shape[0]
         self.N_new_samples      += N
-        
-        if N != data.shape[0] and N != 0:
-            print("rows_left", rows_left_before, "N", N, "data", data.shape[0])
-        #if N != 0:
-        #    print("N:", N)
+        self.N_acquired_samples_since_trigger += N
         
     def _add_data_chunk(self, data):
+        """Upgrades parent _add_data_chunk() to globally trigger all acquisition sources present
+           in the measurement process, or that another acquisition source triggers this class.
+           Global trigger is implemented via class property variable 'triggered_global'.
+        """
         super()._add_data_chunk(data)
         if self.triggered and self.first_trigger:
             CustomPyTrigger.triggered_global = True 
-            print()
-            print("LOCAL")
         elif CustomPyTrigger.triggered_global and self.first_trigger:
             self.triggered = True
-            print()
-            print("GLOBAL")
         else:
             pass
 
         if self.first_trigger and (self.triggered or CustomPyTrigger.triggered_global):
-            self.time_triggered     = time.time()
             self.N_triggers        += 1
             self.first_trigger      = False
         return 
-        
-    def add_data(self, data):
-        finished = super().add_data(data)  
-        return finished
     
     def get_data_new(self):
-        """Retrieved any new data after trigger event that has been not yet retrieved.
+        """Retrieves any new data from ring buffer after trigger event that has been not yet retrieved.
 
         Returns:
             np.ndarray: data of shape (rows, channels)
@@ -84,19 +77,38 @@ class CustomPyTrigger(pyTrigger):
             self.N_new_samples = 0
             
             return data
-        else:
-            print()
-            print("Reading before trigger.")
+        else: # NOTE: this should not happen!
             return np.empty(shape=(0, self.ringbuff.columns))
     
     def _trigger_index(self, data):
+        """Upgrades parent _trigger_index() method. Beside searching for trigger event, it
+           adds amount of samples missed by _add_data_to_buffer() in case of use of presamples.
+        """
         trigger = super()._trigger_index(data)
         if type(trigger) != np.ndarray:
-            self.N_new_samples += self.presamples - trigger
+            self.N_new_samples += self.presamples - trigger # this amount of data will not be added in _add_data_to_buffer()
+            self.N_acquired_samples_since_trigger += self.presamples - trigger
         return trigger
 
     
 class BaseAcquisition:
+    """Parent acquisition class that should be used when creating new child acquisition source class.
+    Child class should override methods the following methods:
+    - self.read_data()
+    - self.terminate_data_source()
+    - self.set_data_source()
+    - self.clear_buffer()
+    - self.get_sample_rate() (optional)
+    
+    Additionally, the __init__() method should override the following attributes:
+    - self.n_channels 
+    - self.channel_names 
+    - self.sample_rate
+    - self.acquisition_name (optional)
+
+    Returns:
+        _type_: _description_
+    """
     all_acquisitions_ready = False
     
     def __init__(self):
@@ -113,63 +125,81 @@ class BaseAcquisition:
         self.n_channels  = 0
         self.sample_rate = 0
         
-        CustomPyTrigger.time_global = time.time()
-        
     def read_data(self):
         """EDIT in child class
         
-        This code acquires data. 
+        This method only reads data from the source and transforms data into standard format used by other methods.
+        This method is called within self.acquire() method which properly handles acquiring data and saves it into 
+        pyTrigger ring buffer.
         
-        Must return a 2D array of shape (n_samples, n_columns).
+        Must return a 2D numpy array of shape (n_samples, n_columns).
         """
         pass
 
     def terminate_data_source(self):
-        """EDIT in child class"""
+        """EDIT in child class
+        
+        Properly closes acquisition source after the measurement.
+        
+        Returns None.
+        """
         pass
 
     def set_data_source(self):
-        """EDIT in child class"""
+        """EDIT in child class
+        Properly sets acquisition source before measurement is started.
+        Should be set up in a way that it is able to be called multiple times in a row without issues.    
+        """
         pass
     
     def get_sample_rate(self):
         """EDIT in child class
         
+        Returns sample rate of acquisition class.
         This function is also useful to compute sample_rate estimation if no sample rate is given
+        
+        Returns self.sample_rate
         """
         return self.sample_rate
     
     def clear_buffer(self):
         """EDIT in child class
         
-        The source buffer should be cleared (all data deleted) with this method.
+        The source buffer should be cleared with this method. Either actually clears the buffer, or
+        just reads the data with self.read_data() and does not add/save data anywhere.
+        
+        Returns None.
         """
 
     # The following methods should work without changing.
     def stop(self):
+        """Stops acquisition run.
+        """
         self.is_running = False
     
     def acquire(self):
+        """Acquires data from acquisition source and also properly saves the data to pyTrigger ringbuffer.
+        Additionally it also stops the measurement run and terminates acquisition source properly.
+        """
         with self.lock_acquisition: # lock to secure variables
             acquired_data = self.read_data()
             self.Trigger.add_data(acquired_data)
-           
+            
         if self.Trigger.finished or not self.is_running:            
             self.stop()
             self.terminate_data_source()
-            
 
     def get_data(self, N_points=None):
         """Reads and returns data from the pyTrigger buffer.
-        :param N_points: number of last N points to read from pyTrigger buffer. 
+        :param N_points (int, str, None): number of last N points to read from pyTrigger buffer. 
                             if N_points="new", then only new points will be retrieved.
-                            if None whole buffer is returned.
+                            if None all samples are returned.
         Returns:
             tuple: (time, data) - 1D time vector and 2D measured data, both np.ndarray
         """
         
         if N_points is None:
-            data = self.Trigger.get_data()#N_points=self.Trigger.N_acquired_samples)
+            data = self.Trigger.get_data()[-self.Trigger.N_acquired_samples_since_trigger:]
             
         elif N_points == "new":
             with self.lock_acquisition:
@@ -181,6 +211,17 @@ class BaseAcquisition:
         return time, data
     
     def get_measurement_dict(self, N_points=None):
+        """Reads data from pyTrigger ring buffer using self.get_data() method and returns a dictionary
+           {'data': data, 'time': time, 'channel_names': self.channel_names, 'sample_rate' : sample_rate}
+
+        Args:
+            N_points (None, int, str): Number fo points to get from pyTrigger ringbuffer. If type(N_points)==int then N_points
+                                       last samples are returned. If N_points=='new', only new points after trigger event are returned.
+                                       If None, all samples are returned. Defaults to None.
+
+        Returns:
+            dict: {'data': data, 'time': time, 'channel_names': self.channel_names, 'sample_rate' : sample_rate}
+        """
         if N_points is None:
             time, data = self.get_data(N_points=N_points)
         else:
@@ -208,7 +249,7 @@ class BaseAcquisition:
         BaseAcquisition.all_acquisitions_ready = False 
         self.is_ready = False
         self.is_running = True
-
+        
         self.set_trigger_instance()
         self.set_data_source()
         
@@ -216,14 +257,19 @@ class BaseAcquisition:
         if not self.is_standalone:
             self.is_ready = True    # this source is ready (other may not be)
             while not BaseAcquisition.all_acquisitions_ready: # until every source is ready
+                time.sleep(0.01)
                 self.clear_buffer()                           # reads data, does not store in anywhere
                 #self.acquire()
-                time.sleep(0.01)
                 if not self.is_running:
                     break
+                
+            time.sleep(0.01)
+            self.clear_buffer() # ensure buffer is cleared at least once. 
         
-        self.run_time = 0 # actual time run to obtain all samples
+        self.actual_run_time = 0 # actual time run to obtain all samples
         time_start_acq = time.time()
+        
+        # main acquisition loop:
         if run_time == None:
             while self.is_running:
                 time.sleep(0.01)
@@ -236,8 +282,10 @@ class BaseAcquisition:
 
                 time.sleep(0.01)
                 self.acquire()
+                
+        # save actual measurement time (NOTE: currently not used anywhere, might be useful in the future)
         time_end_acq  = time.time()
-        self.run_time = time_end_acq-time_start_acq
+        self.actual_run_time = time_end_acq-time_start_acq
 
     def set_trigger(self, level, channel, duration=1, duration_unit='seconds', presamples=0, type='abs'):
         """Set parameters for triggering the measurement.
@@ -288,6 +336,8 @@ class BaseAcquisition:
         self.set_trigger_instance()
         
     def set_trigger_instance(self):
+        """Creates PyTrigger instance.
+        """
         self.Trigger = CustomPyTrigger( #pyTrigger
         rows=self.trigger_settings['duration_samples'], 
         channels=self.n_channels,
@@ -302,8 +352,12 @@ class BaseAcquisition:
         """
         if all_sources:
             CustomPyTrigger.triggered_global = True
+        else:
+            self.Trigger.triggered = True
 
     def reset_trigger(self):
+        """Resets trigger.
+        """
         CustomPyTrigger.triggered_global = False
         self.Trigger.triggered = False
         
@@ -316,6 +370,8 @@ class BaseAcquisition:
         return self.Trigger.triggered
         
     def _all_acquisitions_ready(self):
+        """Sets ALL acquisition sources (not only this one) to ready state. Should not be generally used.
+        """
         BaseAcquisition.all_acquisitions_ready = True
     
     def save(self, name, root='', timestamp=True, comment=None):
@@ -435,11 +491,11 @@ class SerialAcquisition(BaseAcquisition):
         self.buffer = b"" # reset class buffer
         
     def terminate_data_source(self):
-            self.buffer = b""
-            time.sleep(0.01)
-            self.write_to_serial(self.end_bytes_write)
-            time.sleep(0.1)
-            self.ser.close()
+        self.buffer = b""
+        time.sleep(0.01)
+        self.write_to_serial(self.end_bytes_write)
+        time.sleep(0.1)
+        self.ser.close()
 
     def read_data(self):
         # 1) read all data from serial

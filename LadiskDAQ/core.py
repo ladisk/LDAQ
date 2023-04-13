@@ -50,10 +50,12 @@ class Core():
         pass
     
     
-    def run(self, measurement_duration=None, run_name="Run", save_interval=None, root='', verbose=2):
+    def run(self, measurement_duration=None, autostart=False, run_name="Run", save_interval=None, root='', verbose=2):
         """
         :param measurement_duration: measurement duration in seconds, from trigger event of any of the sources. 
                          If None the measurement runs for ever until manually stopped.
+        :param autostart (bool): If true, measurement is started as soon as all acquisition sources are ready.
+                                 Trigger is ignored. Defaults to False.
         :param save_interval: (float) data is saved every 'save_periodically' seconds. Defaults to None,
                                     meaning data is not saved. The time stamp on measured data will equal to
                                     beggining of the measurement.
@@ -66,6 +68,7 @@ class Core():
         self.save_interval = save_interval
         self.root = root
         self.is_running_global = True
+        self.autostart = autostart
         
         self.first = True # for printing trigger the first time.
         
@@ -90,7 +93,10 @@ class Core():
             acquisition.is_standalone = False
             acquisition.reset_trigger()
             if self.measurement_duration is not None:
-                acquisition.update_trigger_parameters(duration=self.measurement_duration, duration_unit="seconds")   
+                acquisition.update_trigger_parameters(duration=self.measurement_duration, duration_unit="seconds")
+            if autostart:
+                acquisition.update_trigger_parameters(level=1e40)   
+                
             thread_acquisition = threading.Thread(target=acquisition.run_acquisition )
             self.thread_list.append(thread_acquisition)
 
@@ -161,6 +167,8 @@ class Core():
                 all_acquisitions_ready = all(acq.is_ready for acq in self.acquisitions)
                 if all_acquisitions_ready:
                     self.acquisitions[0]._all_acquisitions_ready()
+                    if self.autostart:
+                        self.start_acquisition()
             
             if any(acq.is_triggered() for acq in self.acquisitions) and not self.triggered_globally:
                 self.triggered_globally = True
@@ -271,7 +279,7 @@ class Core():
         for fun in args:
             self.additional_check_functions.append(fun)
      
-    def get_measurement_dict(self, N_seconds=None, correct_delay=False):
+    def get_measurement_dict(self, N_seconds=None):
         """Returns measured data from all sources
 
         Args:
@@ -280,14 +288,7 @@ class Core():
 
         Returns:
             dict: Measurement dictionary
-            """
-        if correct_delay: # measurements has been finished:
-            delay_dict = {}
-            
-            trigger_run_time = self.acquisitions[self.trigger_source_index].run_time
-            for acq in self.acquisitions:
-                delay_dict[acq.acquisition_name] = acq.run_time - trigger_run_time
-        
+            """        
         self.measurement_dict = {}
         for idx, name in enumerate(self.acquisition_names):
             if N_seconds is None:
@@ -300,21 +301,7 @@ class Core():
                 raise KeyError("Wrong argument type passed to N_seconds.")
                 
             self.measurement_dict[ name ] = self.acquisitions[idx].get_measurement_dict(N_points)
-            
-            if correct_delay: # adjust time delays betwene sources:
-                # ts = trigger source
-                ts_run_time = self.acquisitions[self.trigger_source_index].run_time
-                delay1 = self.acquisitions[idx].run_time - ts_run_time
-                
-                #ts_trigger_time = self.acquisitions[self.trigger_source_index].Trigger.time_triggered
-                #delay2 = self.acquisitions[idx].Trigger.time_triggered - ts_trigger_time
-                
-                #delay = delay1 + delay2
-                self.measurement_dict[name]["time"] += delay1
-                
-        if correct_delay:
-            print("Corrected delay.")
-            
+        
         return self.measurement_dict
     
     
@@ -354,8 +341,7 @@ class Core():
         root = self.root
         
         start_time = time.time()
-        file_created = False
-        file_path = None      
+        file_created = False     
             
         running = True
         delay_saving = 0.5 # seconds

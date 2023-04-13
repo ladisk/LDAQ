@@ -67,6 +67,7 @@ class Core():
         self.measurement_duration = measurement_duration
         self.save_interval = save_interval
         self.root = root
+        self.autoclose = autoclose
         self.is_running_global = True
         self.autostart = autostart
         

@@ -27,53 +27,72 @@ class CustomPyTrigger(pyTrigger):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.N_acquired_samples  = 0  # number of samples acquired from run
-        self.N_retrieved_samples = 0  # number of samples since they were last retrieved
+        self.N_new_samples = 0
         self.time_triggered = time.time()
         self.N_triggers = 0
-        self.trigger_index = None
         
         self.first_trigger = True
 
     def _add_data_to_buffer(self, data):
+        rows_left_before = self.rows_left
         super()._add_data_to_buffer(data)
+        N = rows_left_before - self.rows_left
+        
         self.N_acquired_samples += data.shape[0]
+        self.N_new_samples      += N
+        
+        if N != data.shape[0] and N != 0:
+            print("rows_left", rows_left_before, "N", N, "data", data.shape[0])
+        #if N != 0:
+        #    print("N:", N)
         
     def _add_data_chunk(self, data):
         super()._add_data_chunk(data)
-        if self.triggered:
-            CustomPyTrigger.triggered_global = True
-            
-        elif CustomPyTrigger.triggered_global:
+        if self.triggered and self.first_trigger:
+            CustomPyTrigger.triggered_global = True 
+            print()
+            print("LOCAL")
+        elif CustomPyTrigger.triggered_global and self.first_trigger:
             self.triggered = True
+            print()
+            print("GLOBAL")
         else:
             pass
-        
-        if CustomPyTrigger.triggered_global and self.first_trigger:
-            self.time_triggered = time.time()
-            self.N_triggers += 1
-            self.first_trigger = False
+
+        if self.first_trigger and (self.triggered or CustomPyTrigger.triggered_global):
+            self.time_triggered     = time.time()
+            self.N_triggers        += 1
+            self.first_trigger      = False
         return 
         
     def add_data(self, data):
         finished = super().add_data(data)  
-        
-              
         return finished
     
     def get_data_new(self):
-        data = self.ringbuff.get_data()
-        N_points = self.N_acquired_samples - self.N_retrieved_samples
-        if N_points == 0:
-            data = np.empty(shape=(0, self.n_channels) )
+        """Retrieved any new data after trigger event that has been not yet retrieved.
+
+        Returns:
+            np.ndarray: data of shape (rows, channels)
+        """
+        if self.triggered:
+            data = self.ringbuff.get_data()
+            if self.N_new_samples > 0:
+                data = data[-self.N_new_samples:]
+            else:
+                data = np.empty(shape=(0, self.channels))
+            self.N_new_samples = 0
+            
+            return data
         else:
-            data = data[-N_points:]
-        self.N_retrieved_samples = self.N_acquired_samples
-        return data
+            print()
+            print("Reading before trigger.")
+            return np.empty(shape=(0, self.ringbuff.columns))
     
     def _trigger_index(self, data):
         trigger = super()._trigger_index(data)
         if type(trigger) != np.ndarray:
-            self.trigger_index = trigger
+            self.N_new_samples += self.presamples - trigger
         return trigger
 
     
@@ -150,30 +169,20 @@ class BaseAcquisition:
         """
         
         if N_points is None:
-            data = self.Trigger.get_data()
+            data = self.Trigger.get_data()#N_points=self.Trigger.N_acquired_samples)
             
         elif N_points == "new":
             with self.lock_acquisition:
                 data = self.Trigger.get_data_new()
-                #N_points = self.Trigger.N_acquired_samples - self.Trigger.N_retrieved_samples
-                #
-                #if N_points == 0:
-                #    data = np.empty(shape=(0, self.n_channels) )
-                #else:
-                #    data = self.Trigger.get_data()[-N_points:]
-                #    
-                #self.Trigger.N_retrieved_samples = self.Trigger.N_acquired_samples
         else:
             data = self.Trigger.get_data()[-N_points:]
                 
-        time = np.arange(data.shape[0])/self.sample_rate 
-        
-        #time += time[-1]-self.run_time         
+        time = np.arange(data.shape[0])/self.sample_rate     
         return time, data
     
     def get_measurement_dict(self, N_points=None):
         if N_points is None:
-            time, data = self.get_data(N_points=self.Trigger.N_acquired_samples)
+            time, data = self.get_data(N_points=N_points)
         else:
             time, data = self.get_data(N_points=N_points)
         
@@ -293,7 +302,6 @@ class BaseAcquisition:
         """
         if all_sources:
             CustomPyTrigger.triggered_global = True
-        self.Trigger.triggered = True
 
     def reset_trigger(self):
         CustomPyTrigger.triggered_global = False

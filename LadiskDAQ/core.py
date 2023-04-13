@@ -381,40 +381,52 @@ class Core():
                     if not file_created:
                         now = datetime.datetime.now()
                         file_name = f"{now.strftime('%Y%m%d_%H%M%S')}_{name}.pkl"
-                        file_path = os.path.join(root, file_name)
                         file_created = True
                         
-                    # Load existing data
-                    if os.path.exists(file_path):
-                        data = load_measurement(file_name, root)
+                    self._open_and_save(file_name, root)
+                    
+        time.sleep(0.5)
+        self._open_and_save(file_name, root)
+                        
+    def _open_and_save(self, file_name, root):
+        """Opens and saves new data to file
+
+        Args:
+            file_name (_type_): _description_
+            root (_type_): _description_
+        """
+        file_path = os.path.join(root, file_name)
+        # Load existing data
+        if os.path.exists(file_path):
+            data = load_measurement(file_name, root)
+        else:
+            data = {}
+
+        # Update data with new measurements
+        for acq in self.acquisitions:
+            name = acq.acquisition_name
+            if acq.is_triggered():
+                measurement = acq.get_measurement_dict(N_points = "new")
+                
+                if name not in data:
+                    data[name] = measurement
+                else:
+                    new_data = measurement['data']
+                    
+                    if len(data[name]['time']) > 0:
+                        time_last = data[name]['time'][-1]
                     else:
-                        data = {}
+                        time_last = 0    
+                        
+                    new_time = measurement['time'] + time_last + 1/acq.sample_rate
+                    
+                    data[name]['data'] = np.concatenate((data[name]['data'], new_data), axis=0)
+                    data[name]['time'] = np.concatenate((data[name]['time'], new_time), axis=0)
 
-                    # Update data with new measurements
-                    for acq in self.acquisitions:
-                        name = acq.acquisition_name
-
-                        measurement = acq.get_measurement_dict(N_points = "new")
-                          
-                        if name not in data:
-                            data[name] = measurement
-                        else:
-                            new_data = measurement['data']
-                            
-                            if len(data[name]['time']) > 0:
-                                time_last = data[name]['time'][-1]
-                            else:
-                                time_last = 0    
-                            #print("core", name, time_last, last)
-                                
-                            new_time = measurement['time'] + time_last + 1/acq.sample_rate
-                            
-                            data[name]['data'] = np.concatenate((data[name]['data'], new_data), axis=0)
-                            data[name]['time'] = np.concatenate((data[name]['time'], new_time), axis=0)
-
-                    # Save updated data
-                    with open(file_path, 'wb') as f:
-                        pickle.dump(data, f, protocol=-1)       
+        # Save updated data
+        with open(file_path, 'wb') as f:
+            pickle.dump(data, f, protocol=-1)     
+            print("saved.")  
                         
     
 class LDAQ():

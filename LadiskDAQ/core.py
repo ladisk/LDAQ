@@ -50,7 +50,7 @@ class Core():
         pass
     
     
-    def run(self, measurement_duration=None, autostart=False, run_name="Run", save_interval=None, root='', verbose=2):
+    def run(self, measurement_duration=None, autoclose=True, autostart=False, run_name="Run", save_interval=None, root='', verbose=2):
         """
         :param measurement_duration: measurement duration in seconds, from trigger event of any of the sources. 
                          If None the measurement runs for ever until manually stopped.

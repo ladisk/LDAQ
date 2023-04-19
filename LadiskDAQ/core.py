@@ -74,7 +74,7 @@ class Core():
         self.first = True # for printing trigger the first time.
         
         self.keyboard_hotkeys_setup()
-        if verbose == 2:
+        if verbose == 2 and self.visualization is None:
             self._print_table()
         
         if self.verbose in [1, 2]:

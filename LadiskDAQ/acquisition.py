@@ -462,11 +462,13 @@ class WaveFormsAcquisition(BaseAcquisition):
                             
         """
         if input_range is None:
-            input_range = {idx:(-10, 10) for idx in self.channel_idx}
+            if not hasattr(self, 'input_range'):
+                input_range = {idx:(-10, 10) for idx in self.channel_idx}
+                self.input_range = input_range
                     
         # based on which channels are used:
         for idx in self.channel_idx:
-            val_min, val_max = input_range[idx]
+            val_min, val_max = self.input_range[idx]
             ch_range = val_max - val_min
             ch_offset = (val_max + val_min)/2
             
@@ -477,10 +479,6 @@ class WaveFormsAcquisition(BaseAcquisition):
             # set offset:
             self.dwf.FDwfAnalogInChannelOffsetSet(self.hdwf, c_int(idx), c_double(ch_offset))
         
-        self.dwf.FDwfAnalogInAcquisitionModeSet(self.hdwf, dwfc.acqmodeRecord)
-        self.dwf.FDwfAnalogInFrequencySet(self.hdwf, c_double(self.sample_rate))
-        self.dwf.FDwfAnalogInRecordLengthSet(self.hdwf, c_double(-1)) # -1 infinite record length
-        pass
         
     def read_data(self):
         """
@@ -522,11 +520,15 @@ class WaveFormsAcquisition(BaseAcquisition):
         Properly sets acquisition source before measurement is started.
         Should be set up in a way that it is able to be called multiple times in a row without issues.    
         """
-        #print("hdwf", self.hdwf.value)
+        
         if self.hdwf.value == dwfc.hdwfNone.value: # if device is not open
             self.dwf.FDwfDeviceOpen(self.device_number, byref(self.hdwf))
-        #print("hdwf", self.hdwf.value)
+
+        self.dwf.FDwfAnalogInAcquisitionModeSet(self.hdwf, dwfc.acqmodeRecord)
+        self.dwf.FDwfAnalogInFrequencySet(self.hdwf, c_double(self.sample_rate))
+        self.dwf.FDwfAnalogInRecordLengthSet(self.hdwf, c_double(-1)) # -1 infinite record length
         
+        self.configure_channels()
         #wait at least 2 seconds for the offset to stabilize
         time.sleep(0.3)
 

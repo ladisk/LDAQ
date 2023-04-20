@@ -19,12 +19,12 @@ class BaseGenerator:
     def set_data_source(self):
         pass
 
-    def clear_data_source(self):
+    def terminate_data_source(self):
         pass
 
     def stop(self):
         self.is_running = False
-        self.clear_data_source()
+        self.terminate_data_source()
 
 
 class NIGenerator(BaseGenerator):

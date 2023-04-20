@@ -25,6 +25,14 @@ INBUILT_FUNCTIONS = ['fft', 'frf_amp', 'frf_phase']
 
 class Core():
     def __init__(self, acquisitions, generations=None, controls=None, visualization=None):
+        """
+        Initializes the Core instance by initializing its acquisition, generation, control and visualization sources. 
+
+        :param acquisitions:  list of acquisition sources. If None, initializes as empty list.
+        :param generations:   list of generation sources. If None, initializes as empty list.
+        :param controls:      list of control sources. If None, initializes as empty list.
+        :param visualization: visualization source. If None, initializes as empty.
+        """
         acquisitions = [] if acquisitions is None else acquisitions
         generations  = [] if generations is None else generations
         controls     = [] if controls is None else controls
@@ -52,15 +60,21 @@ class Core():
     
     def run(self, measurement_duration=None, autoclose=True, autostart=False, run_name="Run", save_interval=None, root='', verbose=2):
         """
-        :param measurement_duration: measurement duration in seconds, from trigger event of any of the sources. 
-                         If None the measurement runs for ever until manually stopped.
-        :param autostart (bool): If true, measurement is started as soon as all acquisition sources are ready.
-                                 Trigger is ignored. Defaults to False.
+        Runs the measurement with acquisition and generation sources that have already been set. This entails setting configuration
+        and making acquiring and generation threads for each source, as well as starting and stopping them when needed. If visualization
+        has been defined, it will run in a separate thread.
+
+        :param measurement_duration: (float) measurement duration in seconds, from trigger event of any of the sources. 
+                                            If None, the measurement runs forever until manually stopped. Default is None.
+        :param autoclose: (bool) whether the sources should close automatically or not. Default is True.
+        :param autostart: (bool): whether the measurement should start automatically or not. If True, start as soon as all the 
+                                            acquisition sources are ready. Defaults to False.
+        :param run_name: (str) name of the run. This name is used for periodic saving. Default is "Run".
         :param save_interval: (float) data is saved every 'save_periodically' seconds. Defaults to None,
                                     meaning data is not saved. The time stamp on measured data will equal to
-                                    beggining of the measurement.
-        :param run_name: name of the run. This name is used for periodic saving
-        :param verbose: 0 (print nothing), 1 (print status) or 2 (print status and hotkey legend). 
+                                    beginning of the measurement.
+        :param root: (str) root directory where measurements are saved. Default is empty string.
+        :param verbose: (int) 0 (print nothing), 1 (print status) or 2 (print status and hotkey legend). Default is 2.
         """
         self.run_name = run_name
         self.verbose  = verbose
@@ -107,7 +121,7 @@ class Core():
             self.thread_list.append(thread_generation)
 
         for control in self.controls:
-            thread_control = threading.Thread(target=control.run)
+            thread_control = threading.Thread(target=control.run_control)
             self.thread_list.append(thread_control)
              
         # check events:
@@ -145,12 +159,19 @@ class Core():
     
     def _check_events(self):
         """
-        Checks for:
-        - if all acquisition and generation sources are running. If one of them is not, then measurement terminated
-        - if any acquisition source has been triggered
-        - if any additional check functions added with 'add_check_events()' return True. If so, measurement is terminated
-        
-        Executed in a separate thread.
+        The function _check_events checks for different events required to perform measurements. 
+        It checks whether all acquisition and generation sources are running or not; if any of them are not running, 
+        then it terminates the measurement. It also checks if any acquisition sources are triggered or if any additional 
+        check functions added with add_check_events() method return True. If either of these conditions returns True, 
+        it terminates the measurement. This function runs continuously in a separate thread until the is_running_global 
+        variable is set to False.
+
+        Args:
+            None
+
+
+        Returns:
+            None
         """
         while self.is_running_global:
             acquisition_running = True
@@ -189,14 +210,34 @@ class Core():
             time.sleep(0.05)      
                 
     def set_trigger(self, source, channel, level, duration, duration_unit='seconds', presamples=0, trigger_type='abs'):
-        """Sets trigger to one of acquisition sources. NOTE: since acquisition sources may not be synchronized,
-        expect delay between different acquisition sources. 
+        """
+        Sets trigger to one of the acquisition sources. 
 
         Args:
-            trigger_source (int, str): acquisition source index (position in the 'acquisitions' list) or
-                                       name of the acquisition source as string (acquisition.acquistion_name)
-            trigger_channel (int): channel number used for trigger
-            trigger_level (float): trigger_level
+            trigger_source (int, str): Index (position in the 'acquisitions' list) or name of the acquisition source as a 
+                                        string ('acquisition.acquisition_name') for which trigger is to be set. 
+
+            trigger_channel (int): Channel number used for trigger.
+
+            trigger_level (float): Trigger_level in Volts.
+
+            duration (int): Duration of trigger source in terms of duration_unit defined (in seconds or samples).
+
+            duration_unit (str): Unit of duration of trigger source. Can be 'seconds' or 'samples'. 
+
+            presamples (int): Number of samples acquired before trigger.
+
+            trigger_type (str): Type of the trigger. Can be 'abs' or 'edge'.
+
+        Returns: 
+            None. 
+
+        Raises: 
+            KeyError: Invalid duration unit specified. Only 'seconds' and 'samples' are possible. 
+
+        Other requirements: 
+            Expect delay between different acquisition sources due to unsynchronized sources. 
+
         """
         if duration_unit=="samples":
             duration = int(duration)
@@ -264,6 +305,10 @@ class Core():
                 self.acquisitions[0].activate_trigger()
     
     def _print_table(self):
+        """Prints the table of the hotkeys of the application to the console.
+        The table contains the hotkeys, as well as a short description of each
+        hotkey. The table is printed using the BeautifulTable library.
+        """
         table = BeautifulTable()
         table.rows.append(["s", "Start the measurement manually (ignore trigger)"])
         table.rows.append(["q", "Stop the measurement"])
@@ -281,7 +326,7 @@ class Core():
             self.additional_check_functions.append(fun)
      
     def get_measurement_dict(self, N_seconds=None):
-        """Returns measured data from all sources
+        """Returns measured data from all sources.
 
         Args:
             N_seconds (float, str, optional): last number of seconds of the measurement. 
@@ -337,7 +382,7 @@ class Core():
         pickle.dump(self.measurement_dict, open(path, 'wb'), protocol=-1)   
         
     def _save_measurement_periodically(self):
-        """Periodically save acquired data from all sources."""
+        """Periodically saves the measurement data."""
         name = self.run_name
         root = self.root
         
@@ -376,12 +421,7 @@ class Core():
         self._open_and_save(file_name, root)
                         
     def _open_and_save(self, file_name, root):
-        """Opens and saves new data to file
-
-        Args:
-            file_name (_type_): _description_
-            root (_type_): _description_
-        """
+        """Open existing file and save new data."""
         file_path = os.path.join(root, file_name)
         # Load existing data
         if os.path.exists(file_path):

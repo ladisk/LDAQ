@@ -8,6 +8,7 @@ import sys
 import random
 import time
 import types
+import keyboard
 
 from .visualization_helpers import auto_nth_point, check_subplot_options_validity, _fun_fft
 
@@ -263,6 +264,8 @@ class MainWindow(QMainWindow):
 
         self.add_buttons()
 
+        self.add_hotkeys()
+
         self.init_plots()
         self.init_timer()
 
@@ -322,6 +325,12 @@ class MainWindow(QMainWindow):
         self.button_layout.addWidget(self.progress_bar)
 
         self.layout_widget.addLayout(self.button_layout)
+
+
+    def add_hotkeys(self):
+        keyboard.add_hotkey('ctrl+f', self.toggle_full_screen)
+        keyboard.add_hotkey('ctrl+l', self.toggle_legends)
+        keyboard.add_hotkey('f', self.toggle_freeze_plot)
 
     
     def init_plots(self):

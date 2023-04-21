@@ -100,13 +100,12 @@ class CustomPyTrigger(pyTrigger):
         Returns:
             np.ndarray: data of shape (rows, channels)
         """
-        data = self.ringbuff.get_data()
         if self.N_new_samples_PLOT > 0:
-            data = data[-self.N_new_samples_PLOT:]
+            data = self.ringbuff.get_data()[-self.N_new_samples_PLOT:]
+            self.N_new_samples_PLOT = 0
+            return data
         else:
-            data = np.empty(shape=(0, self.channels))
-        self.N_new_samples_PLOT = 0
-        return data
+            return np.empty(shape=(0, self.channels))
     
     def _trigger_index(self, data):
         """Upgrades parent _trigger_index() method. Beside searching for trigger event, it
@@ -249,7 +248,8 @@ class BaseAcquisition:
         Returns:
             array: 2D numpy array of shape (N_new_samples, n_channels)
         """
-        return self.Trigger.get_data_new_PLOT()
+        with self.lock_acquisition:
+            return self.Trigger.get_data_new_PLOT()
     
     def get_measurement_dict(self, N_points=None):
         """Reads data from pyTrigger ring buffer using self.get_data() method and returns a dictionary

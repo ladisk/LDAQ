@@ -216,17 +216,17 @@ class Visualization:
 
         self.max_plot_time_per_subplot = {}
         for pos, options in self.subplot_options.items():
-            if 'xlim' in options.keys() and 'tlim' not in options.keys():
-                self.subplot_options[pos]['tlim'] = options['xlim']
-            elif 'tlim' in options.keys() and 'xlim' not in options.keys():
-                self.subplot_options[pos]['xlim'] = options['tlim']
-            elif 'xlim' not in options.keys() and 'tlim' not in options.keys():
+            if 'xlim' in options.keys() and 't_span' not in options.keys():
+                self.subplot_options[pos]['t_span'] = options['xlim'][1] - options['xlim'][0]
+            elif 't_span' in options.keys() and 'xlim' not in options.keys():
+                self.subplot_options[pos]['xlim'] = (0, options['t_span'])
+            elif 'xlim' not in options.keys() and 't_span' not in options.keys():
                 self.subplot_options[pos]['xlim'] = (0, 1)
-                self.subplot_options[pos]['tlim'] = (0, 1)
+                self.subplot_options[pos]['t_span'] = 1
             else:
                 pass
 
-            self.max_plot_time_per_subplot[pos] = options['tlim'][1] - options['tlim'][0]
+            self.max_plot_time_per_subplot[pos] = options['t_span']
 
 
         if not isinstance(self.nth, dict):
@@ -244,7 +244,7 @@ class Visualization:
         self.ring_buffers = {}
         for source in self.layout.keys():
             acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
-            rows = int(max([(self.subplot_options[pos]['tlim'][1] - self.subplot_options[pos]['tlim'][0]) * acq.sample_rate for pos in self.layout[source].keys()]))
+            rows = int(max([self.subplot_options[pos]['t_span'] * acq.sample_rate for pos in self.layout[source].keys()]))
             self.ring_buffers[source] = RingBuffer2D(rows, acq.n_channels)
 
 

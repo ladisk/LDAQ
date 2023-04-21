@@ -33,22 +33,22 @@ def auto_nth_point(layout, subplot_options, core, max_points_to_refresh, known_n
                     else:
                         if known_nth == 'auto':
                         
-                            if 'tlim' in subplot_options[subplot]:
+                            if 't_span' in subplot_options[subplot]:
                                 if subplot in subplot_options:
-                                    xlim = subplot_options[subplot]['tlim']
+                                    t_span = subplot_options[subplot]['t_span']
                                 else:
                                     for subplot2, channels2 in acq_layout.items():
                                         if channel in channels2:
-                                            xlim = subplot_options[subplot2]['tlim']
+                                            t_span = subplot_options[subplot2]['t_span']
                                             break
                             else:
-                                xlim = (0, 1)
+                                t_span = 1
 
                             acq_index = core.acquisition_names.index(acq_name)
                             sample_rate = core.acquisitions[acq_index].sample_rate
                         
                             points_per_line = max_points_to_refresh/get_nr_of_lines(layout)
-                            nth[acq_name][subplot][channel] = int(np.ceil(sample_rate * (xlim[1] - xlim[0]) / points_per_line))
+                            nth[acq_name][subplot][channel] = int(np.ceil(sample_rate * (t_span) / points_per_line))
 
                         elif isinstance(known_nth, int):
                             nth[acq_name][subplot][channel] = known_nth

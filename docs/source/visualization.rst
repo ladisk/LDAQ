@@ -214,7 +214,7 @@ Currently, the following options are available:
 
 - ``xlim``: tuple of two floats, the limits of the x-axis.
 - ``ylim``: tuple of two floats, the limits of the y-axis.
-- ``tlim``: tuple of two floats, the limits of the time axis. If this option is not specified, the ``xlim`` is used (and vice versa).
+- ``t_span``: int/float, the length of the time axis. If this option is not specified, it is computed from the ``xlim``.
 - ``axis_style``: string, the style of the axis. Can be "linear", "semilogx", "semilogy" or "loglog".
 - ``title``: string, the title of the subplot.
 - ``rowspan``: int, the number of rows the subplot spans. Default is 1.
@@ -224,12 +224,13 @@ Currently, the following options are available:
 - ``nth``: int, same as the ``nth`` argument in :class:`Visualization`. 
   If this option is not specified, the ``nth`` argument defined in the :class:`Visualization` is used.
 
-.. note::
-    When plotting a simple time signal, the ``tlim`` and ``xlim`` have the same effect. 
+.. note:: 
+    When plotting a simple time signal, the ``t_span`` and ``xlim`` have the same effect. 
     
-    However, when plotting channel vs. channel, the ``tlim`` specifies the time range of the data and the ``xlim`` specifies the range of the x-axis (spatial).
+    However, when plotting channel vs. channel, the ``t_span`` specifies the time range of the data and the ``xlim`` specifies the range of the x-axis (spatial).
 
-    When plotting a function, the ``tlim`` determines the time range of the data that is passed to the function.
+    When plotting a function, the ``t_span`` determines the time range of the data that is passed to the function. 
+    Last ``t_span`` seconds of data are passed to the function.
 
 
 .. note::

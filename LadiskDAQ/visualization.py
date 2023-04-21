@@ -9,6 +9,7 @@ import random
 import time
 import types
 import keyboard
+from pyTrigger import RingBuffer2D
 
 from .visualization_helpers import auto_nth_point, check_subplot_options_validity, _fun_fft
 
@@ -220,9 +221,9 @@ class Visualization:
         self.refresh_rate_by_subplot = {}
         for pos, options in self.subplot_options.items():
             if 'refresh_rate' in options.keys():
-                self.refresh_rate_by_subplot[pos] = [self.update_refresh_rate*(options['refresh_rate']//self.update_refresh_rate)] * 2
+                self.refresh_rate_by_subplot[pos] = self.update_refresh_rate*(options['refresh_rate']//self.update_refresh_rate)
             else:
-                self.refresh_rate_by_subplot[pos] = [self.update_refresh_rate*(self.refresh_rate//self.update_refresh_rate)] * 2
+                self.refresh_rate_by_subplot[pos] = self.update_refresh_rate*(self.refresh_rate//self.update_refresh_rate)
 
 
         self.max_plot_time_per_subplot = {}
@@ -233,6 +234,14 @@ class Visualization:
                 self.max_plot_time_per_subplot[pos] = 1
 
         self.max_plot_time = max(self.max_plot_time_per_subplot.values())
+
+
+        self.ring_buffers = {}
+        for source in self.layout.keys():
+            acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
+            rows = int(max([(self.subplot_options[pos]['xlim'][1] - self.subplot_options[pos]['xlim'][0]) * acq.sample_rate for pos in self.layout[source].keys()]))
+            self.ring_buffers[source] = RingBuffer2D(rows, acq.n_channels)
+
 
         self.app = QApplication.instance()
         if self.app is None:
@@ -415,10 +424,24 @@ class MainWindow(QMainWindow):
                     if isinstance(ch, tuple):
                         x, y = ch
                         line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[y]], width=2), name=f"{channel_names[x]} vs. {channel_names[y]}")
-                        plot_channels.append((line, pos, apply_function, x, y))
+                        plot_channels.append({
+                            'line': line,
+                            'pos': pos,
+                            'apply_function': apply_function,
+                            'channels': (x, y),
+                            'refresh_rate': self.vis.refresh_rate_by_subplot[pos],
+                            'since_refresh': 0,
+                        })
                     elif isinstance(ch, int):
                         line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[ch]], width=2), name=f"{channel_names[ch]}")
-                        plot_channels.append((line, pos, apply_function, ch))
+                        plot_channels.append({
+                            'line': line,
+                            'pos': pos,
+                            'apply_function': apply_function,
+                            'channels': (ch,),
+                            'refresh_rate': self.vis.refresh_rate_by_subplot[pos],
+                            'since_refresh': 0,
+                        })
                     elif isinstance(ch, types.FunctionType):
                         pass
                 
@@ -439,6 +462,12 @@ class MainWindow(QMainWindow):
         self.timer.start(self.vis.update_refresh_rate)
 
 
+    def update_ring_buffers(self):
+        new_data = self.core.get_measurement_dict_PLOT()
+        for source, buffer in self.vis.ring_buffers.items():
+            buffer.extend(new_data[source])
+
+
     def update_plots(self):
         if not self.core.is_running_global:
             self.stop_measurement()
@@ -453,18 +482,30 @@ class MainWindow(QMainWindow):
             self.progress_bar.setValue(int(1000*(time.time() - self.time_start)))
             self.label.setText(f"{time.time() - self.time_start:.1f}/{self.core.acquisitions[0].trigger_settings['duration']:.1f} s")
 
+        self.update_ring_buffers()
+
         if not self.freeze_plot:
-            new_data = self.core.get_measurement_dict(self.vis.max_plot_time)
+
             for source, plot_channels in self.plots.items():
                 self.vis.acquisition = self.core.acquisitions[self.core.acquisition_names.index(source)]
 
-                for line, pos, apply_function, *channels in plot_channels:
-                    if self.vis.refresh_rate_by_subplot[pos][0] <= self.vis.refresh_rate_by_subplot[pos][1] + self.vis.update_refresh_rate:
-                        self.vis.refresh_rate_by_subplot[pos][1] = 0
+                # for line, pos, apply_function, *channels in plot_channels:
+                for plot_channel in plot_channels:
+                    line = plot_channel['line']
+                    pos = plot_channel['pos']
+                    apply_function = plot_channel['apply_function']
+                    channels = plot_channel['channels']
+                    refresh_rate = plot_channel['refresh_rate']
+                    since_refresh = plot_channel['since_refresh']
+
+                    if refresh_rate <= since_refresh + self.vis.update_refresh_rate:
+                        plot_channel['since_refresh'] = 0
+                        new_data = self.vis.ring_buffers[source].get_data()
                         self.update_line(new_data, source, line, pos, apply_function, channels)
                     else:
-                        self.vis.refresh_rate_by_subplot[pos][1] += self.vis.update_refresh_rate
+                        plot_channel['since_refresh'] += self.vis.update_refresh_rate
     
+
     def update_line(self, new_data, source, line, pos, apply_function, channels):
         # only plot data that are within xlim (applies only for normal plot, not ch vs. ch)
         max_plot_samples =  int(self.vis.max_plot_time_per_subplot[pos] * self.vis.acquisition.sample_rate)
@@ -473,10 +514,10 @@ class MainWindow(QMainWindow):
 
         if len(channels) == 1: # plot a single channel
             ch = channels[0]
-            fun_return = apply_function(self.vis, new_data[source]["data"][:, ch])
+            fun_return = apply_function(self.vis, new_data[:, ch])
             if len(fun_return.shape) == 1: # if function returns only 1D array
                 y = fun_return[-max_plot_samples:][::nth]
-                x = new_data[source]["time"][:max_plot_samples][::nth]
+                x = (np.arange(max_plot_samples) / self.vis.acquisition.sample_rate)[::nth]
             else:  # function returns 2D array (e.g. fft returns freq and amplitude)
                 x, y = fun_return.T # expects 2D array to be returned
                 x = x[:max_plot_samples]
@@ -485,8 +526,7 @@ class MainWindow(QMainWindow):
             line.setData(x, y)
 
         else: # channel vs. channel
-            channel_x, channel_y = channels
-            fun_return = apply_function(self.vis, new_data[source]['data'][:, [channel_x, channel_y]])
+            fun_return = apply_function(self.vis, new_data[:, channels])
             x, y = fun_return.T
             line.setData(x[::nth], y[::nth])
 

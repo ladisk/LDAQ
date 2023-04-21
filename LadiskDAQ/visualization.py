@@ -173,7 +173,8 @@ class Visualization:
         self.show_legend = True
         self.nth = nth
         self.refresh_rate = refresh_rate
-
+        
+        self.update_refresh_rate = 10 # [ms] interval of calling the plot_update function
         self.max_points_to_refresh = 1e4
 
         if any(isinstance(k, tuple) for k in self.layout.keys()) and not all(isinstance(k, tuple) for k in self.layout.keys()):
@@ -191,8 +192,8 @@ class Visualization:
         if self.subplot_options is not None:
             if not check_subplot_options_validity(self.subplot_options):
                 raise ValueError("Invalid subplot options. Check the `rowspan` and `colspan` values.")
+    
 
-        
     def run(self, core):
         self.core = core
 
@@ -214,6 +215,15 @@ class Visualization:
                 acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
                 for pos in self.layout[source].keys():
                     self.subplot_options[pos] = {"xlim": (0, 1), "axis_style": "linear"}
+
+
+        self.refresh_rate_by_subplot = {}
+        for pos, options in self.subplot_options.items():
+            if 'refresh_rate' in options.keys():
+                self.refresh_rate_by_subplot[pos] = [self.update_refresh_rate*(options['refresh_rate']//self.update_refresh_rate)] * 2
+            else:
+                self.refresh_rate_by_subplot[pos] = [self.update_refresh_rate*(self.refresh_rate//self.update_refresh_rate)] * 2
+
 
         self.max_plot_time_per_subplot = {}
         for pos, options in self.subplot_options.items():
@@ -426,7 +436,7 @@ class MainWindow(QMainWindow):
     def init_timer(self):
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_plots)
-        self.timer.start(self.vis.refresh_rate)
+        self.timer.start(self.vis.update_refresh_rate)
 
 
     def update_plots(self):
@@ -449,29 +459,36 @@ class MainWindow(QMainWindow):
                 self.vis.acquisition = self.core.acquisitions[self.core.acquisition_names.index(source)]
 
                 for line, pos, apply_function, *channels in plot_channels:
-                    # only plot data that are within xlim (applies only for normal plot, not ch vs. ch)
-                    max_plot_samples =  int(self.vis.max_plot_time_per_subplot[pos] * self.vis.acquisition.sample_rate)
-                    
-                    nth = self.vis.nth[source][pos][channels[0]]
+                    if self.vis.refresh_rate_by_subplot[pos][0] <= self.vis.refresh_rate_by_subplot[pos][1] + self.vis.update_refresh_rate:
+                        self.vis.refresh_rate_by_subplot[pos][1] = 0
+                        self.update_line(new_data, source, line, pos, apply_function, channels)
+                    else:
+                        self.vis.refresh_rate_by_subplot[pos][1] += self.vis.update_refresh_rate
+    
+    def update_line(self, new_data, source, line, pos, apply_function, channels):
+        # only plot data that are within xlim (applies only for normal plot, not ch vs. ch)
+        max_plot_samples =  int(self.vis.max_plot_time_per_subplot[pos] * self.vis.acquisition.sample_rate)
+        
+        nth = self.vis.nth[source][pos][channels[0]]
 
-                    if len(channels) == 1: # plot a single channel
-                        ch = channels[0]
-                        fun_return = apply_function(self.vis, new_data[source]["data"][:, ch])
-                        if len(fun_return.shape) == 1: # if function returns only 1D array
-                            y = fun_return[-max_plot_samples:][::nth]
-                            x = new_data[source]["time"][:max_plot_samples][::nth]
-                        else:  # function returns 2D array (e.g. fft returns freq and amplitude)
-                            x, y = fun_return.T # expects 2D array to be returned
-                            x = x[:max_plot_samples]
-                            y = y[:max_plot_samples]
+        if len(channels) == 1: # plot a single channel
+            ch = channels[0]
+            fun_return = apply_function(self.vis, new_data[source]["data"][:, ch])
+            if len(fun_return.shape) == 1: # if function returns only 1D array
+                y = fun_return[-max_plot_samples:][::nth]
+                x = new_data[source]["time"][:max_plot_samples][::nth]
+            else:  # function returns 2D array (e.g. fft returns freq and amplitude)
+                x, y = fun_return.T # expects 2D array to be returned
+                x = x[:max_plot_samples]
+                y = y[:max_plot_samples]
 
-                        line.setData(x, y)
+            line.setData(x, y)
 
-                    else: # channel vs. channel
-                        channel_x, channel_y = channels
-                        fun_return = apply_function(self.vis, new_data[source]['data'][:, [channel_x, channel_y]])
-                        x, y = fun_return.T
-                        line.setData(x[::nth], y[::nth])
+        else: # channel vs. channel
+            channel_x, channel_y = channels
+            fun_return = apply_function(self.vis, new_data[source]['data'][:, [channel_x, channel_y]])
+            x, y = fun_return.T
+            line.setData(x[::nth], y[::nth])
 
         
     def close_app(self):

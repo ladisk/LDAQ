@@ -198,9 +198,6 @@ class Visualization:
     def run(self, core):
         self.core = core
 
-        if not isinstance(self.nth, dict):
-            self.nth = auto_nth_point(self.layout, self.subplot_options, self.core, max_points_to_refresh=self.max_points_to_refresh, known_nth=self.nth)
-
         if self.layout is None:
             self.layout = {}
             for source in self.core.acquisition_names:
@@ -217,6 +214,24 @@ class Visualization:
                 for pos in self.layout[source].keys():
                     self.subplot_options[pos] = {"xlim": (0, 1), "axis_style": "linear"}
 
+        self.max_plot_time_per_subplot = {}
+        for pos, options in self.subplot_options.items():
+            if 'xlim' in options.keys() and 'tlim' not in options.keys():
+                self.subplot_options[pos]['tlim'] = options['xlim']
+            elif 'tlim' in options.keys() and 'xlim' not in options.keys():
+                self.subplot_options[pos]['xlim'] = options['tlim']
+            elif 'xlim' not in options.keys() and 'tlim' not in options.keys():
+                self.subplot_options[pos]['xlim'] = (0, 1)
+                self.subplot_options[pos]['tlim'] = (0, 1)
+            else:
+                pass
+
+            self.max_plot_time_per_subplot[pos] = options['tlim'][1] - options['tlim'][0]
+
+
+        if not isinstance(self.nth, dict):
+            self.nth = auto_nth_point(self.layout, self.subplot_options, self.core, max_points_to_refresh=self.max_points_to_refresh, known_nth=self.nth)
+
 
         self.refresh_rate_by_subplot = {}
         for pos, options in self.subplot_options.items():
@@ -226,20 +241,10 @@ class Visualization:
                 self.refresh_rate_by_subplot[pos] = self.update_refresh_rate*(self.refresh_rate//self.update_refresh_rate)
 
 
-        self.max_plot_time_per_subplot = {}
-        for pos, options in self.subplot_options.items():
-            if 'xlim' in options.keys():
-                self.max_plot_time_per_subplot[pos] = options['xlim'][1] - options['xlim'][0]
-            else:
-                self.max_plot_time_per_subplot[pos] = 1
-
-        self.max_plot_time = max(self.max_plot_time_per_subplot.values())
-
-
         self.ring_buffers = {}
         for source in self.layout.keys():
             acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
-            rows = int(max([(self.subplot_options[pos]['xlim'][1] - self.subplot_options[pos]['xlim'][0]) * acq.sample_rate for pos in self.layout[source].keys()]))
+            rows = int(max([(self.subplot_options[pos]['tlim'][1] - self.subplot_options[pos]['tlim'][0]) * acq.sample_rate for pos in self.layout[source].keys()]))
             self.ring_buffers[source] = RingBuffer2D(rows, acq.n_channels)
 
 
@@ -514,19 +519,19 @@ class MainWindow(QMainWindow):
 
         if len(channels) == 1: # plot a single channel
             ch = channels[0]
-            fun_return = apply_function(self.vis, new_data[:, ch])
+            fun_return = apply_function(self.vis, new_data[-max_plot_samples:, ch])
+
             if len(fun_return.shape) == 1: # if function returns only 1D array
-                y = fun_return[-max_plot_samples:][::nth]
+                y = fun_return[::nth]
                 x = (np.arange(max_plot_samples) / self.vis.acquisition.sample_rate)[::nth]
+
             else:  # function returns 2D array (e.g. fft returns freq and amplitude)
                 x, y = fun_return.T # expects 2D array to be returned
-                x = x[:max_plot_samples]
-                y = y[:max_plot_samples]
 
             line.setData(x, y)
 
         else: # channel vs. channel
-            fun_return = apply_function(self.vis, new_data[:, channels])
+            fun_return = apply_function(self.vis, new_data[-max_plot_samples:, channels])
             x, y = fun_return.T
             line.setData(x[::nth], y[::nth])
 

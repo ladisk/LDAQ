@@ -207,6 +207,7 @@ Currently, the following options are available:
 - ``title``: string, the title of the subplot
 - ``rowspan``: int, the number of rows the subplot spans. Default is 1.
 - ``colspan``: int, the number of columns the subplot spans. Default is 1.
+- ``refresh_rate``: int, the refresh rate of the subplot in milliseconds. If this option is not specified, the refresh rate defined in the :class:`Visualization` is used.
 
 .. note::
     The ``xlim`` defines the samples that are plotted on the x-axis, not only a narrowed view of the data. With this, the same data can be viewed with different zoom levels in an effcient way.

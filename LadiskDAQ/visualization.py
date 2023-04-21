@@ -428,7 +428,7 @@ class MainWindow(QMainWindow):
                 for ch in channels:
                     if isinstance(ch, tuple):
                         x, y = ch
-                        line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[y]], width=2), name=f"{channel_names[x]} vs. {channel_names[y]}")
+                        line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[y]], width=2), name=f"{channel_names[x]} vs. {channel_names[y]}", clear=True)
                         plot_channels.append({
                             'line': line,
                             'pos': pos,

@@ -22,9 +22,10 @@ Live visualization of the measurments is possible by adding the :class:`LadiskDA
     )
 
 - ``layout``: dictionary that defines the layout of the live plot. See the :ref:`layout section <layout>` for more details.
-- ``subplot_options``: set the properties of each subplot, defined with the ``layout`` argument. See the :ref:`subplot_options section <subplot_options>` for more details.
+- ``subplot_options``: set the properties of each subplot, defined with the ``layout`` argument. See :ref:`subplot_options <subplot_options>` for more details.
 - ``nth``: defines the number of samples that are plotted. If ``nth`` is set to "auto", the number of samples is automatically determined based on the number of channels and the sample rate of each acquisition source. The effect of ``nth`` is that every ``nth`` sample is plotted.
-- ``refresh_rate``: defines the refresh rate of the live plot in milliseconds.
+  The ``nth`` argument can also be set for each subplot separetely (see :ref:`subplot_options <subplot_options>` for more details).
+- ``refresh_rate``: defines the refresh rate of the live plot in milliseconds. ``refresh_rate`` can also be defined for each subplot separetely (see :ref:`subplot_options <subplot_options>` for more details).
 
 .. _layout:
 The ``layout``

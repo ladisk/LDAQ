@@ -1,3 +1,5 @@
+"""Work in progress.
+"""
 import time
 
 class BaseControl:

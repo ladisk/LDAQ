@@ -18,7 +18,10 @@ INBUILT_FUNCTIONS = {'fft': _fun_fft}
 
 class Visualization:
     def __init__(self, layout=None, subplot_options=None, nth='auto', refresh_rate=100):
-        """Live visualization of the measured data.
+        """
+        TODO: update this docstring!
+        
+        Live visualization of the measured data.
         
         :param layout: Dictionary containing the source names and subplot layout with channel definitions.
             See examples below.
@@ -551,5 +554,6 @@ class MainWindow(QMainWindow):
         else:
             self.freeze_plot = True
             self.freeze_button.setText('Unfreeze')
+
 
         

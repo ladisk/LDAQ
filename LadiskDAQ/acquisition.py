@@ -39,6 +39,7 @@ class CustomPyTrigger(pyTrigger):
         self.N_acquired_samples               = 0 # samples acquired throughout whole acquisition process
         self.N_acquired_samples_since_trigger = 0 # samples acquired since trigger
         self.N_new_samples                    = 0 # new samples that have not been retrieved yet
+        self.N_new_samples_PLOT               = 0 # new samples that have not been retrieved yet - Plotting purposes
         self.N_triggers                       = 0 # amount of time acquisition was triggered (should be 1 at the end of the measurement)
         
         self.first_trigger = True
@@ -52,6 +53,7 @@ class CustomPyTrigger(pyTrigger):
         N = rows_left_before - self.rows_left
         
         self.N_acquired_samples += data.shape[0]
+        self.N_new_samples_PLOT += data.shape[0]
         self.N_new_samples      += N
         self.N_acquired_samples_since_trigger += N
         
@@ -90,6 +92,21 @@ class CustomPyTrigger(pyTrigger):
             return data
         else: # NOTE: this should not happen!
             return np.empty(shape=(0, self.ringbuff.columns))
+        
+    def get_data_new_PLOT(self):
+        """Retrieves any new data from ring buffer that has been not yet retrieved. 
+           This is used for plotting purposes only.
+
+        Returns:
+            np.ndarray: data of shape (rows, channels)
+        """
+        data = self.ringbuff.get_data()
+        if self.N_new_samples_PLOT > 0:
+            data = data[-self.N_new_samples_PLOT:]
+        else:
+            data = np.empty(shape=(0, self.channels))
+        self.N_new_samples_PLOT = 0
+        return data
     
     def _trigger_index(self, data):
         """Upgrades parent _trigger_index() method. Beside searching for trigger event, it
@@ -123,7 +140,7 @@ class BaseAcquisition:
     Returns:
         _type_: _description_
     """
-    all_acquisitions_ready = False
+    all_acquisitions_ready = False # class property to indicate if all acquisitions are ready to start (not jsut this one)
     
     def __init__(self):
         """EDIT in child class"""
@@ -184,6 +201,7 @@ class BaseAcquisition:
         
         Returns None.
         """
+        self.read_data()
 
     # The following methods should work without changing.
     def stop(self):
@@ -223,6 +241,15 @@ class BaseAcquisition:
                 
         time = np.arange(data.shape[0])/self.sample_rate     
         return time, data
+    
+    def get_data_PLOT(self):
+        """Reads only new data from pyTrigger ring buffer and returns it.
+        NOTE: this method is used only for plotting purposes and should not be used for any other purpose.
+              also it does not return time vector, only data.
+        Returns:
+            array: 2D numpy array of shape (N_new_samples, n_channels)
+        """
+        return self.Trigger.get_data_new_PLOT()
     
     def get_measurement_dict(self, N_points=None):
         """Reads data from pyTrigger ring buffer using self.get_data() method and returns a dictionary

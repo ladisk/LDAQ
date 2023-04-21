@@ -207,7 +207,17 @@ class Core():
                     if fun(self):
                         self.stop_acquisition_and_generation()
                                                 
-            time.sleep(0.05)      
+            time.sleep(0.05)   
+            
+    def add_check_events(self, *args):
+        """
+        Takes functions that takes only "self" argument and returns True/False. If any of the provided functions
+        is True, the acquisition will be stopped. Each time this function is called, the previous additional
+        check functions are erased.
+        """
+        self.additional_check_functions = []
+        for fun in args:
+            self.additional_check_functions.append(fun)   
                 
     def set_trigger(self, source, channel, level, duration, duration_unit='seconds', presamples=0, trigger_type='abs'):
         """
@@ -314,23 +324,25 @@ class Core():
         table.rows.append(["q", "Stop the measurement"])
         table.columns.header = ["HOTKEY", "DESCRIPTION"]
         print(table)
-        
-    def add_check_events(self, *args):
-        """
-        Takes functions that takes only "self" argument and returns True/False. If any of the provided functions
-        is True, the acquisition will be stopped. Each time this function is called, the previous additional
-        check functions are erased.
-        """
-        self.additional_check_functions = []
-        for fun in args:
-            self.additional_check_functions.append(fun)
      
+    def get_measurement_dict_PLOT(self):
+        """
+        Returns only NEW acquired data from all sources.
+        NOTE: This function is used for plotting purposes only.
+              Other functions should use 'get_measurement_dict(N_seconds="new")' instead.
+        """
+        new_data_dict = {}
+        for idx, acq in enumerate(self.acquisitions):
+            # retireves new data from this source
+            new_data_dict[self.acquisition_names[idx]] = acq.get_data_PLOT() 
+        return new_data_dict
+    
     def get_measurement_dict(self, N_seconds=None):
         """Returns measured data from all sources.
 
         Args:
             N_seconds (float, str, optional): last number of seconds of the measurement. 
-                                    if "new" then only new data is returned. Defaults to None.
+                        if "new" then only new data is returned. Defaults to None.
 
         Returns:
             dict: Measurement dictionary
@@ -348,8 +360,7 @@ class Core():
                 
             self.measurement_dict[ name ] = self.acquisitions[idx].get_measurement_dict(N_points)
         
-        return self.measurement_dict
-    
+        return self.measurement_dict    
     
     def save_measurement(self, name=None, root=None, timestamp=True, comment=None):
         """Save acquired data from all sources into one dictionary saved as pickle.

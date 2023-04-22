@@ -178,9 +178,11 @@ class Visualization:
         self.update_refresh_rate = 10 # [ms] interval of calling the plot_update function
         self.max_points_to_refresh = 1e4
 
+        # check validity of the layout (all keys must be tuples or all keys must be strings)
         if any(isinstance(k, tuple) for k in self.layout.keys()) and not all(isinstance(k, tuple) for k in self.layout.keys()):
             raise ValueError("Invalid layout.")
 
+        # check validity of the nth parameter:
         if self.nth == 'auto':
             if self.subplot_options is None or self.layout is None:
                 print('Warning: `nth` could not be determined automatically. Using `nth=1`.')
@@ -190,6 +192,7 @@ class Visualization:
         else:
             raise ValueError('`nth` must be an integer or "auto".')
         
+        # check validity of the subplot_options (rowspan/colspan)
         if self.subplot_options is not None:
             if not check_subplot_options_validity(self.subplot_options):
                 raise ValueError("Invalid subplot options. Check the `rowspan` and `colspan` values.")
@@ -197,25 +200,58 @@ class Visualization:
 
     def run(self, core):
         self.core = core
+        # self.core.is_running_global = False
 
+        # Check if the layout is valid.
+        self.check_layout()
+
+        # Check if the subplot options are valid.
+        self.check_subplot_options()
+
+        # Compute the nth point for each subplot.
+        if not isinstance(self.nth, dict):
+            self.nth = auto_nth_point(self.layout, self.subplot_options, self.core, max_points_to_refresh=self.max_points_to_refresh, known_nth=self.nth)
+
+        # Create the ring buffers for each acquisition.
+        self.create_ring_buffers()
+
+        # Start the QT application.
+        self.app = QApplication.instance()
+        if self.app is None:
+            self.app = QApplication(sys.argv)
+
+        with self.app:
+            self.main_window = MainWindow(self, self.core, self.app)
+            self.main_window.show()
+            self.app.exec_()
+        
+        
+    def check_layout(self):
         if self.layout is None:
+            # Make default layout.
             self.layout = {}
             for source in self.core.acquisition_names:
                 acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
                 self.layout[source] = {(0, 0): list(range(acq.n_channels))}
         else:
             if all(isinstance(k, tuple) for k in self.layout.keys()):
+                # If all keys are tuples, then the layout is for a single acquisition.
                 self.layout = {self.core.acquisition_names[0]: self.layout}
+            else:
+                # If not, then the layout is for multiple acquisitions.
+                pass
 
+
+    def check_subplot_options(self):
         if self.subplot_options is None:
+            # Make default subplot options.
             self.subplot_options = {}
             for source in self.core.acquisition_names:
-                acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
                 for pos in self.layout[source].keys():
                     self.subplot_options[pos] = {"xlim": (0, 1), "axis_style": "linear"}
 
-        self.max_plot_time_per_subplot = {}
         for pos, options in self.subplot_options.items():
+            # Check that all subplots have `t_span` and `xlim` defined.
             if 'xlim' in options.keys() and 't_span' not in options.keys():
                 self.subplot_options[pos]['t_span'] = options['xlim'][1] - options['xlim'][0]
             elif 't_span' in options.keys() and 'xlim' not in options.keys():
@@ -226,38 +262,20 @@ class Visualization:
             else:
                 pass
 
-            self.max_plot_time_per_subplot[pos] = options['t_span']
-
-
-        if not isinstance(self.nth, dict):
-            self.nth = auto_nth_point(self.layout, self.subplot_options, self.core, max_points_to_refresh=self.max_points_to_refresh, known_nth=self.nth)
-
-
-        self.refresh_rate_by_subplot = {}
-        for pos, options in self.subplot_options.items():
+            # Define the refresh rate for each subplot.
             if 'refresh_rate' in options.keys():
-                self.refresh_rate_by_subplot[pos] = self.update_refresh_rate*(options['refresh_rate']//self.update_refresh_rate)
+                self.subplot_options[pos]['subplot_refresh_rate'] = self.update_refresh_rate*(options['refresh_rate']//self.update_refresh_rate)
             else:
-                self.refresh_rate_by_subplot[pos] = self.update_refresh_rate*(self.refresh_rate//self.update_refresh_rate)
+                self.subplot_options[pos]['subplot_refresh_rate'] = self.update_refresh_rate*(self.refresh_rate//self.update_refresh_rate)
 
 
+    def create_ring_buffers(self):
         self.ring_buffers = {}
         for source in self.layout.keys():
             acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
             rows = int(max([self.subplot_options[pos]['t_span'] * acq.sample_rate for pos in self.layout[source].keys()]))
             self.ring_buffers[source] = RingBuffer2D(rows, acq.n_channels)
 
-
-        self.app = QApplication.instance()
-        if self.app is None:
-            self.app = QApplication(sys.argv)
-
-        with self.app:
-            self.main_window = MainWindow(self, self.core, self.app)
-            self.main_window.show()
-            self.app.exec_()
-        
-        self.core.is_running_global = False
 
 class MainWindow(QMainWindow):
     def __init__(self, vis, core, app):
@@ -294,6 +312,7 @@ class MainWindow(QMainWindow):
         self.add_hotkeys()
 
         self.init_plots()
+
         self.init_timer()
 
 
@@ -426,29 +445,26 @@ class MainWindow(QMainWindow):
                         apply_function = INBUILT_FUNCTIONS[ch]
                     
                 for ch in channels:
+                    if not isinstance(ch, types.FunctionType):
+                        plot_channels.append({
+                            'pos': pos,
+                            'apply_function': apply_function,
+                            'since_refresh': 0,
+                        })
+
                     if isinstance(ch, tuple):
                         x, y = ch
                         line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[y]], width=2), name=f"{channel_names[x]} vs. {channel_names[y]}", clear=True)
-                        plot_channels.append({
-                            'line': line,
-                            'pos': pos,
-                            'apply_function': apply_function,
-                            'channels': (x, y),
-                            'refresh_rate': self.vis.refresh_rate_by_subplot[pos],
-                            'since_refresh': 0,
-                        })
+                        plot_channels[-1]['line'] = line
+                        plot_channels[-1]['channels'] = (x, y)
+                        plot_channels[-1]['nth'] = self.vis.nth[source][pos][ch[0]]
+
                     elif isinstance(ch, int):
                         line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[ch]], width=2), name=f"{channel_names[ch]}")
-                        plot_channels.append({
-                            'line': line,
-                            'pos': pos,
-                            'apply_function': apply_function,
-                            'channels': (ch,),
-                            'refresh_rate': self.vis.refresh_rate_by_subplot[pos],
-                            'since_refresh': 0,
-                        })
-                    elif isinstance(ch, types.FunctionType):
-                        pass
+                        plot_channels[-1]['line'] = line
+                        plot_channels[-1]['channels'] = (ch,)
+                        plot_channels[-1]['nth'] = self.vis.nth[source][pos][ch]
+
                 
                 if self.vis.show_legend:
                     # Add legend to the subplot
@@ -496,48 +512,61 @@ class MainWindow(QMainWindow):
 
                 # for line, pos, apply_function, *channels in plot_channels:
                 for plot_channel in plot_channels:
-                    line = plot_channel['line']
-                    pos = plot_channel['pos']
-                    apply_function = plot_channel['apply_function']
-                    channels = plot_channel['channels']
-                    refresh_rate = plot_channel['refresh_rate']
+                    refresh_rate = self.vis.subplot_options[plot_channel['pos']]['subplot_refresh_rate']
                     since_refresh = plot_channel['since_refresh']
 
                     if refresh_rate <= since_refresh + self.vis.update_refresh_rate:
+                        # If time to refresh, refresh the plot and set since_refresh to 0.
                         plot_channel['since_refresh'] = 0
+                        
                         new_data = self.vis.ring_buffers[source].get_data()
-                        self.update_line(new_data, source, line, pos, apply_function, channels)
+                        self.update_line(new_data, plot_channel)
                     else:
+                        # If not time to refresh, increase since_refresh by update_refresh_rate.
                         plot_channel['since_refresh'] += self.vis.update_refresh_rate
     
 
-    def update_line(self, new_data, source, line, pos, apply_function, channels):
+    def update_line(self, new_data, plot_channel):
         # only plot data that are within xlim (applies only for normal plot, not ch vs. ch)
-        max_plot_samples =  int(self.vis.max_plot_time_per_subplot[pos] * self.vis.acquisition.sample_rate)
+        t_span_samples = int(self.vis.subplot_options[plot_channel['pos']]['t_span'] * self.vis.acquisition.sample_rate)
         
-        nth = self.vis.nth[source][pos][channels[0]]
+        nth = plot_channel['nth']
 
-        xlim = self.vis.subplot_options[pos]['xlim']
+        xlim = self.vis.subplot_options[plot_channel['pos']]['xlim']
 
-        if len(channels) == 1: # plot a single channel
-            ch = channels[0]
-            fun_return = apply_function(self.vis, new_data[-max_plot_samples:, ch])
+        if len(plot_channel['channels']) == 1: 
+            # plot a single channel
+            ch = plot_channel['channels'][0]
+            fun_return = plot_channel['apply_function'](self.vis, new_data[-t_span_samples:, ch])
 
-            if len(fun_return.shape) == 1: # if function returns only 1D array
-                y = fun_return[-max_plot_samples:][::nth]
-                x = (np.arange(max_plot_samples) / self.vis.acquisition.sample_rate)[::nth]
+            if len(fun_return.shape) == 1: 
+                # if function returns only 1D array
+                y = fun_return[::nth]
+                x = (np.arange(t_span_samples) / self.vis.acquisition.sample_rate)[::nth]
 
-            else:  # function returns 2D array (e.g. fft returns freq and amplitude)
+            elif len(fun_return.shape) == 2 and fun_return.shape[1] == 2:  
+                # function returns 2D array (e.g. fft returns freq and amplitude)
+                # In this case, the first column is the x-axis and the second column is the y-axis.
+                # The nth argument is not used in this case.
                 x, y = fun_return.T # expects 2D array to be returned
-            
-            mask = (x >= xlim[0]) & (x <= xlim[1])
-            line.setData(x[mask], y[mask])
 
-        else: # channel vs. channel
-            fun_return = apply_function(self.vis, new_data[-max_plot_samples:, channels])
+            else:
+                raise Exception("Function used in `layout` must return either 1D array or 2D array with 2 columns.")
+            
+            mask = (x >= xlim[0]) & (x <= xlim[1]) # Remove data outside of xlim
+            
+            plot_channel['line'].setData(x[mask], y[mask])
+
+        elif len(plot_channel['channels']) == 2: 
+            # channel vs. channel
+            fun_return = plot_channel['apply_function'](self.vis, new_data[-t_span_samples:, plot_channel['channels']])
             x, y = fun_return.T
-            mask = (x >= xlim[0]) & (x <= xlim[1])
-            line.setData(x[mask][::nth], y[mask][::nth])
+            mask = (x >= xlim[0]) & (x <= xlim[1]) # Remove data outside of xlim
+            
+            plot_channel['line'].setData(x[mask][::nth], y[mask][::nth])
+        
+        else:
+            raise Exception("A single channel or channel vs. channel plot can be plotted at a time. Got more than 2 channels.")
 
         
     def close_app(self):

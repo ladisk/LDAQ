@@ -517,23 +517,27 @@ class MainWindow(QMainWindow):
         
         nth = self.vis.nth[source][pos][channels[0]]
 
+        xlim = self.vis.subplot_options[pos]['xlim']
+
         if len(channels) == 1: # plot a single channel
             ch = channels[0]
             fun_return = apply_function(self.vis, new_data[-max_plot_samples:, ch])
 
             if len(fun_return.shape) == 1: # if function returns only 1D array
-                y = fun_return[::nth]
+                y = fun_return[-max_plot_samples:][::nth]
                 x = (np.arange(max_plot_samples) / self.vis.acquisition.sample_rate)[::nth]
 
             else:  # function returns 2D array (e.g. fft returns freq and amplitude)
                 x, y = fun_return.T # expects 2D array to be returned
-
-            line.setData(x, y)
+            
+            mask = (x >= xlim[0]) & (x <= xlim[1])
+            line.setData(x[mask], y[mask])
 
         else: # channel vs. channel
             fun_return = apply_function(self.vis, new_data[-max_plot_samples:, channels])
             x, y = fun_return.T
-            line.setData(x[::nth], y[::nth])
+            mask = (x >= xlim[0]) & (x <= xlim[1])
+            line.setData(x[mask][::nth], y[mask][::nth])
 
         
     def close_app(self):

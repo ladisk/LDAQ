@@ -309,8 +309,6 @@ class MainWindow(QMainWindow):
 
         self.add_buttons()
 
-        self.add_hotkeys()
-
         self.init_plots()
 
         self.init_timer()
@@ -373,10 +371,24 @@ class MainWindow(QMainWindow):
         self.layout_widget.addLayout(self.button_layout)
 
 
-    def add_hotkeys(self):
-        keyboard.add_hotkey('ctrl+f', self.toggle_full_screen)
-        keyboard.add_hotkey('ctrl+l', self.toggle_legends)
-        keyboard.add_hotkey('f', self.toggle_freeze_plot)
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Q:
+            if self.measurement_stopped:
+                self.close_app()
+            else:
+                self.stop_measurement(mode='manual')
+
+        elif event.key() == Qt.Key_S:
+            self.core.start_acquisition()
+        
+        elif event.key() == Qt.Key_F:
+            self.toggle_freeze_plot()
+        
+        elif event.key() == Qt.Key_L:
+            self.toggle_legends()
+
+        elif event.key() == Qt.Key_F11:
+            self.toggle_full_screen()
 
     
     def init_plots(self):
@@ -490,23 +502,26 @@ class MainWindow(QMainWindow):
 
 
     def update_plots(self):
-        if not self.core.is_running_global:
+        # Stop the measurement if the acquisitions are done and if the measurement has not been stopped.
+        if not self.core.is_running_global and not self.measurement_stopped:
             self.stop_measurement()
 
+        # If the emasurement is started, start the timer and update the progress bar.
         if self.core.triggered_globally and not self.triggered:
             self.on_measurement_start()
 
             self.time_start = time.time()
             self.progress_bar.setMaximum(int(1000*self.core.acquisitions[0].trigger_settings['duration']))
 
+        # If the measurement is running, update the progress bar and the label.
         if self.triggered and self.core.is_running_global:
             self.progress_bar.setValue(int(1000*(time.time() - self.time_start)))
             self.label.setText(f"{time.time() - self.time_start:.1f}/{self.core.acquisitions[0].trigger_settings['duration']:.1f} s")
 
+        # Update the ring buffers.
         self.update_ring_buffers()
 
         if not self.freeze_plot:
-
             for source, plot_channels in self.plots.items():
                 self.vis.acquisition = self.core.acquisitions[self.core.acquisition_names.index(source)]
 
@@ -568,7 +583,7 @@ class MainWindow(QMainWindow):
         else:
             raise Exception("A single channel or channel vs. channel plot can be plotted at a time. Got more than 2 channels.")
 
-        
+
     def close_app(self):
         self.vis.last_position = self.pos()
         self.vis.last_size = self.size()
@@ -588,16 +603,16 @@ class MainWindow(QMainWindow):
 
     def stop_measurement(self, mode='finished'):
         self.core.triggered_globally = True # dummy start measurement
-        self.timer.stop()
         self.core.stop_acquisition_and_generation()
+        self.timer.stop()
 
         self.trigger_button.setText('Start measurement')
         self.trigger_button.setEnabled(False)
         self.measurement_stopped = True
 
-        palette = self.palette()
-        palette.setColor(self.backgroundRole(), QColor(152, 251, 251))
-        self.setPalette(palette)
+        # palette = self.palette()
+        # palette.setColor(self.backgroundRole(), QColor(152, 251, 251))
+        # self.setPalette(palette)
 
         if mode == 'finished':
             self.label.setText(f"Finished.")
@@ -605,7 +620,6 @@ class MainWindow(QMainWindow):
 
         if self.core.autoclose:
             self.close_app()
-
 
 
     def trigger_measurement(self):

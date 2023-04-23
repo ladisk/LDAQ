@@ -89,8 +89,10 @@ class Core():
         
         if self.visualization is None:
             self.keyboard_hotkeys_setup()
-            if verbose == 2:
+            if self.verbose == 2:
                 self._print_table()
+        else:
+            self.verbose = 0
         
         if self.verbose in [1, 2]:
             print('\tWaiting for trigger...', end='')
@@ -198,9 +200,10 @@ class Core():
                 self.triggered_globally = True
                 
             if self.first and self.triggered_globally:
-                print()
-                print('triggered.') 
-                print('\tRecording...', end='') 
+                if self.verbose in [1, 2]:
+                    print()
+                    print('triggered.') 
+                    print('\tRecording...', end='') 
                 self.first = False
                             
             # additional functionalities added with 'add_check_events()' method:   

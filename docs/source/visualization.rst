@@ -22,9 +22,12 @@ Live visualization of the measurments is possible by adding the :class:`LadiskDA
     )
 
 - ``layout``: dictionary that defines the layout of the live plot. See the :ref:`layout section <layout>` for more details.
-- ``subplot_options``: set the properties of each subplot, defined with the ``layout`` argument. See the :ref:`subplot_options section <subplot_options>` for more details.
-- ``nth``: defines the number of samples that are plotted. If ``nth`` is set to "auto", the number of samples is automatically determined based on the number of channels and the sample rate of each acquisition source. The effect of ``nth`` is that every ``nth`` sample is plotted.
-- ``refresh_rate``: defines the refresh rate of the live plot in milliseconds.
+- ``subplot_options``: set the properties of each subplot, defined with the ``layout`` argument. See :ref:`subplot_options <subplot_options>` for more details.
+- ``nth``: defines the number of samples that are plotted. If ``nth`` is set to "auto", the number of samples is automatically determined based on the number 
+  of channels and the sample rate of each acquisition source. The effect of ``nth`` is that every ``nth`` sample is plotted.
+  The ``nth`` argument can also be set for each subplot separetely (see :ref:`subplot_options <subplot_options>` for more details).
+- ``refresh_rate``: defines the refresh rate of the live plot in milliseconds. ``refresh_rate`` can also be defined for each 
+  subplot separetely (see :ref:`subplot_options <subplot_options>` for more details).
 
 .. _layout:
 The ``layout``
@@ -41,12 +44,15 @@ The layout of the live plot is set by the ``layout`` argument. An example of the
         }
     }
 
-This is a layout for a single acquisition source with name "DataSource". When multiple sources are used, the name of the source is used as the key in the ``layout`` dictionary. 
-The value at each acquisition source is a dictionary where each key is a tuple of two integers. The first integer is the row number and the second integer is the column number of the subplots.
+This is a layout for a single acquisition source with name "DataSource". 
+When multiple sources are used, the name of the source is used as the key in the ``layout`` dictionary. 
+The value at each acquisition source is a dictionary where each key is a tuple of two integers. 
+The first integer is the row number and the second integer is the column number of the subplots.
 
 For the given example, the plot will have two subplots, each in one row.
 
-For each subplot, the data is then specified. If the value is a list of integers, each integer corresponds to the index in the acquired data.
+For each subplot, the data is then specified. 
+If the value is a list of integers, each integer corresponds to the index in the acquired data.
 For example, for the subplot defined with:
 
 .. code-block:: python
@@ -74,7 +80,8 @@ When plotting from multiple sources, the layout is defined:
         }
     }
 
-Notice the different names of the sources. Each name corresponds to the name of the acquisition source, defined in the acquisition class (see `first example <simple_start.html>`_ and `using multiple sources <multiple_sources.html>`_ example).
+Notice the different names of the sources. Each name corresponds to the name of the acquisition source, defined in the acquisition class 
+(see `first example <simple_start.html>`_ and `using multiple sources <multiple_sources.html>`_ example).
 
 It is important to note that the subplot locations are the same for all acquisition sources, but the indices of the data are different. 
 
@@ -114,8 +121,9 @@ The functmion is added to the ``layout`` dictionary as follows:
         }
     }
 
-The ``function`` can be specified by the user. To use the built-in functions, a string is passed to the ``function`` argument. An example of a built-in function is "fft"
-which computes the `Fast Fourier Transform <https://numpy.org/doc/stable/reference/generated/numpy.fft.rfft.html>`_ of the data with indices 2 and 3.
+The ``function`` can be specified by the user. To use the built-in functions, a string is passed to the ``function`` argument. 
+An example of a built-in function is "fft" which computes the `Fast Fourier Transform <https://numpy.org/doc/stable/reference/generated/numpy.fft.rfft.html>`_ 
+of the data with indices 2 and 3.
 
 To build a custom function, the function must be defined as follows:
 
@@ -128,10 +136,13 @@ To build a custom function, the function must be defined as follows:
         '''
         return channel_data**2
 
-The ``self`` argument in the custom function referes to the instance of the acquisition object. This connection can be used to access the properties of the acquisition object, e.g. sample rate.
-The ``channel_data`` argument is a list of numpy arrays, where each array corresponds to the data from one channel. The data is acquired in the order specified in the ``layout`` dictionary.
+The ``self`` argument in the custom function referes to the instance of the acquisition object. 
+This connection can be used to access the properties of the acquisition object, e.g. sample rate.
+The ``channel_data`` argument is a list of numpy arrays, where each array corresponds to the data from one channel. 
+The data is acquired in the order specified in the ``layout`` dictionary.
 
-For the layout example above, the custom function is called for each channel separetely, the ``channel_data`` is a one-dimensional numpy array. To add mutiple channels to the ``channel_data`` argument,
+For the layout example above, the custom function is called for each channel separetely, the ``channel_data`` is a one-dimensional numpy array. 
+To add mutiple channels to the ``channel_data`` argument,
 the ``layout`` dictionary is modified as follows:
 
 .. code-block:: python
@@ -201,16 +212,30 @@ Example:
 
 Currently, the following options are available:
 
-- ``xlim``: tuple of two floats, the limits of the x-axis
-- ``ylim``: tuple of two floats, the limits of the y-axis
-- ``axis_style``: string, the style of the axis. Can be "linear", "semilogx", "semilogy" or "loglog"
-- ``title``: string, the title of the subplot
+- ``xlim``: tuple of two floats, the limits of the x-axis.
+- ``ylim``: tuple of two floats, the limits of the y-axis.
+- ``t_span``: int/float, the length of the time axis. If this option is not specified, it is computed from the ``xlim``.
+- ``axis_style``: string, the style of the axis. Can be "linear", "semilogx", "semilogy" or "loglog".
+- ``title``: string, the title of the subplot.
 - ``rowspan``: int, the number of rows the subplot spans. Default is 1.
 - ``colspan``: int, the number of columns the subplot spans. Default is 1.
-- ``refresh_rate``: int, the refresh rate of the subplot in milliseconds. If this option is not specified, the refresh rate defined in the :class:`Visualization` is used.
+- ``refresh_rate``: int, the refresh rate of the subplot in milliseconds. 
+  If this option is not specified, the refresh rate defined in the :class:`Visualization` is used.
+- ``nth``: int, same as the ``nth`` argument in :class:`Visualization`. 
+  If this option is not specified, the ``nth`` argument defined in the :class:`Visualization` is used.
+
+.. note:: 
+    When plotting a simple time signal, the ``t_span`` and ``xlim`` have the same effect. 
+    
+    However, when plotting channel vs. channel, the ``t_span`` specifies the time range of the data and the ``xlim`` specifies the range of the x-axis (spatial).
+
+    When plotting a function, the ``t_span`` determines the time range of the data that is passed to the function. 
+    Last ``t_span`` seconds of data are passed to the function.
+
 
 .. note::
-    The ``xlim`` defines the samples that are plotted on the x-axis, not only a narrowed view of the data. With this, the same data can be viewed with different zoom levels in an effcient way.
+    The ``xlim`` defines the samples that are plotted on the x-axis, not only a narrowed view of the data. 
+    With this, the same data can be viewed with different zoom levels in an effcient way.
 
 An example of ``subplot_options`` with ``colspan``:
 

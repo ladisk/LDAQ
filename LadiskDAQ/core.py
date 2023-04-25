@@ -76,9 +76,12 @@ class Core():
         
         self.first = True # for printing trigger the first time.
         
-        self.keyboard_hotkeys_setup()
-        if verbose == 2 and self.visualization is None:
-            self._print_table()
+        if self.visualization is None:
+            self.keyboard_hotkeys_setup()
+            if self.verbose == 2:
+                self._print_table()
+        else:
+            self.verbose = 0
         
         if self.verbose in [1, 2]:
             print('\tWaiting for trigger...', end='')
@@ -143,8 +146,9 @@ class Core():
             
         if self.verbose in [1, 2]:
             print('Measurement finished.')
-            
-        self.keyboard_hotkeys_remove()
+        
+        if self.visualization is None:
+            self.keyboard_hotkeys_remove()
     
     def _check_events(self):
         """
@@ -189,9 +193,10 @@ class Core():
                 self.triggered_globally = True
                 
             if self.first and self.triggered_globally:
-                print()
-                print('triggered.') 
-                print('\tRecording...', end='') 
+                if self.verbose in [1, 2]:
+                    print()
+                    print('triggered.') 
+                    print('\tRecording...', end='') 
                 self.first = False
                             
             # additional functionalities added with 'add_check_events()' method:   

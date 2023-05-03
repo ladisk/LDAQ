@@ -457,7 +457,7 @@ class MainWindow(QMainWindow):
                         apply_function = INBUILT_FUNCTIONS[ch]
                     
                 for ch in channels:
-                    if not isinstance(ch, types.FunctionType):
+                    if not isinstance(ch, types.FunctionType) and ch not in INBUILT_FUNCTIONS.keys():
                         plot_channels.append({
                             'pos': pos,
                             'apply_function': apply_function,

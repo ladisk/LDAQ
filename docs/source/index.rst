@@ -3,14 +3,37 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to the LadiskDAQ documentation!
+Welcome to LadiskDAQ documentation!
 ===============================================================
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+This package provides an extendable interface for data acquisition and generation. It is designed to be quickly set-up, easy to use and accomodate a wide range of data sources.
 
-   getting_started
+The source-code for this package is available on `GitHub <https://github.com/ladisk/LadiskDAQ>`_.
+
+The package enables data **acquisition** from multiple sources, signal **generation** on multiple ouputs, and costumizable **live data visualization**.
+
+Examples of the acquisition/generation code for commonly used sources are presented in the showcase notebooks:
+
+- `National Instruments <https://github.com/ladisk/LadiskDAQ/blob/master/Showcase%20-%20National%20Instruments.ipynb>`_
+- `Serial communication <https://github.com/ladisk/LadiskDAQ/blob/master/Showcase%20-%20Serial.ipynb>`_
+
+.. note::
+   
+   To quickly add acquisition code to your project, go to the :doc:`snippets` page, where you can copy and paste the code you need.
+
+For the more in-depth documentation, start with the :doc:`simple_start` page.
+
+Table of Contents
+=================
+.. toctree::
+   :maxdepth: 3
+
+   simple_start
+   generation
+   visualization
+   multiple_sources
+   sample_rate_detection
+   snippets
    code
 
 

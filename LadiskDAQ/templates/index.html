@@ -1,0 +1,168 @@
+<!doctype html>
+<html>
+
+<head>
+  <title>Live Data Visualization</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.2.0/socket.io.min.js"></script>
+  <script src="https://cdn.socket.io/4.5.1/socket.io.min.js"></script>
+  <script src="//code.jquery.com/jquery-1.11.2.min.js"></script>
+  <script src="https://unpkg.com/msgpack-lite/dist/msgpack.min.js"></script>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+</head>
+
+<body>
+  <div class="container">
+    <br>
+    <h5>LDAQ visualization</h5>
+    <br>
+    <div class="row">
+      <div class="col-sm-12">
+        <button class="btn btn-dark" id="start-button">Start visualization</button>
+        <button class="btn btn-dark" id="stop-button">Stop visualization</button>
+        <button class="btn btn-success" id="start-button">Trigger</button>
+        <button class="btn btn-danger" id="stop-button">Stop recording</button>
+        <button class="btn btn-danger" id="close-button">Close</button>
+      </div>
+    </div>
+    <br>
+    <div class="row">
+      <div class="col-sm-12">
+        <div id="plot"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <script>
+    var x_data = [];
+    var y_data = [];
+
+    var layout = {
+      title: 'Live Data Visualization',
+      xaxis: { title: 'Time' },
+      yaxis: { title: 'Data' },
+    };
+
+    var trace = {
+      x: x_data,
+      y: y_data,
+      type: 'scatter',
+      mode: 'lines',
+    };
+
+    var data = [trace];
+
+    Plotly.newPlot('plot', data, layout);
+
+    var socket = io.connect('http://' + document.domain + ':' + location.port);
+
+    socket.on('connect', function () {
+      console.log('Connected to server');
+
+    });
+
+    socket.on('disconnect', function () {
+      console.log('Disconnected from server');
+    });
+
+    socket.on('data', function (message) {
+      // data = JSON.parse(message);
+      data = msgpack.decode(new Uint8Array(message));
+      console.log('data incomming...')
+      x_data = data.NI_task.time;
+      y_data.push(data.NI_task.data[0]);
+      var update = {
+        x: [x_data],
+        y: [y_data[-x_data.length:]],
+      };
+      Plotly.update('plot', update);
+    });
+
+    socket.on('layout', function (message) {
+      console.log(message)
+      daq_layout = JSON.parse(message)
+      console.log('Layout:')
+      console.log(daq_layout)
+    })
+
+    document.getElementById('start-button').onclick = function () {
+      console.log('Starting data generation');
+      socket.emit('start');
+    };
+
+    document.getElementById('stop-button').onclick = function () {
+      console.log('Stop data generation');
+      socket.emit('stop');
+    };
+
+    document.getElementById('close-button').onclick = function () {
+      socket.emit('close', function (response) {
+        window.close();
+      });
+    };
+
+
+    function initializeSubplots(layout) {
+      // Get the grid size from the first subplot tuple
+      const [gridRows, gridColumns] = Object.keys(layout)[0];
+
+      // Create a new plotly plot with empty traces for each subplot
+      const plots = [];
+      for (let i = 0; i < gridRows * gridColumns; i++) {
+        plots.push({
+          type: 'scatter',
+          mode: 'lines',
+          x: [],
+          y: [],
+          line: {
+            color: 'rgb(31, 119, 180)',
+            width: 2
+          }
+        });
+      }
+
+      // Define the subplot layout
+      const subplotLayout = [];
+      for (let row = 0; row < gridRows; row++) {
+        const rowPlots = [];
+        for (let col = 0; col < gridColumns; col++) {
+          const index = row * gridColumns + col;
+          const subplotKey = `(${row}, ${col})`;
+          if (layout.hasOwnProperty(subplotKey)) {
+            const subplotData = layout[subplotKey];
+            const plotData = [];
+            for (const channelIndex of subplotData) {
+              plotData.push(plots[channelIndex]);
+            }
+            rowPlots.push({
+              data: plotData,
+              row: row + 1,
+              column: col + 1
+            });
+          } else {
+            rowPlots.push({
+              visible: false,
+              row: row + 1,
+              column: col + 1
+            });
+          }
+        }
+        subplotLayout.push(rowPlots);
+      }
+
+      // Create the plotly plot with the subplots
+      Plotly.newPlot('plot', plots, {
+        grid: { rows: gridRows, columns: gridColumns },
+        margin: { t: 30 },
+        subplot: subplotLayout,
+        xaxis: { title: 'Time' },
+        yaxis: { title: 'Value' }
+      });
+    }
+
+  </script>
+</body>
+
+</html>

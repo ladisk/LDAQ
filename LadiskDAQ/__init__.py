@@ -7,3 +7,5 @@ from .core import *
 from .acquisition import *
 from .generation import *
 from .control import *
+from .visualization import *
+from .ni_task import *

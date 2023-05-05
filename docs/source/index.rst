@@ -29,6 +29,7 @@ Table of Contents
    :maxdepth: 3
 
    simple_start
+   ni_task
    generation
    visualization
    multiple_sources

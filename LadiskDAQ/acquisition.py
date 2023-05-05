@@ -288,8 +288,8 @@ class BaseAcquisition:
         """
         Runs acquisition.
         :params: run_time - (float) number of seconds for which the acquisition will run. 
-                 If None acquisition runs indefinitely until self.is_running variable is set
-                 False externally (i.e. in a different process)
+            If None acquisition runs indefinitely until self.is_running variable is set
+            False externally (i.e. in a different process)
         """
         BaseAcquisition.all_acquisitions_ready = False 
         self.is_ready = False

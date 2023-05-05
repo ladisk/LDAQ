@@ -13,3 +13,4 @@ sphinx-copybutton
 serial
 nidaqmx
 openpyxl
+pandas

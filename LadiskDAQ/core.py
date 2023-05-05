@@ -326,8 +326,9 @@ class Core():
     def get_measurement_dict_PLOT(self):
         """
         Returns only NEW acquired data from all sources.
+        
         NOTE: This function is used for plotting purposes only.
-              Other functions should use 'get_measurement_dict(N_seconds="new")' instead.
+        Other functions should use 'get_measurement_dict(N_seconds="new")' instead.
         """
         new_data_dict = {}
         for idx, acq in enumerate(self.acquisitions):

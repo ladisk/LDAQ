@@ -2,12 +2,16 @@ Create NI task
 ================
 
 When using National Instrument equipment, the tasks can be specified in the NI MAX software.
+The task can also be specified in the code. 
 
-The task can also be specified in the code. First create a ``NITask`` object:
+The task
+----------
+
+First create a ``NITask`` object:
 
 .. code:: python
 
-    task = LadiskDAQ.NITask('task_1', sample_rate=1000, settings_file=None)
+    task = LadiskDAQ.NITask('task', sample_rate=1000, settings_file=None)
 
 The arguments of the ``NITask`` class are:
 
@@ -19,11 +23,63 @@ Then, the channels can be added to the task:
 
 .. code:: python
 
-    task.add_channel('Channel_1', 0, 0, 100, 'mV/g', 'g')
-    task.add_channel('Channel_2', 0, 1, 100, 'mV/g', 'g')
+    task.add_channel(channel_name='Channel_1', device_ind=0, channel_ind=0, sensitivity=100, sensitivity_units='mV/g', units='g')
+    task.add_channel(channel_name='Channel_1', device_ind=0, channel_ind=1, sensitivity=100, sensitivity_units='mV/g', units='g')
 
-After all channels are added to the task, the task can be passed to the ``Core`` object:
+After all channels are added to the task, the task can be passed to the ``NIAcquisition`` object:
 
 .. code:: python
 
     acq = LadiskDAQ.NIAcquisition(task, acquisition_name='source_name')
+
+For more details, see `getting started page <simple_start.html>`_.
+
+Settings file
+-------------
+
+To simplify the creation of the settings file, a settings file can be created. The settings file is a
+``xmlx`` file which has the following column names:
+
+- ``serial_nr``: serial number of the sensor
+- ``sensitivity``: sensitivity of the sensor
+- ``sensitivity_units``: units of the sensitivity
+- ``units``: units of the sensor
+
+To use the settings file, pass it to the ``NITask`` object:
+
+.. code:: python
+
+    task = LadiskDAQ.NITask('task', sample_rate=1000, settings_file='settings.xmlx')
+
+Then, when adding the channels, the sensitivity, sensitivity units and units can be ommitted.
+The ``channel_name``, ``device_ind`` and ``channel_ind`` are still required. Additionally, the
+serial number of the sensor is required to find the correct settings in the settings file.
+
+.. code:: python
+    
+    task.add_channel(channel_name='Channel_1', device_ind=0, channel_ind=0, serial_nr='123')
+    task.add_channel(channel_name='Channel_1', device_ind=0, channel_ind=1, serial_nr='456')
+
+Save task
+---------
+
+When the task is created and the channels are added, the task can be saved. The saved task will then 
+appear in NI MAX, where it can be edited, deleted, etc.
+
+To save the task, call the ``save`` method of the ``NITask`` object:
+
+.. code:: python
+
+    task.save()
+
+When the task is saved, the ``clear_task()`` method is automatically called. This means that the task cannot be
+directly passed to the ``NIAcquisition`` object. In this case the task's name must be passed to the ``NIAcquisition`` (see `getting started page <simple_start.html>`_).
+
+.. note::
+
+    If the user would like to create and save the task and still pass the ``NITask`` object to the ``NIAcquisition`` class directly,
+    the following must be called:
+
+    .. code:: python
+
+        task.save(clear_task=False)

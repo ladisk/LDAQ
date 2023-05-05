@@ -1,6 +1,4 @@
 # Package requirements for users
-requests
-six
 numpy>=1.11.0
 scipy>=1.2.0
 matplotlib>=3.0.0
@@ -16,3 +14,4 @@ serial
 nidaqmx
 openpyxl
 pandas
+urllib3<2.0

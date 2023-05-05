@@ -11,3 +11,5 @@ pyTrigger
 PyDAQmx
 sphinx-copybutton
 serial
+nidaqmx
+openpyxl

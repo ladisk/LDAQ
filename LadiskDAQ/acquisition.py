@@ -4,6 +4,7 @@ import pickle
 import datetime
 import time
 import threading
+import copy
 
 import sys
 from pyTrigger import pyTrigger
@@ -11,6 +12,7 @@ from pyTrigger import pyTrigger
 # National Insturments:
 from PyDAQmx.DAQmxFunctions import *
 from PyDAQmx.Task import Task
+from nidaqmx._lib import lib_importer
 from .daqtask import DAQTask
 
 # Analog Discovery 2:
@@ -20,6 +22,8 @@ from ctypes import *
 # Serial communication:
 import serial
 import struct
+
+from .ni_task import NITask
 
 
 
@@ -853,21 +857,40 @@ class NIAcquisition(BaseAcquisition):
         """
         super().__init__()
 
-        self.task_name = task_name
-        self.acquisition_name = task_name if acquisition_name is None else acquisition_name
-
         try:
             DAQmxClearTask(taskHandle_acquisition)
         except:
             pass
 
-        self.Task = DAQTask(self.task_name)
-        glob_vars = globals()
-        glob_vars['taskHandle_acquisition'] = self.Task.taskHandle
+        try:
+            lib_importer.windll.DAQmxClearTask(taskHandle_acquisition)
+        except:
+            pass
+        
+        self.NITask_used = False
+        self.task_terminated = False
 
-        self.channel_names = self.Task.channel_list
+        if isinstance(task_name, str):
+            self.task_name = task_name
+            self.Task = DAQTask(self.task_name)
+        elif isinstance(task_name, NITask):
+            self.Task = task_name
+            self.task_name = self.Task.task_name
+            self.Task_base = copy.deepcopy(self.Task)
+            self.NITask_used = True
+        else:
+            raise TypeError("task_name has to be a string or NITask object.")
+
+        self.acquisition_name = self.task_name if acquisition_name is None else acquisition_name
+
         self.sample_rate = self.Task.sample_rate
+        self.channel_names = self.Task.channel_list
         self.n_channels = self.Task.number_of_ch
+
+        if not self.NITask_used:
+            glob_vars = globals()
+            glob_vars['taskHandle_acquisition'] = self.Task.taskHandle
+
 
         # set default trigger, so the signal will not be trigered:
         self.set_trigger(1e20, 0, duration=600)
@@ -875,11 +898,13 @@ class NIAcquisition(BaseAcquisition):
     def clear_task(self):
         """Clear a task."""
         self.Task.clear_task(wait_until_done=False)
+        time.sleep(0.1)
         del self.Task
 
     def terminate_data_source(self):
+        self.task_terminated = True
         self.clear_task()
-
+        
     def read_data(self):
         self.Task.acquire(wait_4_all_samples=False)
         return self.Task.data.T
@@ -888,6 +913,31 @@ class NIAcquisition(BaseAcquisition):
         self.Task.acquire_base()
     
     def set_data_source(self):
-        if not hasattr(self, 'Task'):
-            self.Task = DAQTask(self.task_name)
+        if self.task_terminated:
+            if self.NITask_used:
+                self.Task = copy.deepcopy(self.Task_base)
+            else:
+                self.Task = DAQTask(self.task_name)
+            
+            self.task_terminated = False
+
+    def run_acquisition(self, run_time=None):
+
+        if self.NITask_used:
+            BaseAcquisition.all_acquisitions_ready = False 
+            self.is_ready = False
+            self.is_running = True
+            
+            if run_time is None:
+                self.set_trigger_instance()
+            else:
+                self.update_trigger_parameters(duration=run_time, duration_unit='seconds')
+            
+            self.set_data_source()
+            self.Task.initiate()
+            glob_vars = globals()
+            glob_vars['taskHandle_acquisition'] = self.Task.taskHandle
+
+        super().run_acquisition(run_time)
+
 

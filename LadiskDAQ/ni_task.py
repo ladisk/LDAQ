@@ -1,5 +1,6 @@
 import nidaqmx
 from nidaqmx import constants
+from nidaqmx import Scale
 import numpy as np
 import pandas as pd
 
@@ -9,7 +10,8 @@ UNITS = {
     'g': constants.AccelUnits.G,
     'm/s**2': constants.AccelUnits.METERS_PER_SECOND_SQUARED,
     'mV/N': constants.ForceIEPESensorSensitivityUnits.MILLIVOLTS_PER_NEWTON,
-    'N': constants.ForceUnits.NEWTONS
+    'N': constants.ForceUnits.NEWTONS,
+    'V': constants.VoltageUnits.VOLTS,
 }
 
 
@@ -76,7 +78,7 @@ class NITask:
         if start_task:
             self.task.start()
 
-    def add_channel(self, channel_name, device_ind, channel_ind, sensitivity=None, sensitivity_units=None, units=None, serial_nr=None):
+    def add_channel(self, channel_name, device_ind, channel_ind, sensitivity=None, sensitivity_units=None, units=None, serial_nr=None, scale=None):
         """Add a channel to the task. The channel is not actually added to the task until the task is initiated.
 
         :param channel_name: name of the channel
@@ -86,6 +88,9 @@ class NITask:
         :param sensitivity_units: units of the sensitivity.
         :param units: output units.
         :param serial_nr: serial number of the sensor. If specified, the sensitivity, sensitivity_units and units are read from the settings file.
+        :param scale: scale the signal. If specified, the sensitivity, sensitivity_units are ignored. The prescaled units are assumed to be Volts, the
+            scaled units are assumed to be ``units``. The scale can be float or a tuple. If float, this is the slope of the linear scale and y-interception is
+            at 0. If tuple, the first element is the slope and the second element is the y-interception.
         """
         if channel_name in self.channels:
             raise Exception(f"Channel name {channel_name} already exists.")
@@ -115,11 +120,7 @@ class NITask:
                     raise Exception(f"Serial number {serial_nr} not found in settings file.")
             else:
                 raise Exception('Serial number must be a string.')
-
-        if sensitivity is None:
-            raise Exception('Sensitivity must be specified.')
-        if sensitivity_units is None:
-            raise Exception('Sensitivity units must be specified.')
+            
         if units is None:
             raise Exception('Units must be specified.')
         
@@ -129,9 +130,26 @@ class NITask:
             'sensitivity': sensitivity,
             'sensitivity_units': sensitivity_units,
             'units': units,
+            'custom_scale_name': "",
             'serial_nr': serial_nr,
         }
 
+        if scale is not None:
+            if isinstance(scale, float):
+                scale_channel = Scale.create_lin_scale(f'{channel_name}_scale', scale, 0)
+            elif isinstance(scale, tuple):
+                scale_channel = Scale.create_lin_scale(f'{channel_name}_scale', scale[0], scale[1])
+            else:
+                raise Exception('Scale must be a float or a tuple.')
+
+            self.channels[channel_name]['custom_scale_name'] = scale_channel.name          
+
+        else:
+            if sensitivity is None:
+                raise Exception('Sensitivity must be specified.')
+            if sensitivity_units is None:
+                raise Exception('Sensitivity units must be specified.')
+            
         # list of channel names
         self.channel_list = [self.channels[_]['channel_ind'] for _ in self.channels]
         # number of channels
@@ -153,17 +171,28 @@ class NITask:
             'physical_channel': physical_channel,
             'name_to_assign_to_channel': channel_name,
             'terminal_config': constants.TerminalConfiguration.PSEUDO_DIFF,
-            'sensitivity': self.channels[channel_name]['sensitivity'],
-            'sensitivity_units': UNITS[self.channels[channel_name]['sensitivity_units']],
+            # 'sensitivity': self.channels[channel_name]['sensitivity'],
+            # 'sensitivity_units': UNITS[self.channels[channel_name]['sensitivity_units']],
             'units': UNITS[self.channels[channel_name]['units']],
-            'current_excit_val': 0.004,
-            'current_excit_source': constants.ExcitationSource.INTERNAL,
+            # 'current_excit_val': 0.004,
+            # 'current_excit_source': constants.ExcitationSource.INTERNAL,
         }
 
         if mode == 'ForceUnits':
+            options['sensitivity'] = self.channels[channel_name]['sensitivity']
+            options['sensitivity_units'] = UNITS[self.channels[channel_name]['sensitivity_units']]
             self.channel_objects.append(self.task.ai_channels.add_ai_force_iepe_chan(**options))
+
         elif mode == 'AccelUnits':
+            options['sensitivity'] = self.channels[channel_name]['sensitivity']
+            options['sensitivity_units'] = UNITS[self.channels[channel_name]['sensitivity_units']]
             self.channel_objects.append(self.task.ai_channels.add_ai_accel_chan(**options))
+
+        elif mode == 'VoltageUnits':
+            options['custom_scale_name'] = self.channels[channel_name]['custom_scale_name']
+            if options['custom_scale_name'] != "":
+                options['units'] = constants.VoltageUnits.FROM_CUSTOM_SCALE
+            self.channel_objects.append(self.task.ai_channels.add_ai_voltage_chan(**options))
 
     def _setup_task(self):
         self.task.timing.cfg_samp_clk_timing(

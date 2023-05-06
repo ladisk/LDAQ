@@ -1,8 +1,7 @@
 Create NI task
 ================
 
-When using National Instrument equipment, the tasks can be specified in the NI MAX software.
-The task can also be specified in the code. 
+In addition to specifying the task in the NI MAX, the task can also be specified in the code. 
 
 The task
 ----------
@@ -33,6 +32,10 @@ After all channels are added to the task, the task can be passed to the ``NIAcqu
     acq = LadiskDAQ.NIAcquisition(task, acquisition_name='source_name')
 
 For more details, see `getting started page <simple_start.html>`_.
+
+.. note::
+
+    The task is not created until the acquisition is started or the ``save`` method is called (see `Save task`_).
 
 Settings file
 -------------

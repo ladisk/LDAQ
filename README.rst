@@ -24,7 +24,7 @@ live `visualization <https://ladiskdaq.readthedocs.io/en/latest/visualization.ht
 Create the ``Core`` object
 -----------------------------------------
 
-The ``acq`` object can now be added to the :class:`LadiskDAQ.Core` class:
+The ``acq`` object can now be added to the ``LadiskDAQ.Core`` class:
 
 .. code-block:: python
 
@@ -101,8 +101,8 @@ Where:
 What else can I do with LDAQ?
 -----------------------------
 
-- Add generation to the :class:`LadiskDAQ.Core` object. (see `generation <https://ladiskdaq.readthedocs.io/en/latest/generation.html>`_)
-- Add visualization to the :class:`LadiskDAQ.Core` object. (see `visualization <https://ladiskdaq.readthedocs.io/en/latest/visualization.html>`_)
+- Add generation to the ``LadiskDAQ.Core`` object. (see `generation <https://ladiskdaq.readthedocs.io/en/latest/generation.html>`_)
+- Add visualization to the ``LadiskDAQ.Core`` object. (see `visualization <https://ladiskdaq.readthedocs.io/en/latest/visualization.html>`_)
 - Apply functions to measured data in real-time visualization. (see `visualization <https://ladiskdaq.readthedocs.io/en/latest/visualization.html#the-function-option>`_)
 - Add multiple acquisition and signal generation objects to ``LadiskDAQ.Core``. (see `multiple sources <https://ladiskdaq.readthedocs.io/en/latest/multiple_sources.html>`_)
 - Define a NI Task in your program and use it with LDAQ. (see `NI Task <https://ladiskdaq.readthedocs.io/en/latest/ni_task.html>`_)

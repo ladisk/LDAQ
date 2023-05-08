@@ -43,10 +43,10 @@ Settings file
 To simplify the creation of the settings file, a settings file can be created. The settings file is a
 ``xmlx`` file which has the following column names:
 
-- ``serial_nr``: serial number of the sensor
-- ``sensitivity``: sensitivity of the sensor
-- ``sensitivity_units``: units of the sensitivity
-- ``units``: units of the sensor
+- ``serial_nr``: serial number of the sensor.
+- ``sensitivity``: sensitivity of the sensor.
+- ``sensitivity_units``: units of the sensitivity (see ``LadiskDAQ.UNITS`` for the list of supported units).
+- ``units``: units of the sensor.
 
 To use the settings file, pass it to the ``NITask`` object:
 

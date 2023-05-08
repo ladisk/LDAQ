@@ -103,3 +103,4 @@ What else can I do with LDAQ?
 - Add visualization to the :class:`LadiskDAQ.Core` object. (see `visualization <visualization.html>`_)
 - Apply functions to measured data in real-time visualization. (see `visualization <visualization.html>`_)
 - Add multiple acquisition and signal generation objects to :class:`LadiskDAQ.Core`. (see `multiple sources <multiple_sources.html>`_)
+- Define a NI Task in your program and use it with LDAQ. (see `NI Task <ni_task.html>`_)

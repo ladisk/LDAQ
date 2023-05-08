@@ -876,7 +876,10 @@ class NIAcquisition(BaseAcquisition):
         elif isinstance(task_name, NITask):
             self.Task = task_name
             self.task_name = self.Task.task_name
-            self.Task_base = copy.deepcopy(self.Task)
+            try:
+                self.Task_base = copy.deepcopy(self.Task)
+            except:
+                raise Exception("NITask object must be defined again.")
             self.NITask_used = True
         else:
             raise TypeError("task_name has to be a string or NITask object.")

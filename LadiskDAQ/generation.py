@@ -44,7 +44,11 @@ class NIGenerator(BaseGenerator):
         elif isinstance(task_name, NITaskOutput):
             self.Task = task_name
             self.task_name = self.Task.task_name
-            self.Task_base = copy.deepcopy(self.Task)
+            try:
+                self.Task_base = copy.deepcopy(self.Task)
+            except:
+                raise Exception("NITaskOutput object must be defined again.")
+
             self.NITask_used = True
         else:
             raise TypeError("task_name has to be a string or NITaskOutput object.")
@@ -65,7 +69,7 @@ class NIGenerator(BaseGenerator):
         self.clear_task()
     
     def generate(self):
-        self.Task.generate(self.signal, clear_task=False)
+        self.Task.generate(self.signal, clear_task=True)
 
     def clear_task(self):
         if hasattr(self, 'Task'):

@@ -9,7 +9,7 @@ Create the acquisition object
 The first step to starting the measurement is to create an acquisition object. Depending on your measurement hardware,
 you can select the appropriate acquisition class. 
 
-In this example, we use the :class:`LadiskDAQ.NIAcquisition` class, which is
+In this example, we use the ``LadiskDAQ.NIAcquisition`` class, which is
 a wrapper for the National Instruments DAQmx driver. The class accepts the name of the input task as an argument:
 
 .. code-block:: python
@@ -19,7 +19,7 @@ a wrapper for the National Instruments DAQmx driver. The class accepts the name 
 If the  ``acquisition_name`` argument is not specified, the name of the acquisition object will be set to the value of ``input_task_name``.
 
 The ``acquisition_name`` argument is important when using multiple acquisition objects in the same measurement, and when specifying the layout of the
-live `visualization <visualization.html>`_.
+live `visualization <https://ladiskdaq.readthedocs.io/en/latest/visualization.html>`_.
 
 Create the ``Core`` object
 -----------------------------------------
@@ -32,13 +32,13 @@ The ``acq`` object can now be added to the :class:`LadiskDAQ.Core` class:
 
 .. note::
 
-    To add live visualization of the measurement, the visualization object can be added to the :class:`LadiskDAQ.Core` object:
+    To add live visualization of the measurement, the visualization object can be added to the ``LadiskDAQ.Core`` object:
 
     .. code-block:: python
 
         ldaq = LadiskDAQ.Core(acq, visualization=vis)
 
-    Read how to prepare the ``vis`` object in the `visualization <visualization.html>`_ section.
+    Read how to prepare the ``vis`` object in the `visualization <https://ladiskdaq.readthedocs.io/en/latest/visualization.html>`_ section.
 
 Set the trigger
 ---------------
@@ -65,8 +65,8 @@ Where:
 
 .. note::
 
-    The :class:`LadiskDAQ.Core` may seem unnecessary when using a single acquisition source.
-    However, it enables the usage of signal `generation <generation.html>`_, live `visualization <visualization.html>`_ and `multiple acquisition/generation <multiple_sources.html>`_ sources.
+    The ``LadiskDAQ.Core`` may seem unnecessary when using a single acquisition source.
+    However, it enables the usage of signal `generation <https://ladiskdaq.readthedocs.io/en/latest/generation.html>`_, live `visualization <https://ladiskdaq.readthedocs.io/en/latest/visualization.html>`_ and `multiple acquisition/generation <https://ladiskdaq.readthedocs.io/en/latest/multiple_sources.html>`_ sources.
 
 Run the measurement
 -------------------
@@ -101,8 +101,8 @@ Where:
 What else can I do with LDAQ?
 -----------------------------
 
-- Add generation to the :class:`LadiskDAQ.Core` object. (see `generation <generation.html>`_)
-- Add visualization to the :class:`LadiskDAQ.Core` object. (see `visualization <visualization.html>`_)
-- Apply functions to measured data in real-time visualization. (see `visualization <visualization.html>`_)
-- Add multiple acquisition and signal generation objects to :class:`LadiskDAQ.Core`. (see `multiple sources <multiple_sources.html>`_)
-- Define a NI Task in your program and use it with LDAQ. (see `NI Task <ni_task.html>`_)
+- Add generation to the :class:`LadiskDAQ.Core` object. (see `generation <https://ladiskdaq.readthedocs.io/en/latest/generation.html>`_)
+- Add visualization to the :class:`LadiskDAQ.Core` object. (see `visualization <https://ladiskdaq.readthedocs.io/en/latest/visualization.html>`_)
+- Apply functions to measured data in real-time visualization. (see `visualization <https://ladiskdaq.readthedocs.io/en/latest/visualization.html#the-function-option>`_)
+- Add multiple acquisition and signal generation objects to ``LadiskDAQ.Core``. (see `multiple sources <https://ladiskdaq.readthedocs.io/en/latest/multiple_sources.html>`_)
+- Define a NI Task in your program and use it with LDAQ. (see `NI Task <https://ladiskdaq.readthedocs.io/en/latest/ni_task.html>`_)

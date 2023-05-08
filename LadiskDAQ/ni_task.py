@@ -170,14 +170,16 @@ class NITask:
         options = {
             'physical_channel': physical_channel,
             'name_to_assign_to_channel': channel_name,
-            'terminal_config': constants.TerminalConfiguration.PSEUDO_DIFF,
+            'terminal_config': constants.TerminalConfiguration.DEFAULT,
             'sensitivity': self.channels[channel_name]['sensitivity'],
-            'sensitivity_units': UNITS[self.channels[channel_name]['sensitivity_units']],
-            'units': UNITS[self.channels[channel_name]['units']],
             'custom_scale_name': self.channels[channel_name]['custom_scale_name'],
-            # 'current_excit_val': 0.004,
-            # 'current_excit_source': constants.ExcitationSource.INTERNAL,
         }
+
+        if self.channels[channel_name]['sensitivity']:
+            options['sensitivity_units'] = UNITS[self.channels[channel_name]['sensitivity_units']]
+
+        if self.channels[channel_name]['units']:
+            options['units'] = UNITS[self.channels[channel_name]['units']]
 
         if mode == 'ForceUnits':
             options = dict([(k, v) for k, v in options.items() if k in ['physical_channel', 'name_to_assign_to_channel', 'terminal_config', 'sensitivity', 'sensitivity_units', 'units']])

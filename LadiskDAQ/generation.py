@@ -69,7 +69,7 @@ class NIGenerator(BaseGenerator):
         self.clear_task()
     
     def generate(self):
-        self.Task.generate(self.signal, clear_task=True)
+        self.Task.generate(self.signal, clear_task=False)
 
     def clear_task(self):
         if hasattr(self, 'Task'):
@@ -89,7 +89,8 @@ class NIGenerator(BaseGenerator):
         self.set_data_source()
         time.sleep(0.1)
 
-        self.Task.initiate()
+        if self.NITask_used:
+            self.Task.initiate()
 
         self.generate()
         

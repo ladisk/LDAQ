@@ -53,14 +53,14 @@ class NITaskOutput:
         try:
             self.task = nidaqmx.task.Task(new_task_name=self.task_name)
         except nidaqmx.DaqError as e:
-            raise Exception(f"Task name {self.task_name} already exists.")
+            raise Exception(e)
         
     def _add_channels(self):
         self.channel_objects = []
 
         for channel_name in self.channels:
             self.channel_objects.append(self._add_channel(channel_name))
-            
+  
     def _add_channel(self, channel_name):
         channel_ind = self.channels[channel_name]['channel_ind']
         device_ind = self.channels[channel_name]['device_ind']
@@ -82,6 +82,9 @@ class NITaskOutput:
         
         # set task handle
         self.taskHandle = self.task._handle
+        
+        # set regeneration mode
+        self.task._out_stream.regen_mode = constants.RegenerationMode.ALLOW_REGENERATION
 
     def initiate(self, start_task=True):
         """Initiate the task.
@@ -98,11 +101,10 @@ class NITaskOutput:
         if start_task:
             self.task.start()
 
-    def generate(self, signal, clear_task=True):
+    def generate(self, signal, clear_task=False):
         self.task.write(signal, auto_start=True)
 
-        if clear_task:
-            self.clear_task()
+        self.clear_task()
 
     def clear_task(self, wait_until_done=False):
         if hasattr(self, 'task'):

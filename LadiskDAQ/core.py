@@ -34,6 +34,8 @@ class Core():
             raise Exception("Two or more acquisition sources have the same name. Please make them unique.")
         if any(self.generation_names.count(s) > 1 for s in set(self.generation_names)):
             raise Exception("Two or more generation sources have the same name. Please make them unique.")
+        for control in self.controls:
+            control._retrieve_core_object(self) # give control object access to core object
         
         self.trigger_source_index = None
         

@@ -29,7 +29,7 @@ class BaseControl:
         """
         pass 
     def control_exit(self):
-        """Should be edited in choild class. This method is called at the end when the control
+        """Should be edited in child class. This method is called at the end when the control
            process is temrinated
         """
         pass

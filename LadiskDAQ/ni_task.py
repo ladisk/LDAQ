@@ -14,6 +14,93 @@ UNITS = {
     'V': constants.VoltageUnits.VOLTS,
 }
 
+class NITaskOutput:
+    def __init__(self, task_name, sample_rate):
+        """Create a new NI task for analog output.
+        
+        :param task_name: name of the task
+        :param sample_rate: sample rate in Hz
+        """
+        self.task_name = task_name
+        self.sample_rate = sample_rate
+        self.channels = {}
+        
+    def add_channel(self, channel_name, device_ind, channel_ind, min_val=None, max_val=None):
+        """Add a channel to the task.
+        
+        :param channel_name: name of the channel.
+        :param device_ind: index of the device. To see all devices, see ``self.device_list`` attribute.
+        :param channel_ind: index of the channel on the device.
+        :param min_val: minimum value of the channel.
+        :param max_val: maximum value of the channel.
+        """
+        self.channels[channel_name] = {
+            'device_ind': device_ind,
+            'channel_ind': channel_ind,
+            'min_val': min_val,
+            'max_val': max_val,
+        }
+
+    def _create_task(self):
+        try:
+            self.task = nidaqmx.task.Task(new_task_name=self.task_name)
+        except nidaqmx.DaqError:
+            raise Exception(f"Task name {self.task_name} already exists.")
+        
+    def _add_channels(self):
+        self.channel_objects = []
+
+        for channel_name in self.channels:
+            self.channel_objects.append(self._add_channel(channel_name))
+            
+    def _add_channel(self, channel_name):
+        channel_ind = self.channels[channel_name]['channel_ind']
+        device_ind = self.channels[channel_name]['device_ind']
+        physical_channel = f"{self.device_list[device_ind]}/ai{channel_ind}"
+
+        self.task.ao_channels.add_ao_voltage_chan(
+            physical_channel=physical_channel,
+            name_to_assign_to_channel=channel_name,
+            min_val=self.channels[channel_name]['min_val'],
+            max_val=self.channels[channel_name]['max_val'],
+        )
+
+    def _setup_task(self):
+        self.task.timing.cfg_samp_clk_timing(
+            rate=self.sample_rate, 
+            sample_mode=self.sample_mode,
+            samps_per_chan=self.samples_per_channel)  # set sampling for the task
+        
+        # set task handle
+        self.taskHandle = self.task._handle
+
+    def initiate(self, start_task=True):
+        """Initiate the task.
+
+        :param start_task: start the task after initiating it.
+        """
+        if self.task_name in self.system.tasks.task_names:
+            self._delete_task()
+
+        self._create_task()
+
+        self._add_channels()
+        
+        self._setup_task()
+
+        # if start_task:
+        #     self.task.start()
+
+    def generate(self, signal, clear_task=False):
+        self.task.write(signal, auto_start=True)
+
+    def clear_task(self, wait_until_done=False):
+        if hasattr(self, 'task'):
+            self.task.close()
+        else:
+            print('No task to clear.')
+
+
 
 class NITask:
     def __init__(self, task_name, sample_rate, settings_file=None):
@@ -81,7 +168,7 @@ class NITask:
     def add_channel(self, channel_name, device_ind, channel_ind, sensitivity=None, sensitivity_units=None, units=None, serial_nr=None, scale=None):
         """Add a channel to the task. The channel is not actually added to the task until the task is initiated.
 
-        :param channel_name: name of the channel
+        :param channel_name: name of the channel.
         :param device_ind: index of the device. To see all devices, see ``self.device_list`` attribute.
         :param channel_ind: index of the channel on the device.
         :param sensitivity: sensitivity of the sensor.
@@ -166,7 +253,7 @@ class NITask:
         self.channel_objects = []
 
         for channel_name in self.channels:
-            self._add_channel(channel_name)
+            self.channel_objects.append(self._add_channel(channel_name))
         
     def _add_channel(self, channel_name):
         if self.channels[channel_name]['units'] in UNITS:

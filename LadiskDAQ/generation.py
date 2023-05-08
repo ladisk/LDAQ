@@ -1,8 +1,10 @@
 import os
 import numpy as np
 import time
+import copy
 
 from .daqtask import DAQTask
+from .ni_task import NITaskOutput
 
 class BaseGenerator:
     def __init__(self):
@@ -32,13 +34,34 @@ class NIGenerator(BaseGenerator):
         super().__init__()
         self.task_name = task_name
         self.signal = signal
+
+        self.NITask_used = False
+        self.task_terminated = False
+
+        if isinstance(task_name, str):
+            self.task_name = task_name
+            self.Task = DAQTask(self.task_name)
+        elif isinstance(task_name, NITaskOutput):
+            self.Task = task_name
+            self.task_name = self.Task.task_name
+            self.Task_base = copy.deepcopy(self.Task)
+            self.NITask_used = True
+        else:
+            raise TypeError("task_name has to be a string or NITaskOutput object.")
+        
         self.generation_name = task_name if generation_name is None else generation_name
 
     def set_data_source(self):
-        if not hasattr(self, 'Task'):
-            self.Task = DAQTask(self.task_name)
+        if self.task_terminated:
+            if self.NITask_used:
+                self.Task = copy.deepcopy(self.Task_base)
+            else:
+                self.Task = DAQTask(self.task_name)
+            
+            self.task_terminated = False
         
-    def clear_data_source(self):
+    def terminate_data_source(self):
+        self.task_terminated = True
         self.clear_task()
     
     def generate(self):

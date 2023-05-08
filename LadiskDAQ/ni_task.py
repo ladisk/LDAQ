@@ -15,17 +15,25 @@ UNITS = {
 }
 
 class NITaskOutput:
-    def __init__(self, task_name, sample_rate):
+    def __init__(self, task_name, sample_rate, samples_per_channel=None):
         """Create a new NI task for analog output.
         
         :param task_name: name of the task
         :param sample_rate: sample rate in Hz
         """
         self.task_name = task_name
-        self.sample_rate = sample_rate
+        self.sample_rate = float(sample_rate)
         self.channels = {}
+
+        if samples_per_channel is None:
+            self.samples_per_channel = int(sample_rate)
+        else:
+            self.samples_per_channel = int(samples_per_channel)
+        self.sample_mode = constants.AcquisitionType.CONTINUOUS
+        self.system = nidaqmx.system.System.local()
+        self.device_list = [_.name for _ in list(self.system.devices)]
         
-    def add_channel(self, channel_name, device_ind, channel_ind, min_val=None, max_val=None):
+    def add_channel(self, channel_name, device_ind, channel_ind, min_val=-10., max_val=10.):
         """Add a channel to the task.
         
         :param channel_name: name of the channel.
@@ -44,7 +52,7 @@ class NITaskOutput:
     def _create_task(self):
         try:
             self.task = nidaqmx.task.Task(new_task_name=self.task_name)
-        except nidaqmx.DaqError:
+        except nidaqmx.DaqError as e:
             raise Exception(f"Task name {self.task_name} already exists.")
         
     def _add_channels(self):
@@ -56,7 +64,7 @@ class NITaskOutput:
     def _add_channel(self, channel_name):
         channel_ind = self.channels[channel_name]['channel_ind']
         device_ind = self.channels[channel_name]['device_ind']
-        physical_channel = f"{self.device_list[device_ind]}/ai{channel_ind}"
+        physical_channel = f"{self.device_list[device_ind]}/ao{channel_ind}"
 
         self.task.ao_channels.add_ao_voltage_chan(
             physical_channel=physical_channel,
@@ -69,7 +77,8 @@ class NITaskOutput:
         self.task.timing.cfg_samp_clk_timing(
             rate=self.sample_rate, 
             sample_mode=self.sample_mode,
-            samps_per_chan=self.samples_per_channel)  # set sampling for the task
+            samps_per_chan=self.samples_per_channel
+            )  # set sampling for the task
         
         # set task handle
         self.taskHandle = self.task._handle
@@ -79,20 +88,21 @@ class NITaskOutput:
 
         :param start_task: start the task after initiating it.
         """
-        if self.task_name in self.system.tasks.task_names:
-            self._delete_task()
-
+    
         self._create_task()
 
         self._add_channels()
         
         self._setup_task()
 
-        # if start_task:
-        #     self.task.start()
+        if start_task:
+            self.task.start()
 
-    def generate(self, signal, clear_task=False):
+    def generate(self, signal, clear_task=True):
         self.task.write(signal, auto_start=True)
+
+        if clear_task:
+            self.clear_task()
 
     def clear_task(self, wait_until_done=False):
         if hasattr(self, 'task'):

@@ -83,7 +83,9 @@ class NIGenerator(BaseGenerator):
         self.is_running = True
         
         self.set_data_source()
-        time.sleep(0.5)
+        time.sleep(0.1)
+
+        self.Task.initiate()
 
         self.generate()
         

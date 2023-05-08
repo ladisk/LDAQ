@@ -3,8 +3,8 @@ Create NI task
 
 In addition to specifying the task in the NI MAX, the task can also be specified in the code. 
 
-The task
---------
+Input task
+----------
 
 First create a ``NITask`` object:
 
@@ -38,7 +38,7 @@ For more details, see `getting started page <simple_start.html>`_.
     The task is not created until the acquisition is started or the ``save`` method is called (see `Save task`_).
 
 Settings file
--------------
+~~~~~~~~~~~~~
 
 To simplify the creation of the settings file, a settings file can be created. The settings file is a
 ``xmlx`` file which has the following column names:
@@ -64,7 +64,7 @@ serial number of the sensor is required to find the correct settings in the sett
     task.add_channel(channel_name='Channel_1', device_ind=0, channel_ind=1, serial_nr='456')
 
 Custom scale
-------------
+~~~~~~~~~~~~
 
 It is possible to defina a custom linear scale for the sensor. This can be done by passing the ``scale`` argument
 to the ``add_channel`` method (the ``sensitivity`` and ``sensitivity_units`` arguments are then not required):
@@ -85,7 +85,7 @@ For the example above, the measured signal is in ``Volts`` and the output units 
 The scaled units are an arbitrary string and do **not** have to be in the ``LadiskDAQ.UNITS`` list.
 
 Save task
----------
+~~~~~~~~~
 
 When the task is created and the channels are added, the task can be saved. The saved task will then 
 appear in NI MAX, where it can be edited, deleted, etc.
@@ -107,3 +107,31 @@ directly passed to the ``NIAcquisition`` object. In this case the task's name mu
     .. code:: python
 
         task.save(clear_task=False)
+
+Output task
+-----------
+
+Output task can also be create by ``LadiskDAQ``. First, create :class:`LadiskDAQ.NITaskOutput` object:
+
+.. code:: python
+
+    output_task = LadiskDAQ.NITaskOutput('task', sample_rate=1000)
+
+Then add the analog output channels:
+
+.. code:: python
+
+    output_task.add_channel(channel_name='Channel_1', device_ind=0, channel_ind=0, min_val=-10, max_val=10)
+    output_task.add_channel(channel_name='Channel_2', device_ind=0, channel_ind=1, min_val=-10, max_val=10)
+
+Finally, add the ``output_task`` to the ``NIGenerator`` class (instead of the task name):
+
+.. code:: python
+
+    gen = LadiskDAQ.NIGenerator(output_task, generator_name='source_name')
+
+For more details on :class:`LadiskDAQ.NIGenerator` class, see `generation page <generation.html>`_.
+
+.. note::
+
+    The units of the output channels are ``Volts``.

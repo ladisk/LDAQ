@@ -92,6 +92,12 @@ class NITask:
             scaled units are assumed to be ``units``. The scale can be float or a tuple. If float, this is the slope of the linear scale and y-interception is
             at 0. If tuple, the first element is the slope and the second element is the y-interception.
         """
+        if scale is None and sensitivity_units not in UNITS:
+            raise Exception(f"Sensitivity units {sensitivity_units} not in {UNITS.keys()}.")
+        
+        if scale is None and units not in UNITS:
+            raise Exception(f"Units {units} not in {UNITS.keys()}.")
+
         if channel_name in self.channels:
             raise Exception(f"Channel name {channel_name} already exists.")
 
@@ -162,7 +168,11 @@ class NITask:
             self._add_channel(channel_name)
         
     def _add_channel(self, channel_name):
-        mode = UNITS[self.channels[channel_name]['units']].__objclass__.__name__
+        if self.channels[channel_name]['units'] in UNITS:
+            mode = UNITS[self.channels[channel_name]['units']].__objclass__.__name__
+        else:
+            mode = 'VoltageUnits'
+
         channel_ind = self.channels[channel_name]['channel_ind']
         device_ind = self.channels[channel_name]['device_ind']
         physical_channel = f"{self.device_list[device_ind]}/ai{channel_ind}"
@@ -175,22 +185,20 @@ class NITask:
             'custom_scale_name': self.channels[channel_name]['custom_scale_name'],
         }
 
-        if self.channels[channel_name]['sensitivity']:
-            options['sensitivity_units'] = UNITS[self.channels[channel_name]['sensitivity_units']]
-
-        if self.channels[channel_name]['units']:
-            options['units'] = UNITS[self.channels[channel_name]['units']]
-
         if mode == 'ForceUnits':
+            options['sensitivity_units'] = UNITS[self.channels[channel_name]['sensitivity_units']]
+            options['units'] = UNITS[self.channels[channel_name]['units']]
             options = dict([(k, v) for k, v in options.items() if k in ['physical_channel', 'name_to_assign_to_channel', 'terminal_config', 'sensitivity', 'sensitivity_units', 'units']])
             self.channel_objects.append(self.task.ai_channels.add_ai_force_iepe_chan(**options))
 
         elif mode == 'AccelUnits':
+            options['sensitivity_units'] = UNITS[self.channels[channel_name]['sensitivity_units']]
+            options['units'] = UNITS[self.channels[channel_name]['units']]
             options = dict([(k, v) for k, v in options.items() if k in ['physical_channel', 'name_to_assign_to_channel', 'terminal_config', 'sensitivity', 'sensitivity_units', 'units']])
             self.channel_objects.append(self.task.ai_channels.add_ai_accel_chan(**options))
 
         elif mode == 'VoltageUnits':
-            options = dict([(k, v) for k, v in options.items() if k in ['physical_channel', 'name_to_assign_to_channel', 'terminal_config', 'units', 'custom_scale_name']])
+            options = dict([(k, v) for k, v in options.items() if k in ['physical_channel', 'name_to_assign_to_channel', 'terminal_config', 'custom_scale_name']])
             if options['custom_scale_name'] != "":
                 options['units'] = constants.VoltageUnits.FROM_CUSTOM_SCALE
             self.channel_objects.append(self.task.ai_channels.add_ai_voltage_chan(**options))

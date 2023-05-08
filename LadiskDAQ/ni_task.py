@@ -136,13 +136,13 @@ class NITask:
 
         if scale is not None:
             if isinstance(scale, float):
-                scale_channel = Scale.create_lin_scale(f'{channel_name}_scale', scale, 0)
+                scale_channel = Scale.create_lin_scale(f'{channel_name}_scale', slope=scale, y_intercept=0, pre_scaled_units=constants.VoltageUnits.VOLTS, scaled_units=self.channels[channel_name]['units'])
             elif isinstance(scale, tuple):
-                scale_channel = Scale.create_lin_scale(f'{channel_name}_scale', scale[0], scale[1])
+                scale_channel = Scale.create_lin_scale(f'{channel_name}_scale', slope=scale[0], y_intercept=scale[1], pre_scaled_units=constants.VoltageUnits.VOLTS, scaled_units=self.channels[channel_name]['units'])
             else:
                 raise Exception('Scale must be a float or a tuple.')
 
-            self.channels[channel_name]['custom_scale_name'] = scale_channel.name          
+            self.channels[channel_name]['custom_scale_name'] = scale_channel.name
 
         else:
             if sensitivity is None:
@@ -171,25 +171,24 @@ class NITask:
             'physical_channel': physical_channel,
             'name_to_assign_to_channel': channel_name,
             'terminal_config': constants.TerminalConfiguration.PSEUDO_DIFF,
-            # 'sensitivity': self.channels[channel_name]['sensitivity'],
-            # 'sensitivity_units': UNITS[self.channels[channel_name]['sensitivity_units']],
+            'sensitivity': self.channels[channel_name]['sensitivity'],
+            'sensitivity_units': UNITS[self.channels[channel_name]['sensitivity_units']],
             'units': UNITS[self.channels[channel_name]['units']],
+            'custom_scale_name': self.channels[channel_name]['custom_scale_name'],
             # 'current_excit_val': 0.004,
             # 'current_excit_source': constants.ExcitationSource.INTERNAL,
         }
 
         if mode == 'ForceUnits':
-            options['sensitivity'] = self.channels[channel_name]['sensitivity']
-            options['sensitivity_units'] = UNITS[self.channels[channel_name]['sensitivity_units']]
+            options = dict([(k, v) for k, v in options.items() if k in ['physical_channel', 'name_to_assign_to_channel', 'terminal_config', 'sensitivity', 'sensitivity_units', 'units']])
             self.channel_objects.append(self.task.ai_channels.add_ai_force_iepe_chan(**options))
 
         elif mode == 'AccelUnits':
-            options['sensitivity'] = self.channels[channel_name]['sensitivity']
-            options['sensitivity_units'] = UNITS[self.channels[channel_name]['sensitivity_units']]
+            options = dict([(k, v) for k, v in options.items() if k in ['physical_channel', 'name_to_assign_to_channel', 'terminal_config', 'sensitivity', 'sensitivity_units', 'units']])
             self.channel_objects.append(self.task.ai_channels.add_ai_accel_chan(**options))
 
         elif mode == 'VoltageUnits':
-            options['custom_scale_name'] = self.channels[channel_name]['custom_scale_name']
+            options = dict([(k, v) for k, v in options.items() if k in ['physical_channel', 'name_to_assign_to_channel', 'terminal_config', 'units', 'custom_scale_name']])
             if options['custom_scale_name'] != "":
                 options['units'] = constants.VoltageUnits.FROM_CUSTOM_SCALE
             self.channel_objects.append(self.task.ai_channels.add_ai_voltage_chan(**options))

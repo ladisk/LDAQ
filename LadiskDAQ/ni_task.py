@@ -157,7 +157,8 @@ class NITask:
                 raise Exception('Sensitivity units must be specified.')
             
         # list of channel names
-        self.channel_list = [self.channels[_]['channel_ind'] for _ in self.channels]
+        self.channel_list = list(self.channels.keys())
+
         # number of channels
         self.number_of_ch = len(self.channel_list)
 

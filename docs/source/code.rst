@@ -23,3 +23,9 @@ Visualization
 -------------
 .. autoclass:: LadiskDAQ.visualization.Visualization
     :members:
+
+NITask
+------
+
+.. autoclass:: LadiskDAQ.ni_task.NITask
+    :members:

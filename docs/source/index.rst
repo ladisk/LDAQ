@@ -33,7 +33,6 @@ Table of Contents
    generation
    visualization
    multiple_sources
-   sample_rate_detection
    snippets
    code
 

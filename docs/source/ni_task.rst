@@ -4,7 +4,7 @@ Create NI task
 In addition to specifying the task in the NI MAX, the task can also be specified in the code. 
 
 The task
-----------
+--------
 
 First create a ``NITask`` object:
 
@@ -62,6 +62,27 @@ serial number of the sensor is required to find the correct settings in the sett
     
     task.add_channel(channel_name='Channel_1', device_ind=0, channel_ind=0, serial_nr='123')
     task.add_channel(channel_name='Channel_1', device_ind=0, channel_ind=1, serial_nr='456')
+
+Custom scale
+------------
+
+It is possible to defina a custom linear scale for the sensor. This can be done by passing the ``scale`` argument
+to the ``add_channel`` method (the ``sensitivity`` and ``sensitivity_units`` arguments are then not required):
+
+.. code:: python
+
+    task.add_channel(channel_name='Channel_1', device_ind=0, channel_ind=0, units='N', scale=113.2)
+
+The ``scale`` argument must be ``float`` or ``tuple``:
+
+- ``float``: The scale is the slope of the linear function.
+- ``tuple``: The first element of the tuple is the slope and the second element is the offset of the linear function.
+
+If the ``scale`` argument is passed, it is assumed, that the measured signal is in ``Volts``. 
+The output (scaled) units are specified by the ``units`` argument.
+
+For the example above, the measured signal is in ``Volts`` and the output units are in ``Newtons``.
+The scaled units are an arbitrary string and do **not** have to be in the ``LadiskDAQ.UNITS`` list.
 
 Save task
 ---------

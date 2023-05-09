@@ -90,9 +90,6 @@ class NIGenerator(BaseGenerator):
             # generate zeros
             self.set_data_source()
 
-            # if self.NITask_used:
-            #     self.Task.initiate()
-
             if self.signal.ndim == 1:
                 zero_signal = np.zeros(self.signal.shape[0])
             else:
@@ -107,10 +104,6 @@ class NIGenerator(BaseGenerator):
         self.is_running = True
         
         self.set_data_source()
-        time.sleep(0.1)
-
-        # if self.NITask_used:
-        #     self.Task.initiate()
 
         self.generate()
         

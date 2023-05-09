@@ -894,7 +894,6 @@ class NIAcquisition(BaseAcquisition):
             glob_vars = globals()
             glob_vars['taskHandle_acquisition'] = self.Task.taskHandle
 
-
         # set default trigger, so the signal will not be trigered:
         self.set_trigger(1e20, 0, duration=600)
 
@@ -941,7 +940,6 @@ class NIAcquisition(BaseAcquisition):
                 self.update_trigger_parameters(duration=run_time, duration_unit='seconds')
             
             self.set_data_source()
-            # self.Task.initiate()
             glob_vars = globals()
             glob_vars['taskHandle_acquisition'] = self.Task.taskHandle
 

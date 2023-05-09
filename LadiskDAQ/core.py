@@ -380,7 +380,7 @@ class Core():
         if comment is not None:
             self.measurement_dict['comment'] = comment
             
-        if not os.path.exists(root):
+        if not os.path.exists(root) and root != '':
             os.mkdir(root)
 
         if timestamp:
@@ -391,7 +391,10 @@ class Core():
 
         filename = f'{stamp}{name}.pkl'
         path = os.path.join(root, filename)
-        pickle.dump(self.measurement_dict, open(path, 'wb'), protocol=-1)   
+        with open(path, 'wb') as f:
+            pickle.dump(self.measurement_dict, f, protocol=-1)
+
+        return path  
         
     def _save_measurement_periodically(self):
         """Periodically saves the measurement data."""

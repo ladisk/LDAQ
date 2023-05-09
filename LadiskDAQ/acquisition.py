@@ -924,7 +924,9 @@ class NIAcquisition(BaseAcquisition):
                         channel['sensitivity_units'],
                         channel['units'],
                         channel['serial_nr'],
-                        channel['scale'])
+                        channel['scale'],
+                        channel['min_val'],
+                        channel['max_val'])
             else:
                 self.Task = DAQTask(self.task_base)
             

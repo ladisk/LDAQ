@@ -21,7 +21,7 @@ class NITaskOutput:
         :param task_name: name of the task
         :param sample_rate: sample rate in Hz
         """
-        self.task_name = task_name
+        self.task_name = task_name        
         self.sample_rate = float(sample_rate)
         self.channels = {}
 
@@ -33,6 +33,9 @@ class NITaskOutput:
         self.sample_mode = constants.AcquisitionType.CONTINUOUS
         self.system = nidaqmx.system.System.local()
         self.device_list = [_.name for _ in list(self.system.devices)]
+
+        if task_name in self.system.tasks.task_names:
+            raise Exception(f"Task {task_name} already exists.")
         
     def add_channel(self, channel_name, device_ind, channel_ind, min_val=-10., max_val=10.):
         """Add a channel to the task.
@@ -137,6 +140,9 @@ class NITask:
 
         self.system = nidaqmx.system.System.local()
         self.device_list = [_.name for _ in list(self.system.devices)]
+
+        if task_name in self.system.tasks.task_names:
+            raise Exception(f"Task {task_name} already exists.")
 
         self.settings_file = settings_file
         self.sample_rate = sample_rate

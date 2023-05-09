@@ -934,7 +934,7 @@ class NIAcquisition(BaseAcquisition):
             if not hasattr(self.Task, 'task'):
                 self.Task.initiate()
 
-    def run_acquisition(self, run_time=None):
+    def run_acquisition(self, run_time=None):        
 
         if self.NITask_used:
             BaseAcquisition.all_acquisitions_ready = False 
@@ -949,6 +949,11 @@ class NIAcquisition(BaseAcquisition):
             self.set_data_source()
             glob_vars = globals()
             glob_vars['taskHandle_acquisition'] = self.Task.taskHandle
+
+            # If sample rate has changed, update the sample rate and trigger settings:
+            if self.sample_rate != self.Task.sample_rate:
+                self.sample_rate = self.Task.sample_rate
+                self.update_trigger_parameters(duration=self.Trigger.duration, duration_unit=self.Trigger.duration_unit)
 
         super().run_acquisition(run_time)
 

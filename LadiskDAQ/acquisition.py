@@ -923,6 +923,10 @@ class NIAcquisition(BaseAcquisition):
                 self.Task = DAQTask(self.task_name)
             
             self.task_terminated = False
+        
+        if self.NITask_used:
+            if not hasattr(self.Task, 'task'):
+                self.Task.initiate()
 
     def run_acquisition(self, run_time=None):
 
@@ -937,7 +941,7 @@ class NIAcquisition(BaseAcquisition):
                 self.update_trigger_parameters(duration=run_time, duration_unit='seconds')
             
             self.set_data_source()
-            self.Task.initiate()
+            # self.Task.initiate()
             glob_vars = globals()
             glob_vars['taskHandle_acquisition'] = self.Task.taskHandle
 

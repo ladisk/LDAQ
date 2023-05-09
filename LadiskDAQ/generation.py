@@ -68,6 +68,10 @@ class NIGenerator(BaseGenerator):
                 self.Task = DAQTask(self.task_name)
             
             self.task_terminated = False
+
+        if self.NITask_used:
+            if not hasattr(self.Task, 'task'):
+                self.Task.initiate()
         
     def terminate_data_source(self):
         self.task_terminated = True
@@ -83,8 +87,8 @@ class NIGenerator(BaseGenerator):
             # generate zeros
             self.set_data_source()
 
-            if self.NITask_used:
-                self.Task.initiate()
+            # if self.NITask_used:
+            #     self.Task.initiate()
 
             if self.signal.ndim == 1:
                 zero_signal = np.zeros(self.signal.shape[0])
@@ -102,8 +106,8 @@ class NIGenerator(BaseGenerator):
         self.set_data_source()
         time.sleep(0.1)
 
-        if self.NITask_used:
-            self.Task.initiate()
+        # if self.NITask_used:
+        #     self.Task.initiate()
 
         self.generate()
         

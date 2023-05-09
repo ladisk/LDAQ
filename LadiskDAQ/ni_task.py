@@ -338,6 +338,9 @@ class NITask:
         self.data = None
 
         data = self.acquire_base()
+
+        if data.ndim == 1:
+            data = np.array([data])
         
         if self.data is None:
             self.data = data

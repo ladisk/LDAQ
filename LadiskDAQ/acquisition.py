@@ -867,23 +867,17 @@ class NIAcquisition(BaseAcquisition):
         except:
             pass
         
-        self.NITask_used = False
-        self.task_terminated = False
+        self.task_terminated = True
 
+        self.task_base = task_name
         if isinstance(task_name, str):
-            self.task_name = task_name
-            self.Task = DAQTask(self.task_name)
+            self.NITask_used = False
         elif isinstance(task_name, NITask):
-            self.Task = task_name
-            self.task_name = self.Task.task_name
-            try:
-                self.Task_base = copy.deepcopy(self.Task)
-            except:
-                raise Exception("NITask object must be defined again.")
             self.NITask_used = True
         else:
             raise TypeError("task_name has to be a string or NITask object.")
 
+        self.set_data_source()
         self.acquisition_name = self.task_name if acquisition_name is None else acquisition_name
 
         self.sample_rate = self.Task.sample_rate
@@ -917,9 +911,22 @@ class NIAcquisition(BaseAcquisition):
     def set_data_source(self):
         if self.task_terminated:
             if self.NITask_used:
-                self.Task = copy.deepcopy(self.Task_base)
+                channels_base = copy.deepcopy(self.task_base.channels)
+                self.Task = NITask(self.task_base.task_name, self.task_base.sample_rate, self.task_base.settings_file)
+                self.task_name = self.task_base.task_name
+
+                for channel_name, channel in channels_base.items():
+                    self.Task.add_channel(
+                        channel_name, 
+                        channel['device_ind'],
+                        channel['channel_ind'],
+                        channel['sensitivity'],
+                        channel['sensitivity_units'],
+                        channel['units'],
+                        channel['serial_nr'],
+                        channel['scale'])
             else:
-                self.Task = DAQTask(self.task_name)
+                self.Task = DAQTask(self.task_base)
             
             self.task_terminated = False
         

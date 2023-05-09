@@ -26,9 +26,10 @@ class NITaskOutput:
         self.channels = {}
 
         if samples_per_channel is None:
-            self.samples_per_channel = int(sample_rate)
+            self.samples_per_channel = 5*int(sample_rate)
         else:
             self.samples_per_channel = int(samples_per_channel)
+
         self.sample_mode = constants.AcquisitionType.CONTINUOUS
         self.system = nidaqmx.system.System.local()
         self.device_list = [_.name for _ in list(self.system.devices)]
@@ -137,6 +138,7 @@ class NITask:
         self.system = nidaqmx.system.System.local()
         self.device_list = [_.name for _ in list(self.system.devices)]
 
+        self.settings_file = settings_file
         self.sample_rate = sample_rate
         self.samples_per_channel = sample_rate # doesn't matter for LDAQ
         self.sample_mode = constants.AcquisitionType.CONTINUOUS
@@ -244,6 +246,7 @@ class NITask:
             'units': units,
             'custom_scale_name': "",
             'serial_nr': serial_nr,
+            'scale': scale,
         }
 
         if scale is not None:

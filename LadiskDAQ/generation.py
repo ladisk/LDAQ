@@ -43,36 +43,33 @@ class NIGenerator(BaseGenerator):
         if self.signal.ndim > 1:
             self.signal = self.signal.T
 
-        self.NITask_used = False
-        self.task_terminated = False
+        self.task_terminated = True
 
+        self.task_base = task_name
         if isinstance(task_name, str):
-            self.task_name = task_name
-            self.Task = DAQTask(self.task_name)
+            self.NITask_used = False
         elif isinstance(task_name, NITaskOutput):
-            self.Task = task_name
-            self.task_name = self.Task.task_name
-            try:
-                self.Task_base = copy.deepcopy(self.Task)
-            except:
-                raise Exception("NITaskOutput object must be defined again.")
-
             self.NITask_used = True
         else:
             raise TypeError("task_name has to be a string or NITaskOutput object.")
         
+        self.set_data_source(initiate=False)
         self.generation_name = task_name if generation_name is None else generation_name
 
-    def set_data_source(self):
+    def set_data_source(self, initiate=True):
         if self.task_terminated:
             if self.NITask_used:
-                self.Task = copy.deepcopy(self.Task_base)
+                channels_base = copy.deepcopy(self.task_base.channels)
+                self.Task = NITaskOutput(self.task_base.task_name, self.task_base.sample_rate)
+                self.task_name = self.task_base.task_name
+                self.Task.channels = channels_base
+
             else:
-                self.Task = DAQTask(self.task_name)
+                self.Task = DAQTask(self.task_base)
             
             self.task_terminated = False
 
-        if self.NITask_used:
+        if self.NITask_used and initiate:
             if not hasattr(self.Task, 'task'):
                 self.Task.initiate()
         
@@ -97,6 +94,7 @@ class NIGenerator(BaseGenerator):
 
             self.Task.generate(zero_signal, clear_task=False)
             self.Task.clear_task(wait_until_done=False)
+            self.task_terminated = True
             
             del self.Task
 

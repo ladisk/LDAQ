@@ -83,7 +83,7 @@ class NIGenerator(BaseGenerator):
             
             del self.Task
 
-    def run_generation(self):
+    def run_generation(self, run_time=None):
         self.is_running = True
         
         self.set_data_source()
@@ -92,5 +92,16 @@ class NIGenerator(BaseGenerator):
         if self.NITask_used:
             self.Task.initiate()
 
+        time_start = time.time()
         self.generate()
+
+        if run_time == None:
+            while self.is_running:
+                time.sleep(0.1)
+        else:
+            while self.is_running:  
+                if time_start + run_time < time.time():
+                    self.is_running = False
+
+                time.sleep(0.1)
         

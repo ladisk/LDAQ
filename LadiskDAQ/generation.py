@@ -34,11 +34,14 @@ class NIGenerator(BaseGenerator):
         """NI Generator class.
         
         :param task_name: Name of the task.
-        :param signal: Signal to be generated. Shape is ``(n_channels, n_samples)`` or ``(n_samples,)``.
+        :param signal: Signal to be generated. Shape is ``(n_samples, n_channels)`` or ``(n_samples,)``.
         """
         super().__init__()
         self.task_name = task_name
         self.signal = signal
+
+        if self.signal.ndim > 1:
+            self.signal = self.signal.T
 
         self.NITask_used = False
         self.task_terminated = False

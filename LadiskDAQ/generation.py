@@ -82,6 +82,7 @@ class NIGenerator(BaseGenerator):
 
             # generate zeros
             self.set_data_source()
+
             if self.NITask_used:
                 self.Task.initiate()
 
@@ -104,16 +105,5 @@ class NIGenerator(BaseGenerator):
         if self.NITask_used:
             self.Task.initiate()
 
-        time_start = time.time()
         self.generate()
-
-        if run_time == None:
-            while self.is_running:
-                time.sleep(0.1)
-        else:
-            while self.is_running:  
-                if time_start + run_time < time.time():
-                    self.is_running = False
-
-                time.sleep(0.1)
         

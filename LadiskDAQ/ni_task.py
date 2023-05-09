@@ -112,6 +112,10 @@ class NITaskOutput:
         else:
             print('No task to clear.')
 
+    def __repr__(self):
+        devices = '\n'.join([f"\t({i}) - {_}" for i, _ in enumerate(self.device_list)])
+        return f"Task name: {self.task_name}\nConnected devices:\n{devices:s}\nChannels: {list(self.channels.keys())}"
+
 
 
 class NITask:
@@ -366,3 +370,7 @@ class NITask:
         
         if clear_task:
             self.clear_task()
+
+    def __repr__(self):
+        devices = '\n'.join([f"\t({i}) - {_}" for i, _ in enumerate(self.device_list)])
+        return f"Task name: {self.task_name}\nConnected devices:\n{devices:s}\nChannels: {list(self.channels.keys())}"

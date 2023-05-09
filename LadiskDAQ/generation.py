@@ -76,7 +76,11 @@ class NIGenerator(BaseGenerator):
             self.Task.clear_task(wait_until_done=False)
 
             # generate zeros
-            self.Task = DAQTask(self.task_name)
+            self.set_data_source()
+            #self.Task = DAQTask(self.task_name)
+            if self.NITask_used:
+                self.Task.initiate()
+                
             zero_signal = np.zeros((self.signal.shape[0], 10))
             self.Task.generate(zero_signal, clear_task=False)
             self.Task.clear_task(wait_until_done=False)

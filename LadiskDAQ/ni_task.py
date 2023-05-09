@@ -98,13 +98,13 @@ class NITaskOutput:
         
         self._setup_task()
 
-        if start_task:
-            self.task.start()
+        #if start_task:
+        #    self.task.start()
 
     def generate(self, signal, clear_task=False):
         self.task.write(signal, auto_start=True)
 
-        self.clear_task()
+        #self.clear_task()
 
     def clear_task(self, wait_until_done=False):
         if hasattr(self, 'task'):

@@ -31,6 +31,11 @@ class BaseGenerator:
 
 class NIGenerator(BaseGenerator):
     def __init__(self, task_name, signal, generation_name=None):
+        """NI Generator class.
+        
+        :param task_name: Name of the task.
+        :param signal: Signal to be generated. Shape is ``(n_channels, n_samples)`` or ``(n_samples,)``.
+        """
         super().__init__()
         self.task_name = task_name
         self.signal = signal
@@ -77,11 +82,14 @@ class NIGenerator(BaseGenerator):
 
             # generate zeros
             self.set_data_source()
-            #self.Task = DAQTask(self.task_name)
             if self.NITask_used:
                 self.Task.initiate()
-                
-            zero_signal = np.zeros((self.signal.shape[0], 10))
+
+            if self.signal.ndim == 1:
+                zero_signal = np.zeros(self.signal.shape[0])
+            else:
+                zero_signal = np.zeros((self.signal.shape[0], 10))
+
             self.Task.generate(zero_signal, clear_task=False)
             self.Task.clear_task(wait_until_done=False)
             

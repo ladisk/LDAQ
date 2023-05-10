@@ -20,3 +20,7 @@ The ``gen`` object can then be added to the :class:`LadiskDAQ.Core` class:
 ``acq`` is the acquisition object, see `first example <simple_start.html>`_.
 
 When the ``.run()`` method is called, the signal is generated and the acquisition is started.
+
+.. note::
+
+    For generating the signal on multiple channels, the ``signal`` must be a numpy array with the shape ``(n_samples, n_channels)``.

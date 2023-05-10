@@ -19,154 +19,228 @@ INBUILT_FUNCTIONS = {'fft': _fun_fft}
 
 class Visualization:
     def __init__(self, layout=None, subplot_options=None, nth='auto', refresh_rate=100):
-        """
-        TODO: update this docstring!
-        
-        Live visualization of the measured data.
+        """Live visualization of the measured data.
+
+        For more details, see [documentation](https://ladiskdaq.readthedocs.io/en/latest/visualization.html).
         
         :param layout: Dictionary containing the source names and subplot layout with channel definitions.
             See examples below.
-        :param subplot_options: Dictionary containing the options for each of the subplots (xlim, ylim, axis_style).
+        :param subplot_options: Dictionary containing the options for each of the subplots (xlim, ylim, axis_style, etc.).
         :param nth: Number of points to skip when plotting. If 'auto', the number of points to skip is automatically determined
             in a way to make ``max_points_to_refresh = 1e4``. ``max_points_to_refresh`` is the attribute of the Visualization class and
             can be changed by the user.
         :param refresh_rate: Refresh rate of the plot in ms.
 
-        Plot layout
-        -----------
-        NORMAL TIME PLOTS: With plot layout, the user can define on which subplot the channels will be plotted. An example of
-        plot layout is:
-        >>> plot_layout = {
-            (0, 0): [0, 1],
-            (0, 1): [2, 3]
-        }
+        The ``layout``
+        --------------
 
-        On first subplot (0, 0), channels 0 and 1 will be plotted, on the second subplot (0, 1), channels 2 and 3 will be plotted.
-        Channels can also be plotted one against another. 
-        
-        CHANNEL vs. CHANNEL PLOT: If, for example, we wish to plot channel 1 as a function of channel 0, input
-        channel indices in a tuple; first the channel to be plotted on x-axis, and second the channel to be plotted on y-axis:
-        >>> plot_layout = {
-            (0, 0): [0, 1],
-            (0, 1): [2, 3],
-            (1, 0): [(0, 1)]
-        }
+        The layout of the live plot is set by the ``layout`` argument. An example of the ``layout`` argument is:
 
-        FOURIER TRANSFORM PLOT: The DFT of the signal can be computed on the fly. To define the subplots and channels where the FFT is computed, 
-        add "fft" as an element into channel list. Additionaly 'logy' and 'logx' scalings can be set:
-        >>> plot_layout = {
-            (0, 0): [0, 1],               # Time series
-            (0, 1): [2, 3],               # Time series
-            (1, 0): [(0, 1)],             # ch1 = f( ch0 )
-            (1, 1): [2, 3, "fft", "logy"] # FFT(2) & FFT(3), log y scale
-        }
+        >>> layout = {
+                'DataSource': {
+                    (0, 0): [0, 1],
+                    (1, 0): [2, 3],
+                }
+            }
 
-        CUSTOM FUNCTION PLOT: Lastly, the signals can be modified for visualization by specifying a custom function, that is passed to the channel list.
-        Example below computes the square of the signal coming from channels 1 and 2. 
-        >>> plot_layout = {
-            (0, 0): [0, 1],               # Time series
-            (0, 1): [2, 3],               # Time series
-            (1, 0): [(0, 1)],             # ch1 = f( ch0 )
-            (1, 1): [2, 3, fun]           # fun(2) & fun(3)
-        }
+        This is a layout for a single acquisition source with name "DataSource". 
+        When multiple sources are used, the name of the source is used as the key in the ``layout`` dictionary. 
+        The value at each acquisition source is a dictionary where each key is a tuple of two integers. 
+        The first integer is the row number and the second integer is the column number of the subplots.
 
-        function definition example:
+        For the given example, the plot will have two subplots, each in one row.
 
-        def fun(self, channel_data):
-            '''
-            :param self:         instance of the acquisition object (has to be there so the function is called properly)
-            :param channel_data: channel data
-            '''
-            return channel_data**2
+        For each subplot, the data is then specified. 
+        If the value is a list of integers, each integer corresponds to the index in the acquired data.
+        For example, for the subplot defined with:
 
-        CUSTOM FUNCTION PLOT (channel vs. channel): 
-        >>> plot_layout = {
-            (0, 0): [(0, 1), fun]         # 2Darray = fun( np.array([ch0, ch1]).T )
-        }
-    	
-        function definition examples:
+        >>> (0, 0): [0, 1]
 
-        def fun(self, channel_data):
-            '''
-            :param self:         instance of the acquisition object (has to be there so the function is called properly)
-            :param channel_data: 2D channel data array of size (N, 2)
+        data with indices 0 and 1 will be plotted in the subplot at location (0, 0).
 
-            :return: 2D array np.array([x, y]).T that will be plotted on the subplot.
-            '''
-            ch0, ch1 = channel_data.T
+        Plotting from multiple sources
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-            x =  np.arange(len(ch1)) / self.acquisition.sample_rate # time array
-            y = ch1**2 + ch0 - 10
+        When plotting from multiple sources, the layout is defined:
 
-            return np.array([x, y]).T
+        >>> layout = {
+                'DataSource1': {
+                    (0, 0): [0, 1],
+                    (1, 0): [2, 3],
+                },
+                'DataSource2': {
+                    (0, 0): [0],
+                    (0, 1): [1]
+                    (1, 1): [2, 3],
+                }
+            }
 
-         def fun(self, channel_data):
-            '''
-            :param self:         instance of the acquisition object (has to be there so the function is called properly)
-            :param channel_data: 2D channel data array of size (N, 2)
+        Notice the different names of the sources. Each name corresponds to the name of the acquisition source, defined in the acquisition class.
 
-            :return: 2D array np.array([x, y]).T that will be plotted on the subplot.
-            '''
-            ch0, ch1 = channel_data.T
+        It is important to note that the subplot locations are the same for all acquisition sources, but the indices of the data are different. 
 
-            x = np.arange(len(ch0)) / self.acquisition.sample_rate # time array
-            y = ch1 + ch0 # sum up two channels
+        For example, the subplot at location ``(0, 0)``
+        will containt the plots from source "DataSource1" with indices 0 and 1, and the plots from source "DataSource2" with indices 0.
 
-            # ---------------------------------------
-            # average across whole acquisition:
-            # ---------------------------------------
-            # ensure number of samples is the same and perform averaging:
-            if len(ch0) == int(self.max_samples): # at acquisition start, len(ch0) is less than self.max_samples
-                
-                # create class variables:
-                if not hasattr(self, 'var_y'):
-                    self.var_y = y
-                    self.var_x = x
-                    self.var_i = 0
+        Channel vs. channel plot
+        ~~~~~~~~~~~~~~~~~~~~~~~~
 
-                    # these variables will be deleted from LDAQ class after acquisition run is stopped: 
-                    self.temp_variables.extend(["var_y", "var_x", "var_i"]) 
-                
-                self.var_y = (self.var_y * self.var_i + y) / (self.var_i + 1)
-                self.var_i += 1
+        When plotting from multiple sources, it is possible to plot the data from one channel of one source against the data from one channel of another source.
+        Example:
 
-                return np.array([self.var_x, self.var_y]).T
+        >>> layout = {
+                'DataSource': {
+                    (0, 0): [0, 1],
+                    (1, 0): [(2, 3)],
+                }
+            }
 
-            else:
+        In subplot at location (1, 0), the data from channel 3 will be plotted as a function of the data from channel 2.
+        The first index of the ``tuple`` is considered the x-axis and the second index is considered the y-axis.
+
+        The ``function`` option
+        ~~~~~~~~~~~~~~~~~~~~~~~
+
+        The data can be processed on-the-fly by a specified function.
+        The functmion is added to the ``layout`` dictionary as follows:
+
+        >>> layout = {
+                'DataSource': {
+                    (0, 0): [0, 1],
+                    (1, 0): [2, 3, function],
+                }
+            }
+
+        The ``function`` can be specified by the user. To use the built-in functions, a string is passed to the ``function`` argument. 
+        An example of a built-in function is "fft" which computes the [Fast Fourier Transform](https://numpy.org/doc/stable/reference/generated/numpy.fft.rfft.html)
+        of the data with indices 2 and 3.
+
+        To build a custom function, the function must be defined as follows:
+
+        >>> def function(self, channel_data):
+                '''
+                :param self: instance of the acquisition object (has to be there so the function is called properly)
+                :param channel_data: channel data
+                '''
+                return channel_data**2
+
+        The ``self`` argument in the custom function referes to the instance of the acquisition object. 
+        This connection can be used to access the properties of the acquisition object, e.g. sample rate.
+        The ``channel_data`` argument is a list of numpy arrays, where each array corresponds to the data from one channel. 
+        The data is acquired in the order specified in the ``layout`` dictionary.
+
+        For the layout example above, the custom function is called for each channel separetely, the ``channel_data`` is a one-dimensional numpy array. 
+        To add mutiple channels to the ``channel_data`` argument,
+        the ``layout`` dictionary is modified as follows:
+
+        >>> layout = {
+                'DataSource': {
+                    (0, 0): [0, 1],
+                    (1, 0): [(2, 3), function],
+                }
+            }
+
+        The ``function`` is now passed the ``channel_data`` with shape (N, 2) where N is the number of samples.
+        The function can also return a 2D numpy array with shape (N, 2) where the first column is the x-axis and the second column is the y-axis.
+        An example of such a function is:
+
+        >>> def function(self, channel_data):
+                '''
+                :param self: instance of the acquisition object (has to be there so the function is called properly)
+                :param channel_data: 2D channel data array of size (N, 2)
+                :return: 2D array np.array([x, y]).T that will be plotted on the subplot.
+                '''
+                ch0, ch1 = channel_data.T
+                x =  np.arange(len(ch1)) / self.acquisition.sample_rate # time array
+                y = ch1**2 + ch0 - 10
                 return np.array([x, y]).T
 
+        The ``subplot_options``
+        -----------------------
 
-        Subplot options
-        ---------------
+        The properties of each subplot, defined in ``layout`` can be specified with the ``subplot_options`` argument. The ``subplot_options`` argument is a dictionary where the keys are the positions of the subplots.
+
+        Example:
 
         >>> subplot_options = {
-            (0, 0): {
-                'xlim': (0, 2),
-                'ylim': (-1, 1),
-                'axis_style': 'linear'
-            },
-            (0, 1): {
-                'xlim': (0, 25),
-                'ylim': (1e-5, 10),
-                'axis_style': 'semilogy'
-            },
-            (1, 0): {
-                'xlim': (0, 5),
-                'axis_style': 'linear'
-            },
-            (1, 1): {
-                'xlim': (0, 2),
-                'axis_style': 'linear'
+                (0, 0): {
+                    'xlim': (0, 2),
+                    'ylim': (-5, 5),
+                    'axis_style': 'linear',
+                    'title': 'My title 1'
+                },
+                (0, 1): {
+                    'xlim': (0, 25),
+                    'ylim': (1e-5, 1e3),
+                    'axis_style': 'semilogy',
+                    'title': 'My title 2'
+                },
+                (1, 0): {
+                    'xlim': (-5, 5),
+                    'ylim': (-5, 5),
+                    'axis_style': 'linear',
+                    'title': 'My title 3'
+                },
+                (1, 1): {
+                    'xlim': (0, 2),
+                    'axis_style': 'linear',
+                    'title': 'My title 4'
+                }
             }
-        }
 
-        For each subplot, e.g., (0, 0), the xlim and ylim can be set. Additionally, the axis style can be selected.
-        Valid axis styles are:
+        Currently, the following options are available:
 
-        - linera (default)
-        - semilogy
-        - semilogx
-        - loglog
+        - ``xlim``: tuple of two floats, the limits of the x-axis.
+        - ``ylim``: tuple of two floats, the limits of the y-axis.
+        - ``t_span``: int/float, the length of the time axis. If this option is not specified, it is computed from the ``xlim``.
+        - ``axis_style``: string, the style of the axis. Can be "linear", "semilogx", "semilogy" or "loglog".
+        - ``title``: string, the title of the subplot.
+        - ``rowspan``: int, the number of rows the subplot spans. Default is 1.
+        - ``colspan``: int, the number of columns the subplot spans. Default is 1.
+        - ``refresh_rate``: int, the refresh rate of the subplot in milliseconds. 
+        If this option is not specified, the refresh rate defined in the :class:`Visualization` is used.
+        - ``nth``: int, same as the ``nth`` argument in :class:`Visualization`. 
+        If this option is not specified, the ``nth`` argument defined in the :class:`Visualization` is used.
+
+        .. note:: 
+            When plotting a simple time signal, the ``t_span`` and ``xlim`` have the same effect. 
+            
+            However, when plotting channel vs. channel, the ``t_span`` specifies the time range of the data and the ``xlim`` specifies the range of the x-axis (spatial).
+
+            When plotting a function, the ``t_span`` determines the time range of the data that is passed to the function. 
+            Last ``t_span`` seconds of data are passed to the function.
+
+
+        .. note::
+            The ``xlim`` defines the samples that are plotted on the x-axis, not only a narrowed view of the data. 
+            With this, the same data can be viewed with different zoom levels in an effcient way.
+
+        An example of ``subplot_options`` with ``colspan``:
+
+        >>> subplot_options = {
+                (0, 0): {
+                    'xlim': (0, 2),
+                    'ylim': (-5, 5),
+                    'axis_style': 'linear',
+                    'title': 'My title 1',
+                    'colspan': 2,
+                },
+                (1, 0): {
+                    'xlim': (-5, 5),
+                    'ylim': (-5, 5),
+                    'axis_style': 'linear',
+                    'title': 'My title 3'
+                },
+                (1, 1): {
+                    'xlim': (0, 2),
+                    'axis_style': 'linear',
+                    'title': 'My title 4',
+                    'rowspan': 2
+                },
+            }
+
+        Note that the subplot at location (0, 1) must be omitted, since it is spanned by the subplot at location (0, 0).
+        The subplot at location (0, 1) must also be omitted in the ``layout``.
         """
         self.layout = layout
         self.subplot_options = subplot_options

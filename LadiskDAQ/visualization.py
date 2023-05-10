@@ -461,7 +461,7 @@ class MainWindow(QMainWindow):
                         plot_channels.append({
                             'pos': pos,
                             'apply_function': apply_function,
-                            'since_refresh': 0,
+                            'since_refresh': 1e40, # a very large number to ensure that the first refresh will always be done
                         })
 
                     if isinstance(ch, tuple):
@@ -501,7 +501,7 @@ class MainWindow(QMainWindow):
             buffer.extend(new_data[source])
 
 
-    def update_plots(self):
+    def update_plots(self, force_refresh=False):
         # Stop the measurement if the acquisitions are done and if the measurement has not been stopped.
         if not self.core.is_running_global and not self.measurement_stopped:
             self.stop_measurement()
@@ -530,7 +530,7 @@ class MainWindow(QMainWindow):
                     refresh_rate = self.vis.subplot_options[plot_channel['pos']]['subplot_refresh_rate']
                     since_refresh = plot_channel['since_refresh']
 
-                    if refresh_rate <= since_refresh + self.vis.update_refresh_rate:
+                    if refresh_rate <= since_refresh + self.vis.update_refresh_rate or force_refresh:
                         # If time to refresh, refresh the plot and set since_refresh to 0.
                         plot_channel['since_refresh'] = 0
                         
@@ -610,7 +610,8 @@ class MainWindow(QMainWindow):
         self.trigger_button.setEnabled(False)
         self.measurement_stopped = True
 
-        # TODO: update plots one more time to show the last data point
+        # Update the plots one last time.
+        self.update_plots(force_refresh=True)
 
         # palette = self.palette()
         # palette.setColor(self.backgroundRole(), QColor(152, 251, 251))

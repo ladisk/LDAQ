@@ -610,6 +610,8 @@ class MainWindow(QMainWindow):
         self.trigger_button.setEnabled(False)
         self.measurement_stopped = True
 
+        # TODO: update plots one more time to show the last data point
+
         # palette = self.palette()
         # palette.setColor(self.backgroundRole(), QColor(152, 251, 251))
         # self.setPalette(palette)

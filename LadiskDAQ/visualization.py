@@ -179,8 +179,9 @@ class Visualization:
         self.max_points_to_refresh = 1e4
 
         # check validity of the layout (all keys must be tuples or all keys must be strings)
-        if any(isinstance(k, tuple) for k in self.layout.keys()) and not all(isinstance(k, tuple) for k in self.layout.keys()):
-            raise ValueError("Invalid layout.")
+        if self.layout is not None:
+            if any(isinstance(k, tuple) for k in self.layout.keys()) and not all(isinstance(k, tuple) for k in self.layout.keys()):
+                raise ValueError("Invalid layout.")
 
         # check validity of the nth parameter:
         if self.nth == 'auto':

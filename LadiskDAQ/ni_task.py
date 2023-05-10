@@ -102,9 +102,9 @@ class NITaskOutput:
         
         self._setup_task()
 
-        if self.task._timing.samp_clk_rate != self.sample_rate:
-            self.sample_rate = self.task._timing.samp_clk_rate
+        if float(self.task._timing.samp_clk_rate) != float(self.sample_rate):
             print(f'Warning! Sample rate was changed from {self.sample_rate} Hz to next available sample rate ({self.task._timing.samp_clk_rate} Hz).\nSettings might be wrong!')
+            self.sample_rate = self.task._timing.samp_clk_rate
 
     def generate(self, signal, clear_task=False):
         self.task.write(signal, auto_start=True)
@@ -185,9 +185,9 @@ class NITask:
         
         self._setup_task()
 
-        if self.task._timing.samp_clk_rate != self.sample_rate:
-            self.sample_rate = self.task._timing.samp_clk_rate
+        if float(self.task._timing.samp_clk_rate) != float(self.sample_rate):
             print(f'Warning! Sample rate was changed from {self.sample_rate} Hz to next available sample rate ({self.task._timing.samp_clk_rate} Hz).\nSettings might be wrong!')
+            self.sample_rate = self.task._timing.samp_clk_rate
 
         if start_task:
             self.task.start()

@@ -1,10 +1,11 @@
 import pyqtgraph as pg
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QPushButton, QHBoxLayout, QDesktopWidget, QProgressBar, QLabel
 from PyQt5.QtCore import QTimer, Qt
-from PyQt5.QtGui import QColor, QPainter, QBrush, QPen
+from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QIcon
 
 import numpy as np
 import sys
+import os
 import random
 import time
 import types
@@ -359,6 +360,11 @@ class MainWindow(QMainWindow):
         self.vis = vis
         self.core = core
         self.app = app
+
+        script_directory = os.path.dirname(os.path.realpath(__file__))
+        icon_path = os.path.join(script_directory, "logo.png")
+        app_icon = QIcon(icon_path)
+        self.setWindowIcon(app_icon)
 
         self.triggered = False
         self.measurement_stopped = False

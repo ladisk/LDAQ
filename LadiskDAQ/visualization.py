@@ -12,12 +12,11 @@ import types
 import keyboard
 from pyTrigger import RingBuffer2D
 
-from .visualization_helpers import auto_nth_point, check_subplot_options_validity, _fun_fft
+from .visualization_helpers import auto_nth_point, check_subplot_options_validity, _fun_fft, _fun_frf_amp, _fun_frf_phase, _fun_coh
 
-
-INBUILT_FUNCTIONS = {'fft': _fun_fft}
-
-
+INBUILT_FUNCTIONS = {'fft': _fun_fft, 'frf_amp': _fun_frf_amp, 'frf_phase': _fun_frf_phase, 'coh': _fun_coh}
+    
+    
 class Visualization:
     def __init__(self, layout=None, subplot_options=None, nth='auto', refresh_rate=100):
         """Live visualization of the measured data.
@@ -252,6 +251,7 @@ class Visualization:
         
         self.update_refresh_rate = 10 # [ms] interval of calling the plot_update function
         self.max_points_to_refresh = 1e4
+        
 
         # check validity of the layout (all keys must be tuples or all keys must be strings)
         if self.layout is not None:

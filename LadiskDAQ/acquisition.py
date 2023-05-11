@@ -924,7 +924,9 @@ class NIAcquisition(BaseAcquisition):
                         channel['sensitivity_units'],
                         channel['units'],
                         channel['serial_nr'],
-                        channel['scale'])
+                        channel['scale'],
+                        channel['min_val'],
+                        channel['max_val'])
             else:
                 self.Task = DAQTask(self.task_base)
             
@@ -934,7 +936,7 @@ class NIAcquisition(BaseAcquisition):
             if not hasattr(self.Task, 'task'):
                 self.Task.initiate()
 
-    def run_acquisition(self, run_time=None):
+    def run_acquisition(self, run_time=None):        
 
         if self.NITask_used:
             BaseAcquisition.all_acquisitions_ready = False 

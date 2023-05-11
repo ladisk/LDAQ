@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.signal import coherence
 import types
 
 
@@ -118,4 +119,129 @@ def _fun_fft(self, data):
    freq = np.fft.rfftfreq(len(data), d=1/self.acquisition.sample_rate)
 
    return np.array([freq, np.abs(amp)]).T
+
+class _FRF_calculation():
+    """
+    This class can be used for averaging the FRF over multiple calls of the same function.
+    """
+    def __init__(self) -> None:
+        self.first_call = True
+        self.N_samples = 0
+        self.freq = None
+        self.H1 = None
+        self.n_avg = 10
+        self.n_calls = 1
+        
+        self.last_fun_call = None
+    
+    def _calc_frf(self, self_vis, channel_data):   
+        if self_vis.acquisition.is_ready == False: # this means that was run for the first time
+            self.first_call = True
+        
+        # estimate FRF:
+        x, y = channel_data.T
+        X = np.fft.rfft(x)
+        Y = np.fft.rfft(y)
+        Sxy = np.conj(X) * Y
+        Sxx = np.conj(X) * X
+        H1 = Sxy / Sxx
+        
+        if self.first_call: # create the frequency vector and H1
+            self.N_samples = len(channel_data)
+            self.freq = np.fft.rfftfreq(self.N_samples, d=1/self_vis.acquisition.sample_rate)
+            self.first_call = False
+            self.H1 = H1
+        else: # only update H1
+            n = self.n_calls if self.n_calls < self.n_avg else self.n_avg
+            
+            self.H1 = self.H1 * (n-1)/n + H1 * 1/n
+            
+        self.n_calls += 1
+    
+    def get_frf_abs(self, self_vis, channel_data):
+        self._calc_frf(self_vis, channel_data) # always update the FRF
+        self.last_fun_call = 'abs'
+        return np.array([self.freq, np.abs(self.H1)]).T
+    
+    def get_frf_phase(self, self_vis, channel_data):
+        if self.last_fun_call == 'phase' or self.last_fun_call is None: # only update if the last call was phase
+            self._calc_frf(self_vis, channel_data)
+        self.last_fun_call = 'phase'
+        return np.array([self.freq, np.angle(self.H1)*180/np.pi]).T
+    
+def _fun_frf_amp(self_vis, channel_data):   
+    """Default function for calculating the FRF amplitude.
+
+    Args:
+        self_vis (class): visualization class object
+        channel_data (array): 2D numpy array with (time, channel) shape.
+
+    Returns:
+        2D numpy array: np.array([freq, np.abs(H1)]).T
+    """
+    # estimate FRF:
+    x, y = channel_data.T
+    X = np.fft.rfft(x)
+    Y = np.fft.rfft(y)
+    Sxy = np.conj(X) * Y
+    Sxx = np.conj(X) * X
+    H1 = Sxy / Sxx
+    
+    freq = np.fft.rfftfreq(len(channel_data), d=1/self_vis.acquisition.sample_rate)
+    return np.array([freq, np.abs(H1)]).T
+    
+def _fun_frf_phase(self_vis, channel_data):   
+    """Default function for calculating the FRF phase.
+    
+    Args:
+        self_vis (class): visualization class object
+        channel_data (array): 2D numpy array with (time, channel) shape.
+        
+    Returns:
+        2D numpy array: np.array([freq, np.angle(H1)*180/np.pi]).T
+    """
+    # estimate FRF:
+    x, y = channel_data.T
+    X = np.fft.rfft(x)
+    Y = np.fft.rfft(y)
+    Sxy = np.conj(X) * Y
+    Sxx = np.conj(X) * X
+    H1 = Sxy / Sxx
+    
+    freq = np.fft.rfftfreq(len(channel_data), d=1/self_vis.acquisition.sample_rate)
+    return np.array([freq, np.angle(H1)*180/np.pi]).T
+
+def _fun_coh(self_vis, channel_data):   
+    """Default function for calculating the coherence.
+    
+    Args:
+        self_vis (class): visualization class object
+        channel_data (array): 2D numpy array with (time, channel) shape.
+        
+    Returns:
+        2D numpy array: np.array([freq, coherence]).T
+    """
+    # estimate FRF:
+    x, y = channel_data.T
+    fs   = self_vis.acquisition.sample_rate
+    # X = np.fft.rfft(x)
+    # Y = np.fft.rfft(y)
+    # Sxy = np.conj(X) * Y
+    # Sxx = np.conj(X) * X
+    # Syy = np.conj(Y) * Y
+    
+    # coh = np.abs( ( np.abs(Sxy)**2 / (Sxx * Syy) ) )
+    # coh[ np.isnan(coh) ] = 0
+    
+    # freq = np.fft.rfftfreq(len(channel_data), d=1/fs)
+    
+    freq, coh = coherence(x, y, fs, nperseg=fs*2)
+    
+    return np.array([freq, coh]).T
+        
+        
+        
+        
+        
+    
 

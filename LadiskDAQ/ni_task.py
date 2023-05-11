@@ -102,9 +102,8 @@ class NITaskOutput:
         
         self._setup_task()
 
-        if self.task._timing.samp_clk_rate != self.sample_rate:
-            self.sample_rate = self.task._timing.samp_clk_rate
-            print(f'Warning! Sample rate was changed from {self.sample_rate} Hz to next available sample rate ({self.task._timing.samp_clk_rate} Hz).\nSettings might be wrong!')
+        if float(self.task._timing.samp_clk_rate) != float(self.sample_rate):
+            raise Exception(f'Warning! Sample rate {self.sample_rate} Hz is not available for this device. Next available sample rate is {self.task._timing.samp_clk_rate} Hz.')
 
     def generate(self, signal, clear_task=False):
         self.task.write(signal, auto_start=True)
@@ -185,14 +184,13 @@ class NITask:
         
         self._setup_task()
 
-        if self.task._timing.samp_clk_rate != self.sample_rate:
-            self.sample_rate = self.task._timing.samp_clk_rate
-            print(f'Warning! Sample rate was changed from {self.sample_rate} Hz to next available sample rate ({self.task._timing.samp_clk_rate} Hz).\nSettings might be wrong!')
+        if float(self.task._timing.samp_clk_rate) != float(self.sample_rate):
+            raise Exception(f'Warning! Sample rate {self.sample_rate} Hz is not available for this device. Next available sample rate is {self.task._timing.samp_clk_rate} Hz.')
 
         if start_task:
             self.task.start()
 
-    def add_channel(self, channel_name, device_ind, channel_ind, sensitivity=None, sensitivity_units=None, units=None, serial_nr=None, scale=None):
+    def add_channel(self, channel_name, device_ind, channel_ind, sensitivity=None, sensitivity_units=None, units=None, serial_nr=None, scale=None, min_val=None, max_val=None):
         """Add a channel to the task. The channel is not actually added to the task until the task is initiated.
 
         :param channel_name: name of the channel.
@@ -205,6 +203,8 @@ class NITask:
         :param scale: scale the signal. If specified, the sensitivity, sensitivity_units are ignored. The prescaled units are assumed to be Volts, the
             scaled units are assumed to be ``units``. The scale can be float or a tuple. If float, this is the slope of the linear scale and y-interception is
             at 0. If tuple, the first element is the slope and the second element is the y-interception.
+        :param min_val: minimum value of the signal. If ``None``, the default value is used.
+        :param max_val: maximum value of the signal. If ``None``, the default value is used.
         """
         if scale is None and sensitivity_units not in UNITS:
             raise Exception(f"Sensitivity units {sensitivity_units} not in {UNITS.keys()}.")
@@ -253,6 +253,8 @@ class NITask:
             'custom_scale_name': "",
             'serial_nr': serial_nr,
             'scale': scale,
+            'min_val': min_val,
+            'max_val': max_val
         }
 
         if scale is not None:
@@ -301,20 +303,26 @@ class NITask:
             'custom_scale_name': self.channels[channel_name]['custom_scale_name'],
         }
 
+        if self.channels[channel_name]['min_val']:
+            options['min_val'] = self.channels[channel_name]['min_val']
+        
+        if self.channels[channel_name]['max_val']:
+            options['max_val'] = self.channels[channel_name]['max_val']
+
         if mode == 'ForceUnits':
             options['sensitivity_units'] = UNITS[self.channels[channel_name]['sensitivity_units']]
             options['units'] = UNITS[self.channels[channel_name]['units']]
-            options = dict([(k, v) for k, v in options.items() if k in ['physical_channel', 'name_to_assign_to_channel', 'terminal_config', 'sensitivity', 'sensitivity_units', 'units']])
+            options = dict([(k, v) for k, v in options.items() if k in ['physical_channel', 'name_to_assign_to_channel', 'terminal_config', 'sensitivity', 'sensitivity_units', 'units', 'min_val', 'max_val']])
             self.channel_objects.append(self.task.ai_channels.add_ai_force_iepe_chan(**options))
 
         elif mode == 'AccelUnits':
             options['sensitivity_units'] = UNITS[self.channels[channel_name]['sensitivity_units']]
             options['units'] = UNITS[self.channels[channel_name]['units']]
-            options = dict([(k, v) for k, v in options.items() if k in ['physical_channel', 'name_to_assign_to_channel', 'terminal_config', 'sensitivity', 'sensitivity_units', 'units']])
+            options = dict([(k, v) for k, v in options.items() if k in ['physical_channel', 'name_to_assign_to_channel', 'terminal_config', 'sensitivity', 'sensitivity_units', 'units', 'min_val', 'max_val']])
             self.channel_objects.append(self.task.ai_channels.add_ai_accel_chan(**options))
 
         elif mode == 'VoltageUnits':
-            options = dict([(k, v) for k, v in options.items() if k in ['physical_channel', 'name_to_assign_to_channel', 'terminal_config', 'custom_scale_name']])
+            options = dict([(k, v) for k, v in options.items() if k in ['physical_channel', 'name_to_assign_to_channel', 'terminal_config', 'custom_scale_name', 'min_val', 'max_val']])
             if options['custom_scale_name'] != "":
                 options['units'] = constants.VoltageUnits.FROM_CUSTOM_SCALE
             self.channel_objects.append(self.task.ai_channels.add_ai_voltage_chan(**options))

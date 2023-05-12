@@ -25,8 +25,6 @@ import struct
 
 from .ni_task import NITask
 
-
-
 class DummyLock:
     def __enter__(self):
         return self
@@ -47,11 +45,25 @@ class CustomPyTrigger(pyTrigger):
         self.N_triggers                       = 0 # amount of time acquisition was triggered (should be 1 at the end of the measurement)
         
         self.first_trigger = True
+        
+        self.continuous_mode = False # continuous acquisition without definite stop.
+        self.N_samples_to_acquire = self.rows # amount of samples to acquire in continuous mode.
 
     def _add_data_to_buffer(self, data):
         """Upgrades parent _add_data_to_buffer() to track sample variables
            N_acquired_samples, N_new_samples, N_acquired_samples_since_trigger
         """
+        if self.continuous_mode:
+            if self.triggered and not (self.rows_left > len(data)):
+                # if data is larger then rows_left and if continuous mode is enabled,
+                # save all data, reset buffer and continue with acquisition
+                self.reset_buffer()
+                
+            if self.N_samples_to_acquire is not None: # if measurement duration is specified
+                if self.N_acquired_samples_since_trigger + len(data) >= self.N_samples_to_acquire:
+                    data = data[:self.N_samples_to_acquire - self.N_acquired_samples_since_trigger]
+                    self.finished = True
+            
         rows_left_before = self.rows_left
         super()._add_data_to_buffer(data)
         N = rows_left_before - self.rows_left
@@ -120,6 +132,10 @@ class CustomPyTrigger(pyTrigger):
             self.N_new_samples += self.presamples - trigger # this amount of data will not be added in _add_data_to_buffer()
             self.N_acquired_samples_since_trigger += self.presamples - trigger
         return trigger
+    
+    def reset_buffer(self):
+        self.rows_left = self.rows
+        self.finished = False
 
     
 class BaseAcquisition:
@@ -155,6 +171,8 @@ class BaseAcquisition:
     
         self.lock_acquisition = threading.Lock() # ensures acquisition class runs properly if used in multiple threads.
         
+        self.continuous_mode = False
+        self.N_samples_to_acquire = None
         # child class needs to have variables below:
         self.n_channels  = 0
         self.sample_rate = 0
@@ -220,7 +238,8 @@ class BaseAcquisition:
             acquired_data = self.read_data()
             self.Trigger.add_data(acquired_data)
             
-        if self.Trigger.finished or not self.is_running:            
+        if self.Trigger.finished or not self.is_running:      
+        #if not self.is_running:       
             self.stop()
             self.terminate_data_source()
 
@@ -296,7 +315,7 @@ class BaseAcquisition:
         self.is_running = True
         
         if run_time is None:
-            self.set_trigger_instance()
+            self._set_trigger_instance()
         else:
             self.update_trigger_parameters(duration=run_time, duration_unit='seconds')
         self.set_data_source()
@@ -307,7 +326,6 @@ class BaseAcquisition:
             while not BaseAcquisition.all_acquisitions_ready: # until every source is ready
                 time.sleep(0.01)
                 self.clear_buffer()                           # reads data, does not store in anywhere
-                #self.acquire()
                 if not self.is_running:
                     break
                 
@@ -334,7 +352,41 @@ class BaseAcquisition:
         # save actual measurement time (NOTE: currently not used anywhere, might be useful in the future)
         time_end_acq  = time.time()
         self.actual_run_time = time_end_acq-time_start_acq
+       
+    def set_continuous_mode(self, boolean=True, measurement_duration=None):
+        """Sets continuous mode of the acquisition. If True, acquisition will run indefinitely until
+           externally stopped. If False, acquisition will run for a specified time.
 
+        Args:
+            boolean (bool, optional): Defaults to True.
+            measurement_duration (float, optional): If not None, sets the duration of the measurement in seconds.
+            NOTE: Based on measurement duration, the number of total samples to be acquired is calculated. In this case the 
+            ring buffer size can be different to the number of samples to be acquired. If None, measurement duration is 
+            set to the size of the ring buffer.
+        """
+        if boolean:
+            self.continuous_mode = True
+        else:
+            self.continuous_mode = False
+            
+        if measurement_duration is not None:
+            self.N_samples_to_acquire = int(measurement_duration*self.sample_rate)
+                   
+    def _set_trigger_instance(self):
+        """Creates PyTrigger instance.
+        """
+        self.Trigger = CustomPyTrigger( #pyTrigger
+            rows=self.trigger_settings['duration_samples'], 
+            channels=self.n_channels,
+            trigger_type=self.trigger_settings['type'],
+            trigger_channel=self.trigger_settings['channel'], 
+            trigger_level=self.trigger_settings['level'],
+            presamples=self.trigger_settings['presamples'])
+        
+        self.Trigger.continuous_mode = self.continuous_mode
+        if self.continuous_mode:
+            self.Trigger.N_samples_to_acquire = self.N_samples_to_acquire           
+        
     def set_trigger(self, level, channel, duration=1, duration_unit='seconds', presamples=0, type='abs'):
         """Set parameters for triggering the measurement.
         
@@ -363,7 +415,7 @@ class BaseAcquisition:
             'duration_seconds': duration_seconds,
         }
         
-        self.set_trigger_instance()
+        self._set_trigger_instance()
         
     def update_trigger_parameters(self, **kwargs):
         """
@@ -379,21 +431,9 @@ class BaseAcquisition:
         elif self.trigger_settings['duration_unit'] == 'samples':
             self.trigger_settings['duration_seconds'] = self.trigger_settings['duration']/self.sample_rate
             self.trigger_settings['duration_samples'] = self.trigger_settings['duration']
-            
-        #TODO: some parameters in dict - duration_smaples, duration_seconds are not updated
-        self.set_trigger_instance()
         
-    def set_trigger_instance(self):
-        """Creates PyTrigger instance.
-        """
-        self.Trigger = CustomPyTrigger( #pyTrigger
-        rows=self.trigger_settings['duration_samples'], 
-        channels=self.n_channels,
-        trigger_type=self.trigger_settings['type'],
-        trigger_channel=self.trigger_settings['channel'], 
-        trigger_level=self.trigger_settings['level'],
-        presamples=self.trigger_settings['presamples'])
-           
+        self._set_trigger_instance()
+        
     def activate_trigger(self, all_sources=True):
         """Sets trigger off. Useful if the acquisition class is trigered by another process.
             This trigger can also trigger other acquisition sources by setting property class
@@ -944,7 +984,7 @@ class NIAcquisition(BaseAcquisition):
             self.is_running = True
             
             if run_time is None:
-                self.set_trigger_instance()
+                self._set_trigger_instance()
             else:
                 self.update_trigger_parameters(duration=run_time, duration_unit='seconds')
             

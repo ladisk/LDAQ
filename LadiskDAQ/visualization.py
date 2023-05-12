@@ -632,7 +632,7 @@ class MainWindow(QMainWindow):
 
 
     def update_ring_buffers(self):
-        new_data = self.core.get_measurement_dict_PLOT()
+        new_data = self.core._get_measurement_dict_PLOT()
         for source, buffer in self.vis.ring_buffers.items():
             buffer.extend(new_data[source])
 
@@ -646,13 +646,19 @@ class MainWindow(QMainWindow):
         if self.core.triggered_globally and not self.triggered:
             self.on_measurement_start()
 
-            self.time_start = time.time()
-            self.progress_bar.setMaximum(int(1000*self.core.acquisitions[0].trigger_settings['duration']))
+            if self.core.measurement_duration is not None: 
+                self.progress_bar.setMaximum(int(1000*self.core.acquisitions[0].Trigger.N_samples_to_acquire) ) 
+            else:
+                pass
 
         # If the measurement is running, update the progress bar and the label.
         if self.triggered and self.core.is_running_global:
-            self.progress_bar.setValue(int(1000*(time.time() - self.time_start)))
-            self.label.setText(f"{time.time() - self.time_start:.1f}/{self.core.acquisitions[0].trigger_settings['duration']:.1f} s")
+            if self.core.measurement_duration is not None:
+                self.progress_bar.setValue(int(1000*self.core.acquisitions[0].Trigger.N_acquired_samples_since_trigger))
+                string = f"Duration: {self.core.measurement_duration:.1f} s"
+            else:
+                string = "Duration: Until stopped"
+            self.label.setText(string) 
 
         # Update the ring buffers.
         self.update_ring_buffers()
@@ -738,7 +744,7 @@ class MainWindow(QMainWindow):
 
 
     def stop_measurement(self, mode='finished'):
-        self.core.triggered_globally = True # dummy start measurement
+        #self.core.triggered_globally = True # dummy start measurement
         self.core.stop_acquisition_and_generation()
         self.timer.stop()
 

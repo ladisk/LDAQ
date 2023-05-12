@@ -252,27 +252,84 @@ class Visualization:
         self.update_refresh_rate = 10 # [ms] interval of calling the plot_update function
         self.max_points_to_refresh = 1e4
         
-
         # check validity of the layout (all keys must be tuples or all keys must be strings)
         if self.layout is not None:
             if any(isinstance(k, tuple) for k in self.layout.keys()) and not all(isinstance(k, tuple) for k in self.layout.keys()):
                 raise ValueError("Invalid layout.")
 
-        # check validity of the nth parameter:
-        if self.nth == 'auto':
-            if self.subplot_options is None or self.layout is None:
-                print('Warning: `nth` could not be determined automatically. Using `nth=1`.')
-                self.nth = 1
-        elif isinstance(self.nth, int):
-            pass
-        else:
-            raise ValueError('`nth` must be an integer or "auto".')
-        
         # check validity of the subplot_options (rowspan/colspan)
-        if self.subplot_options is not None:
-            if not check_subplot_options_validity(self.subplot_options):
+        if self.subplot_options is not None and self.layout is not None:
+            if not check_subplot_options_validity(self.subplot_options, self.layout):
                 raise ValueError("Invalid subplot options. Check the `rowspan` and `colspan` values.")
     
+
+    def add_lines(self, source, position, channels, function=None):
+        """Build the layout dictionary.
+
+        :param source: string, the source of the data. Name that was given to the ``Acquisition`` object.
+        :param position: tuple, the position of the subplot. Example: ``(0, 0)``.
+        :param channels: list of integers, the channels from the ``source`` to be plotted. Can also be a list of tuples
+            of integers to plot channel vs. channel. Example: ``[(0, 1), (2, 3)]``.
+        :param function: function, the function to be applied to the data before plotting. If ``channels`` is a list of tuples,
+            the function is applied to each tuple separately.
+
+        For more information, see :class:`Visualization`.
+        """
+        if self.layout is None:
+            self.layout = {}
+        if source not in self.layout.keys():
+            self.layout[source] = {}
+
+        if position not in self.layout[source].keys():
+            self.layout[source][position] = channels
+            if function is not None:
+                self.layout[source][position].append(function)
+        else:
+            raise ValueError(f"Source ``{source}`` at position ``{position}`` already exists in the layout.")
+
+
+    def config_subplot(self, position, xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1, refresh_rate=None, nth=None):
+        """Configure a subplot at position ``position``.
+        
+        :param position: tuple of two integers, the position of the subplot in the layout.
+        :param xlim: tuple of two floats, the limits of the x-axis.
+        :param ylim: tuple of two floats, the limits of the y-axis.
+        :param t_span: int/float, the length of the time axis. If this option is not specified, it is computed from the ``xlim``.
+        :param axis_style: string, the style of the axis. Can be "linear", "semilogx", "semilogy" or "loglog".
+        :param title: string, the title of the subplot.
+        :param rowspan: int, the number of rows the subplot spans. Default is 1.
+        :param colspan: int, the number of columns the subplot spans. Default is 1.
+        :param refresh_rate: int, the refresh rate of the subplot in milliseconds.
+            If this option is not specified, the refresh rate defined in the :class:`Visualization` is used.
+        :param nth: int, same as the ``nth`` argument in :class:`Visualization`.
+        """
+        if self.subplot_options is None:
+            self.subplot_options = {}
+
+        self.subplot_options[position] = {}
+
+        if xlim is not None:
+            self.subplot_options[position]['xlim'] = xlim
+        if ylim is not None:
+            self.subplot_options[position]['ylim'] = ylim
+        if t_span is not None:
+            self.subplot_options[position]['t_span'] = t_span
+        if axis_style is not None:
+            self.subplot_options[position]['axis_style'] = axis_style
+        if title is not None:
+            self.subplot_options[position]['title'] = title
+        if rowspan is not None:
+            self.subplot_options[position]['rowspan'] = rowspan
+        if colspan is not None:
+            self.subplot_options[position]['colspan'] = colspan
+        if refresh_rate is not None:
+            self.subplot_options[position]['refresh_rate'] = refresh_rate
+        if nth is not None:
+            self.subplot_options[position]['nth'] = nth
+
+        if not check_subplot_options_validity(self.subplot_options, self.layout):
+            raise ValueError("Invalid subplot options. Check the `rowspan` and `colspan` values.")
+
 
     def run(self, core):
         self.core = core

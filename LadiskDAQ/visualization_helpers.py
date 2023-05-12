@@ -3,69 +3,10 @@ from scipy.signal import coherence
 import types
 
 
-def auto_nth_point(layout, subplot_options, core, max_points_to_refresh, known_nth='auto'):
-    """For each channel in `layout` find the `nth` variable that says that every nth point
-    is plotted.
-    
-    `nth` is determined for each line, based on the `xlim` parameter in the `subplot_options` if `xlim`
-    is a key in the `subplot_options` dictionary. If `xlim` is not a key in the `subplot_options` dictionary
-    take the `xlim` from the `subplot_options` of the subplot where the line is plotted.
-    `core` is the object of the `LDAQ.Core` class. It is used to get the `acquisition` object
-    where the `sample_rate` is taken from.
-
-    :param layout: layout of the QT application. It specifies which channels are plotted on each subplot.
-    :param subplot_options: Options for each subplot (xlim, ylim, axis_style, etc.)
-    :param core: instance of the `LDAQ.Core` class.
-    :param max_points_to_refresh: maximum number of points to refresh in one refresh cycle.
-    """
-    nth = {}
-    for acq_name, acq_layout in layout.items():
-        nth[acq_name] = {}
-        for subplot, channels in acq_layout.items():
-            nth[acq_name][subplot] = {}
-            for channel in channels:
-                if not isinstance(channel, (types.FunctionType, str)):
-                    if isinstance(channel, tuple):
-                        channel = channel[0]
-
-                    if 'nth' in subplot_options[subplot].keys():
-                        nth[acq_name][subplot][channel] = subplot_options[subplot]['nth']
-
-                    else:
-                        if known_nth == 'auto':
-                        
-                            if 't_span' in subplot_options[subplot]:
-                                if subplot in subplot_options:
-                                    t_span = subplot_options[subplot]['t_span']
-                                else:
-                                    for subplot2, channels2 in acq_layout.items():
-                                        if channel in channels2:
-                                            t_span = subplot_options[subplot2]['t_span']
-                                            break
-                            else:
-                                t_span = 1
-
-                            acq_index = core.acquisition_names.index(acq_name)
-                            sample_rate = core.acquisitions[acq_index].sample_rate
-                        
-                            points_per_line = max_points_to_refresh/get_nr_of_lines(layout)
-                            nth[acq_name][subplot][channel] = int(np.ceil(sample_rate * (t_span) / points_per_line))
-
-                        elif isinstance(known_nth, int):
-                            nth[acq_name][subplot][channel] = known_nth
-                        else:
-                            raise ValueError('`known_nth` should be either "auto" or an integer.')
+def compute_nth(max_points_to_refresh, t_span, n_lines, sample_rate):
+    points_per_line = max_points_to_refresh/n_lines
+    nth = int(np.ceil(sample_rate * (t_span) / points_per_line))
     return nth
-
-def get_nr_of_lines(layout):
-    """get the number of lines in all plots, based on the layout"""
-    nr_of_lines = 0
-    for acq_name, acq_layout in layout.items():
-        for subplot, channels in acq_layout.items():
-            for channel in channels:
-                if not isinstance(channel, (types.FunctionType, str)):
-                    nr_of_lines += 1
-    return nr_of_lines
 
 
 def check_subplot_options_validity(subplot_options, layout):
@@ -76,8 +17,8 @@ def check_subplot_options_validity(subplot_options, layout):
     :param layout: layout of the QT application. It specifies which channels are plotted on each subplot.
     :return: True if the layout is valid, False otherwise.
     """
-    max_row = max([pos[0] for acq_name, acq_layout in layout.items() for pos, channels in acq_layout.items()])
-    max_col = max([pos[1] for acq_name, acq_layout in layout.items() for pos, channels in acq_layout.items()])
+    max_row = max([channels['pos'][0] for acq_name, acq_layout in layout.items() for channels in acq_layout])
+    max_col = max([channels['pos'][1] for acq_name, acq_layout in layout.items() for channels in acq_layout])
 
     # Create a matrix to keep track of the occupied cells in the subplot grid
     occupied_cells = [[False] * (max_col + 1) for _ in range(max_row + 1)]

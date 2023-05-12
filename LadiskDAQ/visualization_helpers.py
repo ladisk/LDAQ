@@ -68,24 +68,16 @@ def get_nr_of_lines(layout):
     return nr_of_lines
 
 
-def check_subplot_options_validity(subplot_options):
+def check_subplot_options_validity(subplot_options, layout):
     """
     Check if the plot layout is valid with the given rowspan and colspan.
 
-    Parameters:
-    -----------
-    subplot_options: dict
-        Dictionary containing plot layout information, with keys in the form of tuples indicating subplot position
-        and values in the form of dictionaries containing plot options.
-
-    Returns:
-    --------
-    bool:
-        True if the layout is valid, False otherwise.
+    :param subplot_options: Options for each subplot (xlim, ylim, axis_style, etc.)
+    :param layout: layout of the QT application. It specifies which channels are plotted on each subplot.
+    :return: True if the layout is valid, False otherwise.
     """
-    # Extract the maximum row and column values from the keys in subplot_options
-    max_row = max([key[0] for key in subplot_options.keys()])
-    max_col = max([key[1] for key in subplot_options.keys()])
+    max_row = max([pos[0] for acq_name, acq_layout in layout.items() for pos, channels in acq_layout.items()])
+    max_col = max([pos[1] for acq_name, acq_layout in layout.items() for pos, channels in acq_layout.items()])
 
     # Create a matrix to keep track of the occupied cells in the subplot grid
     occupied_cells = [[False] * (max_col + 1) for _ in range(max_row + 1)]

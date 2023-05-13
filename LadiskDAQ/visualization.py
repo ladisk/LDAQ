@@ -262,7 +262,71 @@ class Visualization:
         :param function: function, the function to be applied to the data before plotting. If ``channels`` is a list of tuples,
             the function is applied to each tuple separately.
 
-        For more information, see :class:`Visualization`.
+        Channels
+        ~~~~~~~~
+
+        If the ``channels`` argument is an integer, the data from the channel with the specified index will be plotted.
+
+        If the ``channels`` argument is a list of integers, the data from the channels with the specified indices will be plotted:
+
+        >>> vis.add_lines(position=(0, 0), source='DataSource', channels=[0, 1])
+
+        To plot channel vs. channel the ``channels`` argument is a tuple of two integers:
+
+        >>> vis.add_lines(position=(0, 0), source='DataSource', channels=(0, 1))
+
+        The first integer is the index of the x-axis and the second integer is the index of the y-axis.
+
+        Multiple channel vs. channel plots can be added to the same subplot:
+
+        >>> vis.add_lines(position=(0, 0), source='DataSource', channels=[(0, 1), (2, 3)])
+
+        The ``function`` argument
+        ~~~~~~~~~~~~~~~~~~~~~~~~
+
+        The data can be processed on-the-fly by a specified function.
+
+
+        The ``function`` can be specified by the user. To use the built-in functions, a string is passed to the ``function`` argument. 
+        An example of a built-in function is "fft" which computes the [Fast Fourier Transform](https://numpy.org/doc/stable/reference/generated/numpy.fft.rfft.html)
+        of the data with indices 0 and 1:
+
+        >>> vis.add_lines(position=(0, 0), source='DataSource', channels=[0, 1], function='fft')
+
+        To build a custom function, the function must be defined as follows:
+
+        >>> def function(self, channel_data):
+                '''
+                :param self: instance of the acquisition object (has to be there so the function is called properly)
+                :param channel_data: channel data
+                '''
+                return channel_data**2
+
+        The ``self`` argument in the custom function referes to the instance of the acquisition object. 
+        This connection can be used to access the properties of the acquisition object, e.g. sample rate.
+        The ``channel_data`` argument is a list of numpy arrays, where each array corresponds to the data from one channel. 
+        The data is acquired in the order specified in the ``channels`` argument.
+
+        For the example above, the custom function is called for each channel separetely, the ``channel_data`` is a one-dimensional numpy array. 
+        To add mutiple channels to the ``channel_data`` argument, the ``channels`` argument is modified as follows:
+
+        >>> vis.add_lines(position=(0, 0), source='DataSource', channels=[(0, 1)], function=function)
+
+        The ``function`` is now passed the ``channel_data`` with shape ``(N, 2)`` where ``N`` is the number of samples.
+        The function can also return a 2D numpy array with shape ``(N, 2)`` where the first column is the x-axis and the second column is the y-axis.
+        An example of such a function is:
+
+        >>> def function(self, channel_data):
+                '''
+                :param self: instance of the acquisition object (has to be there so the function is called properly)
+                :param channel_data: 2D channel data array of size (N, 2)
+                :return: 2D array np.array([x, y]).T that will be plotted on the subplot.
+                '''
+                ch0, ch1 = channel_data.T
+                x =  np.arange(len(ch1)) / self.acquisition.sample_rate # time array
+                y = ch1**2 + ch0 - 10
+                return np.array([x, y]).T
+
         """
         if not isinstance(source, str):
             raise ValueError("The source must be a string.")
@@ -301,7 +365,7 @@ class Visualization:
             })
 
 
-    def config_subplot(self, position, xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1, refresh_rate=None, nth=None):
+    def config_subplot(self, position, xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1, refresh_rate=None):
         """Configure a subplot at position ``position``.
         
         :param position: tuple of two integers, the position of the subplot in the layout.
@@ -314,7 +378,6 @@ class Visualization:
         :param colspan: int, the number of columns the subplot spans. Default is 1.
         :param refresh_rate: int, the refresh rate of the subplot in milliseconds.
             If this option is not specified, the refresh rate defined in the :class:`Visualization` is used.
-        :param nth: int, same as the ``nth`` argument in :class:`Visualization`.
         """
         if self.subplot_options is None:
             self.subplot_options = {}
@@ -337,8 +400,6 @@ class Visualization:
             self.subplot_options[position]['colspan'] = colspan
         if refresh_rate is not None:
             self.subplot_options[position]['refresh_rate'] = refresh_rate
-        if nth is not None:
-            self.subplot_options[position]['nth'] = nth
 
         if not check_subplot_options_validity(self.subplot_options, self.plots):
             raise ValueError("Invalid subplot options. Check the `rowspan` and `colspan` values.")

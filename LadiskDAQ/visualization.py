@@ -369,7 +369,7 @@ class Visualization:
         """Configure a subplot at position ``position``.
         
         :param position: tuple of two integers, the position of the subplot in the layout.
-        :param xlim: tuple of two floats, the limits of the x-axis.
+        :param xlim: tuple of two floats, the limits of the x-axis. If not given, the limits are set to ``(0, 1)``.
         :param ylim: tuple of two floats, the limits of the y-axis.
         :param t_span: int/float, the length of the time axis. If this option is not specified, it is computed from the ``xlim``.
         :param axis_style: string, the style of the axis. Can be "linear", "semilogx", "semilogy" or "loglog".

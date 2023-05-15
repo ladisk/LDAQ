@@ -136,7 +136,7 @@ To configure the subplots, the ``config_subplot`` method is used:
 The valid arguments are:
 
 - ``position``: the position of the subplot in the plot. 
-- ``xlim``: the x-axis limits of the subplot. If ``None``, the limits are set automatically.
+- ``xlim``: the x-axis limits of the subplot. If ``None``, the limits are set to ``(0, 1)``.
 - ``ylim``: the y-axis limits of the subplot. If ``None``, the limits are set automatically.
 - ``t_span``: the time span of the data to be plotted. If ``None``, the time span is computed based on the ``xlim``. The ``t_span`` defines the length of the data passed to a function.
 - ``axis_style``: the style of the axis. The valid options are ``'linear'``, ``'semilogy'``, ``'semilogx'`` and ``'loglog'``.

@@ -246,7 +246,7 @@ class Visualization:
         self.show_legend = True
         self.refresh_rate = refresh_rate
         self.plots = None
-        self.subplot_options = None
+        self.subplot_options = {}
         
         self.update_refresh_rate = 10 # [ms] interval of calling the plot_update function
         self.max_points_to_refresh = 1e4
@@ -379,9 +379,6 @@ class Visualization:
         :param refresh_rate: int, the refresh rate of the subplot in milliseconds.
             If this option is not specified, the refresh rate defined in the :class:`Visualization` is used.
         """
-        if self.subplot_options is None:
-            self.subplot_options = {}
-
         self.subplot_options[position] = {}
 
         if xlim is not None:
@@ -452,10 +449,9 @@ class Visualization:
     def check_subplot_options(self):
         self.positions = list(set([plot['pos'] for plot in [plot for plots in self.plots.values() for plot in plots]]))[::-1]
 
-        if self.subplot_options is None:
-            # Make default subplot options.
-            self.subplot_options = {}
-            for pos in self.positions:
+        # Make sure that all subplots have options defined.
+        for pos in self.positions:
+            if pos not in self.subplot_options.keys():
                 self.subplot_options[pos] = {"xlim": (0, 1), "axis_style": "linear"}
 
         for pos, options in self.subplot_options.items():

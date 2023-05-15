@@ -60,30 +60,17 @@ Adjust the ``layout`` and ``subplot_options`` to your needs. See `visualization 
     acq = LadiskDAQ.NIAcquisition(input_task_name, acquisition_name=input_task_name)
 
     # Live visualization
-    # Define the layout (adjust to your needs)
-    layout = {
-        input_task_name: {
-            (0, 0): [0],
-            (1, 0): [0],
-        }
-    }
-
-    # Define the subplot options (adjust to your needs)
-    subplot_options = {
-        (0, 0): {
-            'xlim': (0, 1),
-            'ylim': (-5, 5),
-            'axis_style': 'linear'
-        },
-        (1, 0): {
-            'xlim': (0, 1),
-            'ylim': (-5, 5),
-            'axis_style': 'linear'
-        }
-    }
 
     # Create the Visualization object
     vis = LadiskDAQ.Visualization(layout, subplot_options, nth="auto")
+
+    # Add lines
+    vis.add_lines((0, 0), source=input_task_name, channels=0)
+    vis.add_lines((1, 0), source=input_task_name, channels=1)
+
+    # Edit subplot options
+    vis.config_subplots((0, 0), xlim=(0, 1), ylim=(-5, 5), axis_style='linear')
+    vis.config_subplots((1, 0), xlim=(0, 1), ylim=(-5, 5), axis_style='linear')
 
 
     # Create the Core object
@@ -133,30 +120,17 @@ To use multiple acquisition and generation sources, define them separately and p
     gen = LadiskDAQ.NIGenerator(output_task_name, signal)
 
     # Live visualization
-    # Define the layout (adjust to your needs)
-    layout = {
-        input_task_name: {
-            (0, 0): [0],
-            (1, 0): [0],
-        }
-    }
-
-    # Define the subplot options (adjust to your needs)
-    subplot_options = {
-        (0, 0): {
-            'xlim': (0, 1),
-            'ylim': (-5, 5),
-            'axis_style': 'linear'
-        },
-        (1, 0): {
-            'xlim': (0, 1),
-            'ylim': (-5, 5),
-            'axis_style': 'linear'
-        }
-    }
 
     # Create the Visualization object
     vis = LadiskDAQ.Visualization(layout, subplot_options, nth="auto")
+
+    # Add lines
+    vis.add_lines((0, 0), source=input_task_name, channels=0)
+    vis.add_lines((1, 0), source=input_task_name, channels=1)
+
+    # Edit subplot options
+    vis.config_subplots((0, 0), xlim=(0, 1), ylim=(-5, 5), axis_style='linear')
+    vis.config_subplots((1, 0), xlim=(0, 1), ylim=(-5, 5), axis_style='linear')
 
 
     # Create the Core object

@@ -12,13 +12,13 @@ import types
 import keyboard
 from pyTrigger import RingBuffer2D
 
-from .visualization_helpers import auto_nth_point, check_subplot_options_validity, _fun_fft, _fun_frf_amp, _fun_frf_phase, _fun_coh
+from .visualization_helpers import compute_nth, check_subplot_options_validity, _fun_fft, _fun_frf_amp, _fun_frf_phase, _fun_coh
 
 INBUILT_FUNCTIONS = {'fft': _fun_fft, 'frf_amp': _fun_frf_amp, 'frf_phase': _fun_frf_phase, 'coh': _fun_coh}
     
     
 class Visualization:
-    def __init__(self, layout=None, subplot_options=None, nth='auto', refresh_rate=100):
+    def __init__(self, refresh_rate=100):
         """Live visualization of the measured data.
 
         For more details, see [documentation](https://ladiskdaq.readthedocs.io/en/latest/visualization.html).
@@ -242,53 +242,130 @@ class Visualization:
         Note that the subplot at location (0, 1) must be omitted, since it is spanned by the subplot at location (0, 0).
         The subplot at location (0, 1) must also be omitted in the ``layout``.
         """
-        self.layout = layout
-        self.subplot_options = subplot_options
         self.max_plot_time = 1
         self.show_legend = True
-        self.nth = nth
         self.refresh_rate = refresh_rate
+        self.plots = None
+        self.subplot_options = None
         
         self.update_refresh_rate = 10 # [ms] interval of calling the plot_update function
         self.max_points_to_refresh = 1e4
-        
-        # check validity of the layout (all keys must be tuples or all keys must be strings)
-        if self.layout is not None:
-            if any(isinstance(k, tuple) for k in self.layout.keys()) and not all(isinstance(k, tuple) for k in self.layout.keys()):
-                raise ValueError("Invalid layout.")
-
-        # check validity of the subplot_options (rowspan/colspan)
-        if self.subplot_options is not None and self.layout is not None:
-            if not check_subplot_options_validity(self.subplot_options, self.layout):
-                raise ValueError("Invalid subplot options. Check the `rowspan` and `colspan` values.")
     
 
-    def add_lines(self, source, position, channels, function=None):
+    def add_lines(self, position, source, channels, function=None, nth="auto"):
         """Build the layout dictionary.
 
-        :param source: string, the source of the data. Name that was given to the ``Acquisition`` object.
         :param position: tuple, the position of the subplot. Example: ``(0, 0)``.
+        :param source: string, the source of the data. Name that was given to the ``Acquisition`` object.
         :param channels: list of integers, the channels from the ``source`` to be plotted. Can also be a list of tuples
             of integers to plot channel vs. channel. Example: ``[(0, 1), (2, 3)]``.
         :param function: function, the function to be applied to the data before plotting. If ``channels`` is a list of tuples,
             the function is applied to each tuple separately.
 
-        For more information, see :class:`Visualization`.
+        Channels
+        ~~~~~~~~
+
+        If the ``channels`` argument is an integer, the data from the channel with the specified index will be plotted.
+
+        If the ``channels`` argument is a list of integers, the data from the channels with the specified indices will be plotted:
+
+        >>> vis.add_lines(position=(0, 0), source='DataSource', channels=[0, 1])
+
+        To plot channel vs. channel the ``channels`` argument is a tuple of two integers:
+
+        >>> vis.add_lines(position=(0, 0), source='DataSource', channels=(0, 1))
+
+        The first integer is the index of the x-axis and the second integer is the index of the y-axis.
+
+        Multiple channel vs. channel plots can be added to the same subplot:
+
+        >>> vis.add_lines(position=(0, 0), source='DataSource', channels=[(0, 1), (2, 3)])
+
+        The ``function`` argument
+        ~~~~~~~~~~~~~~~~~~~~~~~~
+
+        The data can be processed on-the-fly by a specified function.
+
+
+        The ``function`` can be specified by the user. To use the built-in functions, a string is passed to the ``function`` argument. 
+        An example of a built-in function is "fft" which computes the [Fast Fourier Transform](https://numpy.org/doc/stable/reference/generated/numpy.fft.rfft.html)
+        of the data with indices 0 and 1:
+
+        >>> vis.add_lines(position=(0, 0), source='DataSource', channels=[0, 1], function='fft')
+
+        To build a custom function, the function must be defined as follows:
+
+        >>> def function(self, channel_data):
+                '''
+                :param self: instance of the acquisition object (has to be there so the function is called properly)
+                :param channel_data: channel data
+                '''
+                return channel_data**2
+
+        The ``self`` argument in the custom function referes to the instance of the acquisition object. 
+        This connection can be used to access the properties of the acquisition object, e.g. sample rate.
+        The ``channel_data`` argument is a list of numpy arrays, where each array corresponds to the data from one channel. 
+        The data is acquired in the order specified in the ``channels`` argument.
+
+        For the example above, the custom function is called for each channel separetely, the ``channel_data`` is a one-dimensional numpy array. 
+        To add mutiple channels to the ``channel_data`` argument, the ``channels`` argument is modified as follows:
+
+        >>> vis.add_lines(position=(0, 0), source='DataSource', channels=[(0, 1)], function=function)
+
+        The ``function`` is now passed the ``channel_data`` with shape ``(N, 2)`` where ``N`` is the number of samples.
+        The function can also return a 2D numpy array with shape ``(N, 2)`` where the first column is the x-axis and the second column is the y-axis.
+        An example of such a function is:
+
+        >>> def function(self, channel_data):
+                '''
+                :param self: instance of the acquisition object (has to be there so the function is called properly)
+                :param channel_data: 2D channel data array of size (N, 2)
+                :return: 2D array np.array([x, y]).T that will be plotted on the subplot.
+                '''
+                ch0, ch1 = channel_data.T
+                x =  np.arange(len(ch1)) / self.acquisition.sample_rate # time array
+                y = ch1**2 + ch0 - 10
+                return np.array([x, y]).T
+
         """
-        if self.layout is None:
-            self.layout = {}
-        if source not in self.layout.keys():
-            self.layout[source] = {}
+        if not isinstance(source, str):
+            raise ValueError("The source must be a string.")
+        if not isinstance(position, tuple):
+            raise ValueError("The position must be a tuple.")
+        if not (isinstance(channels, list) or isinstance(channels, tuple) or isinstance(channels, int)):
+            raise ValueError("The channels must be a list, tuple or an integer.")
+        if not (isinstance(function, types.FunctionType) or function in INBUILT_FUNCTIONS.keys() or function is None):
+            raise ValueError("The function must be a function or a string.")
+        if not (isinstance(nth, int) or nth == 'auto'):
+            raise ValueError("The nth must be an integer or 'auto'.")
 
-        if position not in self.layout[source].keys():
-            self.layout[source][position] = channels
-            if function is not None:
-                self.layout[source][position].append(function)
+        if self.plots is None:
+            self.plots = {}
+        
+        if source not in self.plots.keys():
+            self.plots[source] = []
+
+        if isinstance(channels, int) or isinstance(channels, tuple):
+            channels = [channels]
+
+        if isinstance(function, types.FunctionType):
+            apply_function = function
+        elif function in INBUILT_FUNCTIONS.keys():
+            apply_function = INBUILT_FUNCTIONS[function]
         else:
-            raise ValueError(f"Source ``{source}`` at position ``{position}`` already exists in the layout.")
+            apply_function = lambda x, y: y
+        
+        for channel in channels:
+            self.plots[source].append({
+                'pos': position,
+                'channels': channel,
+                'apply_function': apply_function,
+                'nth': nth,
+                'since_refresh': 1e40,
+            })
 
 
-    def config_subplot(self, position, xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1, refresh_rate=None, nth=None):
+    def config_subplot(self, position, xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1, refresh_rate=None):
         """Configure a subplot at position ``position``.
         
         :param position: tuple of two integers, the position of the subplot in the layout.
@@ -301,7 +378,6 @@ class Visualization:
         :param colspan: int, the number of columns the subplot spans. Default is 1.
         :param refresh_rate: int, the refresh rate of the subplot in milliseconds.
             If this option is not specified, the refresh rate defined in the :class:`Visualization` is used.
-        :param nth: int, same as the ``nth`` argument in :class:`Visualization`.
         """
         if self.subplot_options is None:
             self.subplot_options = {}
@@ -324,26 +400,22 @@ class Visualization:
             self.subplot_options[position]['colspan'] = colspan
         if refresh_rate is not None:
             self.subplot_options[position]['refresh_rate'] = refresh_rate
-        if nth is not None:
-            self.subplot_options[position]['nth'] = nth
 
-        if not check_subplot_options_validity(self.subplot_options, self.layout):
+        if not check_subplot_options_validity(self.subplot_options, self.plots):
             raise ValueError("Invalid subplot options. Check the `rowspan` and `colspan` values.")
 
 
+    def check(self):
+        self.check_subplot_options()
+
+        self.check_added_lines()
+
+    
     def run(self, core):
         self.core = core
         # self.core.is_running_global = False
 
-        # Check if the layout is valid.
-        self.check_layout()
-
-        # Check if the subplot options are valid.
-        self.check_subplot_options()
-
-        # Compute the nth point for each subplot.
-        if not isinstance(self.nth, dict):
-            self.nth = auto_nth_point(self.layout, self.subplot_options, self.core, max_points_to_refresh=self.max_points_to_refresh, known_nth=self.nth)
+        self.check()
 
         # Create the ring buffers for each acquisition.
         self.create_ring_buffers()
@@ -357,31 +429,34 @@ class Visualization:
             self.main_window = MainWindow(self, self.core, self.app)
             self.main_window.show()
             self.app.exec_()
+
+
+    def check_added_lines(self):
+        if self.plots is None:
+            raise ValueError("No plots were added to the visualization. Use the `add_lines` method to add plots.")
+
+        n_lines = sum([len(plot_channels) for plot_channels in self.plots.values()])
         
-        
-    def check_layout(self):
-        if self.layout is None:
-            # Make default layout.
-            self.layout = {}
-            for source in self.core.acquisition_names:
-                acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
-                self.layout[source] = {(0, 0): list(range(acq.n_channels))}
-        else:
-            if all(isinstance(k, tuple) for k in self.layout.keys()):
-                # If all keys are tuples, then the layout is for a single acquisition.
-                self.layout = {self.core.acquisition_names[0]: self.layout}
-            else:
-                # If not, then the layout is for multiple acquisitions.
-                pass
+        if hasattr(self, "core"):
+            # Determine the nth value for each line.
+            for source, plot_channels in self.plots.items():
+                acq_index = self.core.acquisition_names.index(source)
+                sample_rate = self.core.acquisitions[acq_index].sample_rate
+                for i, plot_channel in enumerate(plot_channels):
+                    if plot_channel['nth'] == 'auto':
+                        pos = plot_channel['pos']
+                        t_span = self.subplot_options[pos]['t_span']
+                        self.plots[source][i]['nth'] = compute_nth(self.max_points_to_refresh, t_span, n_lines, sample_rate)
 
 
     def check_subplot_options(self):
+        self.positions = list(set([plot['pos'] for plot in [plot for plots in self.plots.values() for plot in plots]]))[::-1]
+
         if self.subplot_options is None:
             # Make default subplot options.
             self.subplot_options = {}
-            for source in self.core.acquisition_names:
-                for pos in self.layout[source].keys():
-                    self.subplot_options[pos] = {"xlim": (0, 1), "axis_style": "linear"}
+            for pos in self.positions:
+                self.subplot_options[pos] = {"xlim": (0, 1), "axis_style": "linear"}
 
         for pos, options in self.subplot_options.items():
             # Check that all subplots have `t_span` and `xlim` defined.
@@ -404,9 +479,9 @@ class Visualization:
 
     def create_ring_buffers(self):
         self.ring_buffers = {}
-        for source in self.layout.keys():
+        for source in self.plots.keys():
             acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
-            rows = int(max([self.subplot_options[pos]['t_span'] * acq.sample_rate for pos in self.layout[source].keys()]))
+            rows = int(max([self.subplot_options[pos]['t_span'] * acq.sample_rate for pos in self.positions]))
             self.ring_buffers[source] = RingBuffer2D(rows, acq.n_channels)
 
 
@@ -427,7 +502,6 @@ class MainWindow(QMainWindow):
         self.measurement_stopped = False
         self.freeze_plot = False
 
-        self.layout = self.vis.layout
         self.setWindowTitle('Data Acquisition and Visualization')
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -534,98 +608,83 @@ class MainWindow(QMainWindow):
         pg.setConfigOption('foreground', 'k')
 
         self.time_start = time.time()
-        self.plots = {}
         grid_layout = pg.GraphicsLayoutWidget()
 
         self.layout_widget.addWidget(grid_layout)
         self.subplots = {}
-        self.legends = []
+        self.legends = {}
 
         color_dict = {}
-        for source, positions in self.layout.items():
+        ##################################################################
+        
+        # Create subplots
+        for pos in self.vis.positions:
+            if pos not in self.subplots.keys():
+                if 'rowspan' in self.vis.subplot_options[pos].keys():
+                    rowspan = self.vis.subplot_options[pos]['rowspan']
+                else:
+                    rowspan = 1
+                
+                if 'colspan' in self.vis.subplot_options[pos].keys():
+                    colspan = self.vis.subplot_options[pos]['colspan']
+                else:
+                    colspan = 1
+
+                if 'title' in self.vis.subplot_options[pos].keys():
+                    title = self.vis.subplot_options[pos]['title']
+                else:
+                    title = None
+
+                self.subplots.update({pos: grid_layout.addPlot(*pos, rowspan=rowspan, colspan=colspan, title=title)})
+
+                if pos in self.vis.subplot_options.keys():
+                    options = self.vis.subplot_options[pos]
+                    transform_lim_x = lambda x: x
+                    transform_lim_y = lambda x: x
+                    if 'axis_style' in options:
+                        if options['axis_style'] == 'semilogy':
+                            self.subplots[pos].setLogMode(y=True)
+                            transform_lim_y = lambda x: np.log10(x)
+                        elif options['axis_style'] == 'semilogx':
+                            self.subplots[pos].setLogMode(x=True)
+                            transform_lim_x = lambda x: np.log10(x)
+                        elif options['axis_style'] == 'loglog':
+                            self.subplots[pos].setLogMode(x=True, y=True)
+                        elif options['axis_style'] == 'linear':
+                            self.subplots[pos].setLogMode(y=False)
+
+                    if 'xlim' in options:
+                        self.subplots[pos].setXRange(transform_lim_x(options['xlim'][0]), transform_lim_x(options['xlim'][1]))
+                    if 'ylim' in options:
+                        self.subplots[pos].setYRange(transform_lim_y(options['ylim'][0]), transform_lim_y(options['ylim'][1]))
+                
+        # Create lines for each plot channel
+        for source, plot_channels in self.vis.plots.items():
             channel_names = self.core.acquisitions[self.core.acquisition_names.index(source)].channel_names
             color_dict.update({ch: ind+len(color_dict) for ind, ch in enumerate(channel_names)})
 
-            plot_channels = []
-            for pos, channels in positions.items():
-                if pos not in self.subplots.keys():
-                    if 'rowspan' in self.vis.subplot_options[pos].keys():
-                        rowspan = self.vis.subplot_options[pos]['rowspan']
-                    else:
-                        rowspan = 1
-                    
-                    if 'colspan' in self.vis.subplot_options[pos].keys():
-                        colspan = self.vis.subplot_options[pos]['colspan']
-                    else:
-                        colspan = 1
+            for i, plot_channel in enumerate(plot_channels):
+                pos = plot_channel['pos']
+                ch = plot_channel['channels']
+                if isinstance(ch, tuple):
+                    x, y = ch
+                    line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[y]], width=2), name=f"{channel_names[x]} vs. {channel_names[y]}")
+                    self.vis.plots[source][i]['line'] = line
 
-                    if 'title' in self.vis.subplot_options[pos].keys():
-                        title = self.vis.subplot_options[pos]['title']
-                    else:
-                        title = None
+                elif isinstance(ch, int):
+                    line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[ch]], width=2), name=f"{channel_names[ch]}")
+                    self.vis.plots[source][i]['line'] = line
 
-                    self.subplots[pos] = grid_layout.addPlot(*pos, rowspan=rowspan, colspan=colspan, title=title)
-
-                    if self.vis.subplot_options is not None and pos in self.vis.subplot_options:
-                        options = self.vis.subplot_options[pos]
-                        transform_lim_x = lambda x: x
-                        transform_lim_y = lambda x: x
-                        if 'axis_style' in options:
-                            if options['axis_style'] == 'semilogy':
-                                self.subplots[pos].setLogMode(y=True)
-                                transform_lim_y = lambda x: np.log10(x)
-                            elif options['axis_style'] == 'semilogx':
-                                self.subplots[pos].setLogMode(x=True)
-                                transform_lim_x = lambda x: np.log10(x)
-                            elif options['axis_style'] == 'loglog':
-                                self.subplots[pos].setLogMode(x=True, y=True)
-                            elif options['axis_style'] == 'linear':
-                                self.subplots[pos].setLogMode(y=False)
-
-                        if 'xlim' in options:
-                            self.subplots[pos].setXRange(transform_lim_x(options['xlim'][0]), transform_lim_x(options['xlim'][1]))
-                        if 'ylim' in options:
-                            self.subplots[pos].setYRange(transform_lim_y(options['ylim'][0]), transform_lim_y(options['ylim'][1]))
-                
-                apply_function = lambda vis, x: x
-                for ch in channels:
-                    if isinstance(ch, types.FunctionType):
-                        apply_function = ch
-                    elif ch in INBUILT_FUNCTIONS.keys():
-                        apply_function = INBUILT_FUNCTIONS[ch]
-                    
-                for ch in channels:
-                    if not isinstance(ch, types.FunctionType) and ch not in INBUILT_FUNCTIONS.keys():
-                        plot_channels.append({
-                            'pos': pos,
-                            'apply_function': apply_function,
-                            'since_refresh': 1e40, # a very large number to ensure that the first refresh will always be done
-                        })
-
-                    if isinstance(ch, tuple):
-                        x, y = ch
-                        line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[y]], width=2), name=f"{channel_names[x]} vs. {channel_names[y]}", clear=True)
-                        plot_channels[-1]['line'] = line
-                        plot_channels[-1]['channels'] = (x, y)
-                        plot_channels[-1]['nth'] = self.vis.nth[source][pos][ch[0]]
-
-                    elif isinstance(ch, int):
-                        line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[ch]], width=2), name=f"{channel_names[ch]}")
-                        plot_channels[-1]['line'] = line
-                        plot_channels[-1]['channels'] = (ch,)
-                        plot_channels[-1]['nth'] = self.vis.nth[source][pos][ch]
-
-                
-                if self.vis.show_legend:
-                    # Add legend to the subplot
+                # Add legend to the subplot
+                if pos not in self.legends.keys():
                     legend = self.subplots[pos].addLegend()
                     for item in self.subplots[pos].items:
                         if isinstance(item, pg.PlotDataItem):
                             legend.addItem(item, item.opts['name'])
-                    self.legends.append(legend)
+                    self.legends[pos] = legend
 
-            self.plots[source] = plot_channels
-
+        self.plots = self.vis.plots
+        
 
     def init_timer(self):
         self.timer = QTimer()
@@ -693,9 +752,9 @@ class MainWindow(QMainWindow):
 
         xlim = self.vis.subplot_options[plot_channel['pos']]['xlim']
 
-        if len(plot_channel['channels']) == 1: 
+        if isinstance(plot_channel['channels'], int):
             # plot a single channel
-            ch = plot_channel['channels'][0]
+            ch = plot_channel['channels']
             fun_return = plot_channel['apply_function'](self.vis, new_data[-t_span_samples:, ch])
 
             if len(fun_return.shape) == 1: 
@@ -716,7 +775,7 @@ class MainWindow(QMainWindow):
             
             plot_channel['line'].setData(x[mask], y[mask])
 
-        elif len(plot_channel['channels']) == 2: 
+        elif isinstance(plot_channel['channels'], tuple): 
             # channel vs. channel
             fun_return = plot_channel['apply_function'](self.vis, new_data[-t_span_samples:, plot_channel['channels']])
             x, y = fun_return.T
@@ -791,7 +850,7 @@ class MainWindow(QMainWindow):
         else:
             self.vis.show_legend = True
 
-        for legend in self.legends:
+        for pos, legend in self.legends.items():
             legend.setVisible(self.vis.show_legend)
 
 

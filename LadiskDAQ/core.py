@@ -56,20 +56,26 @@ class Core():
         has been defined, it will run in a separate thread.
 
         :param measurement_duration: (float) measurement duration in seconds, from trigger event of any of the sources. 
-                                            If None, the measurement runs forever until manually stopped. Default is None.
+                                            If None, the measurement runs forever until manually stopped. Alternatively, if
+                                            measurement duration is specified with set_trigger() method and the measurement_duration is 
+                                            None, measurement will take place for duration specified in set_trigger(). Default is None.
         :param autoclose: (bool) whether the sources should close automatically or not. Default is True.
         :param autostart: (bool): whether the measurement should start automatically or not. If True, start as soon as all the 
                                             acquisition sources are ready. Defaults to False.
         :param run_name: (str) name of the run. This name is used for periodic saving. Default is "Run".
         :param save_interval: (float) data is saved every 'save_periodically' seconds. Defaults to None,
                                     meaning data is not saved. The time stamp on measured data will equal to
-                                    beginning of the measurement.
+                                    beginning of the measurement. Acquisition ringbuffers are set to be 1.5x the save interval.
         :param root: (str) root directory where measurements are saved. Default is empty string.
         :param verbose: (int) 0 (print nothing), 1 (print status) or 2 (print status and hotkey legend). Default is 2.
         """
+        if not hasattr(self, 'measurement_duration'):
+            self.measurement_duration = measurement_duration
+        elif measurement_duration is not None:
+            self.measurement_duration = measurement_duration
+            
         self.run_name = run_name
         self.verbose  = verbose
-        self.measurement_duration = measurement_duration
         self.save_interval = save_interval
         self.root = root
         self.autoclose = autoclose
@@ -79,7 +85,7 @@ class Core():
         self.first = True # for printing trigger the first time.
         
         if self.visualization is None:
-            self.keyboard_hotkeys_setup()
+            self._keyboard_hotkeys_setup()
             if self.verbose == 2:
                 self._print_table()
         else:
@@ -103,6 +109,13 @@ class Core():
             acquisition.reset_trigger()
             if self.measurement_duration is not None:
                 acquisition.update_trigger_parameters(duration=self.measurement_duration, duration_unit="seconds")
+            if self.save_interval is not None:
+                # update ringbuffer sizes to 1.2x the save size:
+                acquisition.set_continuous_mode(True, measurement_duration=self.measurement_duration)
+                acquisition.update_trigger_parameters(duration=1.2*self.save_interval, duration_unit="seconds")
+            else:
+                acquisition.set_continuous_mode(False)
+                
             if autostart:
                 acquisition.update_trigger_parameters(level=1e40)   
                 
@@ -124,6 +137,7 @@ class Core():
         
         # periodic data saving:
         if self.save_interval is not None:
+            # create saving thread
             thread_periodic_saving = threading.Thread(target=self._save_measurement_periodically)
             self.thread_list.append(thread_periodic_saving)
             
@@ -150,7 +164,7 @@ class Core():
             print('Measurement finished.')
         
         if self.visualization is None:
-            self.keyboard_hotkeys_remove()
+            self._keyboard_hotkeys_remove()
     
     def _check_events(self):
         """
@@ -163,8 +177,7 @@ class Core():
 
         Args:
             None
-
-
+            
         Returns:
             None
         """
@@ -249,6 +262,9 @@ class Core():
             Expect delay between different acquisition sources due to unsynchronized sources. 
 
         """
+        duration_unit = duration_unit.lower()
+        trigger_type  = trigger_type.lower()
+        
         if duration_unit=="samples":
             duration = int(duration)
             
@@ -283,14 +299,21 @@ class Core():
                 else:
                    raise KeyError("Invalid duration unit specified. Only 'seconds' and 'samples' are possible.")
             
-    def keyboard_hotkeys_setup(self):
+            if duration_unit == "seconds":
+                self.measurement_duration = duration
+            elif duration_unit == "samples":
+                self.measurement_duration = duration/source_sample_rate
+            else:
+                pass # should not happen
+            
+    def _keyboard_hotkeys_setup(self):
         """Adds keyboard hotkeys for interaction.
         """
         id1 = keyboard.add_hotkey('s', self.start_acquisition)
         id2 = keyboard.add_hotkey('q', self.stop_acquisition_and_generation)
         self.hotkey_ids = [id1, id2]
         
-    def keyboard_hotkeys_remove(self):
+    def _keyboard_hotkeys_remove(self):
         """Removes all keyboard hotkeys defined by 'keyboard_hotkeys_setup'.
         """
         for id in self.hotkey_ids:
@@ -325,7 +348,7 @@ class Core():
         table.columns.header = ["HOTKEY", "DESCRIPTION"]
         print(table)
      
-    def get_measurement_dict_PLOT(self):
+    def _get_measurement_dict_PLOT(self):
         """
         Returns only NEW acquired data from all sources.
         
@@ -395,50 +418,75 @@ class Core():
             pickle.dump(self.measurement_dict, f, protocol=-1)
 
         return path  
-        
+     
     def _save_measurement_periodically(self):
         """Periodically saves the measurement data."""
         name = self.run_name
         root = self.root
-        
+
         start_time = time.time()
-        file_created = False     
-            
+        file_index = 0
+        file_created = False
+
         running = True
-        delay_saving = 0.5 # seconds
-        delay_start  = time.time()
-        
-        while running:            
-            time.sleep(0.2)  
-                      
+        delay_saving = 0.5  # seconds
+        delay_start = time.time()
+
+        while running:
+            time.sleep(0.2)
+
             # implemented time delay:
             if self.is_running_global:
                 delay_start = time.time()
-            elif time.time()-delay_start > delay_saving:
+            elif time.time() - delay_start > delay_saving:
                 running = False
             else:
                 pass
-            
-            # periodic saving: 
+
+            # periodic saving:
             if self.triggered_globally:
                 elapsed_time = time.time() - start_time
                 if elapsed_time >= self.save_interval:
                     start_time = time.time()
-                    
+
                     if not file_created:
                         now = datetime.datetime.now()
                         file_name = f"{now.strftime('%Y%m%d_%H%M%S')}_{name}.pkl"
                         file_created = True
-                        
-                    self._open_and_save(file_name, root)
-                    
-        time.sleep(0.5)
-        self._open_and_save(file_name, root)
-                        
-    def _open_and_save(self, file_name, root):
+
+                    file_index = self._open_and_save(file_name, root, file_index)
+
+        if self.triggered_globally:
+            time.sleep(0.5)
+            self._open_and_save(file_name, root, file_index)
+
+    def _open_and_save(self, file_name_base, root, file_index):
         """Open existing file and save new data."""
+        max_file_size = 100 * 1024 * 1024  # 100 MB
+
+        file_name_base, ext = os.path.splitext(file_name_base)
+        file_name = f"{file_name_base}_{file_index}{ext}"
         file_path = os.path.join(root, file_name)
+
         # Load existing data
+        if os.path.exists(file_path):
+            current_file_size = os.path.getsize(file_path)
+        else:
+            current_file_size = 0
+
+        # Check if file size exceeds 100 MB, create a new file with incremented index
+        if current_file_size >= max_file_size:
+            file_index += 1 # update file index
+            
+            # get previous times for each acquisition:
+            data = load_measurement(file_name, root)
+            time_last_dict = {acq.acquisition_name: data[acq.acquisition_name]["time"][-1] for acq in self.acquisitions}
+        else:
+            time_last_dict = {acq.acquisition_name: 0 for acq in self.acquisitions}
+            
+        file_name = f"{file_name_base}_{file_index}{ext}"
+        file_path = os.path.join(root, file_name)
+        
         if os.path.exists(file_path):
             data = load_measurement(file_name, root)
         else:
@@ -448,32 +496,37 @@ class Core():
         for acq in self.acquisitions:
             name = acq.acquisition_name
             if acq.is_triggered():
-                measurement = acq.get_measurement_dict(N_points = "new")
-                
+                measurement = acq.get_measurement_dict(N_points="new")
+
                 if name not in data:
                     data[name] = measurement
+                    data[name]['time'] += time_last_dict[name] + 1 / acq.sample_rate
+        
                 else:
                     new_data = measurement['data']
-                    
+
                     if len(data[name]['time']) > 0:
                         time_last = data[name]['time'][-1]
                     else:
-                        time_last = 0    
-                        
-                    new_time = measurement['time'] + time_last + 1/acq.sample_rate
-                    
+                        time_last = time_last_dict[name]
+
+                    new_time = measurement['time'] + time_last + 1 / acq.sample_rate
+
                     data[name]['data'] = np.concatenate((data[name]['data'], new_data), axis=0)
                     data[name]['time'] = np.concatenate((data[name]['time'], new_time), axis=0)
 
         # Save updated data
         with open(file_path, 'wb') as f:
-            pickle.dump(data, f, protocol=-1)     
-            print("saved.")  
+            pickle.dump(data, f, protocol=-1)
+            #print("saved.")
+
+        return file_index
 
 # open measurements:
-def load_measurement(name, directory='' ):
+def load_measurement(name: str, directory: str = ''):
     """
     Loads a measurement from a pickle file.
     """
-    with open(directory+'/' + name, 'rb') as f:
+    file_path = os.path.join(directory, name)
+    with open(file_path, 'rb') as f:
         return pickle.load(f)

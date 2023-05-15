@@ -14,116 +14,70 @@ Live visualization of the measurments is possible by adding the :class:`LadiskDA
 
 .. code-block:: python
 
-    vis = LadiskDAQ.Visualization(
-        layout=layout, 
-        subplot_options=subplot_options, 
-        nth="auto", 
-        refresh_rate=10
-    )
+    vis = LadiskDAQ.Visualization(refresh_rate=100)
 
-- ``layout``: dictionary that defines the layout of the live plot. See the :ref:`layout section <layout>` for more details.
-- ``subplot_options``: set the properties of each subplot, defined with the ``layout`` argument. See :ref:`subplot_options <subplot_options>` for more details.
-- ``nth``: defines the number of samples that are plotted. If ``nth`` is set to "auto", the number of samples is automatically determined based on the number 
-  of channels and the sample rate of each acquisition source. The effect of ``nth`` is that every ``nth`` sample is plotted.
-  The ``nth`` argument can also be set for each subplot separetely (see :ref:`subplot_options <subplot_options>` for more details).
-- ``refresh_rate``: defines the refresh rate of the live plot in milliseconds. ``refresh_rate`` can also be defined for each 
-  subplot separetely (see :ref:`subplot_options <subplot_options>` for more details).
+``refresh_rate``: defines the refresh rate of the live plot in milliseconds. ``refresh_rate`` can also be defined for each 
+subplot separetely (see :ref:`subplot_options <subplot_options>` for more details).
 
-.. _layout:
-The ``layout``
---------------
+Adding lines to the plot
+------------------------
 
-The layout of the live plot is set by the ``layout`` argument. An example of the ``layout`` argument is:
+To show plot the data, the lines have to be added to the plot. The number of subplots is also determined in this step.
 
 .. code-block:: python
 
-    layout = {
-        'DataSource': {
-            (0, 0): [0, 1],
-            (1, 0): [2, 3],
-        }
-    }
+    vis.add_lines(position=(0, 0), source='DataSource', channels=0, function=None, nth=10)
 
-This is a layout for a single acquisition source with name "DataSource". 
-When multiple sources are used, the name of the source is used as the key in the ``layout`` dictionary. 
-The value at each acquisition source is a dictionary where each key is a tuple of two integers. 
-The first integer is the row number and the second integer is the column number of the subplots.
+The arguments are:
 
-For the given example, the plot will have two subplots, each in one row.
+- ``position``: the position of the subplot in the plot. The position is defined as a tuple of two integers, where the first integer is the row number and the second integer is the column number of the subplot.
+- ``source``: the name of the acquisition source. The name is defined in the acquisition class.
+- ``channels``: the indices of the channels to be plotted. See :ref:`channels <channels_argument>` for more details.
+- ``function``: the function to be applied to the data. This can be a built-in function or a custom function. See :ref:`the function argument <function_argument>` for more details.
+- ``nth``: the number of data points to be plotted. If ``nth`` is set to 10, every 10th data point will be plotted. This is useful when the data is acquired at a high sample rate and the plot is updated at a low refresh rate.
+  By default, ``nth`` is set to ``'auto'``. In this case, the number of data points to be plotted is determined automatically.
 
-For each subplot, the data is then specified. 
-If the value is a list of integers, each integer corresponds to the index in the acquired data.
-For example, for the subplot defined with:
 
-.. code-block:: python
+.. _channels_argument:
+Channels
+~~~~~~~~
 
-    (0, 0): [0, 1]
+If the ``channels`` argument is an integer, the data from the channel with the specified index will be plotted.
 
-data with indices 0 and 1 will be plotted in the subplot at location (0, 0).
-
-Plotting from multiple sources
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-When plotting from multiple sources, the layout is defined:
+If the ``channels`` argument is a list of integers, the data from the channels with the specified indices will be plotted:
 
 .. code-block:: python
 
-    layout = {
-        'DataSource1': {
-            (0, 0): [0, 1],
-            (1, 0): [2, 3],
-        },
-        'DataSource2': {
-            (0, 0): [0],
-            (0, 1): [1]
-            (1, 1): [2, 3],
-        }
-    }
+    vis.add_lines(position=(0, 0), source='DataSource', channels=[0, 1])
 
-Notice the different names of the sources. Each name corresponds to the name of the acquisition source, defined in the acquisition class 
-(see `first example <simple_start.html>`_ and `using multiple sources <multiple_sources.html>`_ example).
+To plot channel vs. channel the ``channels`` argument is a tuple of two integers:
 
-It is important to note that the subplot locations are the same for all acquisition sources, but the indices of the data are different. 
+.. code-block:: python
 
-For example, the subplot at location (0, 0)
-will containt the plots from source "DataSource1" with indices 0 and 1, and the plots from source "DataSource2" with indices 0.
+    vis.add_lines(position=(0, 0), source='DataSource', channels=(0, 1))
 
-Channel vs. channel plot
+The first integer is the index of the x-axis and the second integer is the index of the y-axis.
+
+Multiple channel vs. channel plots can be added to the same subplot:
+
+.. code-block:: python
+
+    vis.add_lines(position=(0, 0), source='DataSource', channels=[(0, 1), (2, 3)])
+
+.. _function_argument:
+The ``function`` argument
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-When plotting from multiple sources, it is possible to plot the data from one channel of one source against the data from one channel of another source.
-Example:
-
-.. code-block:: python
-
-    layout = {
-        'DataSource': {
-            (0, 0): [0, 1],
-            (1, 0): [(2, 3)],
-        }
-    }
-
-In subplot at location (1, 0), the data from channel 3 will be plotted as a function of the data from channel 2.
-The first index of the ``tuple`` is considered the x-axis and the second index is considered the y-axis.
-
-The ``function`` option
-~~~~~~~~~~~~~~~~~~~~~~~
-
 The data can be processed on-the-fly by a specified function.
-The functmion is added to the ``layout`` dictionary as follows:
 
-.. code-block:: python
-
-    layout = {
-        'DataSource': {
-            (0, 0): [0, 1],
-            (1, 0): [2, 3, function],
-        }
-    }
 
 The ``function`` can be specified by the user. To use the built-in functions, a string is passed to the ``function`` argument. 
 An example of a built-in function is "fft" which computes the `Fast Fourier Transform <https://numpy.org/doc/stable/reference/generated/numpy.fft.rfft.html>`_ 
-of the data with indices 2 and 3.
+of the data with indices 0 and 1:
+
+.. code-block:: python
+
+    vis.add_lines(position=(0, 0), source='DataSource', channels=[0, 1], function='fft')
 
 To build a custom function, the function must be defined as follows:
 
@@ -139,23 +93,17 @@ To build a custom function, the function must be defined as follows:
 The ``self`` argument in the custom function referes to the instance of the acquisition object. 
 This connection can be used to access the properties of the acquisition object, e.g. sample rate.
 The ``channel_data`` argument is a list of numpy arrays, where each array corresponds to the data from one channel. 
-The data is acquired in the order specified in the ``layout`` dictionary.
+The data is acquired in the order specified in the ``channels`` argument.
 
-For the layout example above, the custom function is called for each channel separetely, the ``channel_data`` is a one-dimensional numpy array. 
-To add mutiple channels to the ``channel_data`` argument,
-the ``layout`` dictionary is modified as follows:
+For the example above, the custom function is called for each channel separetely, the ``channel_data`` is a one-dimensional numpy array. 
+To add mutiple channels to the ``channel_data`` argument, the ``channels`` argument is modified as follows:
 
 .. code-block:: python
 
-    layout = {
-        'DataSource': {
-            (0, 0): [0, 1],
-            (1, 0): [(2, 3), function],
-        }
-    }
+    vis.add_lines(position=(0, 0), source='DataSource', channels=[(0, 1)], function=function)
 
-The ``function`` is now passed the ``channel_data`` with shape (N, 2) where N is the number of samples.
-The function can also return a 2D numpy array with shape (N, 2) where the first column is the x-axis and the second column is the y-axis.
+The ``function`` is now passed the ``channel_data`` with shape ``(N, 2)`` where ``N`` is the number of samples.
+The function can also return a 2D numpy array with shape ``(N, 2)`` where the first column is the x-axis and the second column is the y-axis.
 An example of such a function is:
 
 .. code-block:: python
@@ -174,55 +122,28 @@ An example of such a function is:
 
         return np.array([x, y]).T
 
-.. _subplot_options:
-The ``subplot_options``
------------------------
 
-The properties of each subplot, defined in ``layout`` can be specified with the ``subplot_options`` argument. The ``subplot_options`` argument is a dictionary where the keys are the positions of the subplots.
+.. _config_subplots:
+Configure the subplots
+----------------------
 
-Example:
+To configure the subplots, the ``config_subplot`` method is used:
 
 .. code-block:: python
 
-    subplot_options = {
-        (0, 0): {
-            'xlim': (0, 2),
-            'ylim': (-5, 5),
-            'axis_style': 'linear',
-            'title': 'My title 1'
-        },
-        (0, 1): {
-            'xlim': (0, 25),
-            'ylim': (1e-5, 1e3),
-            'axis_style': 'semilogy',
-            'title': 'My title 2'
-        },
-        (1, 0): {
-            'xlim': (-5, 5),
-            'ylim': (-5, 5),
-            'axis_style': 'linear',
-            'title': 'My title 3'
-        },
-        (1, 1): {
-            'xlim': (0, 2),
-            'axis_style': 'linear',
-            'title': 'My title 4'
-        }
-    }
+    vis.config_subplots(position=(2, 2), xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1, refresh_rate=None)
 
-Currently, the following options are available:
+The valid arguments are:
 
-- ``xlim``: tuple of two floats, the limits of the x-axis.
-- ``ylim``: tuple of two floats, the limits of the y-axis.
-- ``t_span``: int/float, the length of the time axis. If this option is not specified, it is computed from the ``xlim``.
-- ``axis_style``: string, the style of the axis. Can be "linear", "semilogx", "semilogy" or "loglog".
-- ``title``: string, the title of the subplot.
-- ``rowspan``: int, the number of rows the subplot spans. Default is 1.
-- ``colspan``: int, the number of columns the subplot spans. Default is 1.
-- ``refresh_rate``: int, the refresh rate of the subplot in milliseconds. 
-  If this option is not specified, the refresh rate defined in the :class:`Visualization` is used.
-- ``nth``: int, same as the ``nth`` argument in :class:`Visualization`. 
-  If this option is not specified, the ``nth`` argument defined in the :class:`Visualization` is used.
+- ``position``: the position of the subplot in the plot. 
+- ``xlim``: the x-axis limits of the subplot. If ``None``, the limits are set to ``(0, 1)``.
+- ``ylim``: the y-axis limits of the subplot. If ``None``, the limits are set automatically.
+- ``t_span``: the time span of the data to be plotted. If ``None``, the time span is computed based on the ``xlim``. The ``t_span`` defines the length of the data passed to a function.
+- ``axis_style``: the style of the axis. The valid options are ``'linear'``, ``'semilogy'``, ``'semilogx'`` and ``'loglog'``.
+- ``title``: the title of the subplot.
+- ``rowspan``: the number of rows the subplot spans.
+- ``colspan``: the number of columns the subplot spans.
+- ``refresh_rate``: the refresh rate of the subplot. If ``None``, the refresh rate is set to the refresh rate set in the ``Visualization`` object.
 
 .. note:: 
     When plotting a simple time signal, the ``t_span`` and ``xlim`` have the same effect. 
@@ -237,31 +158,4 @@ Currently, the following options are available:
     The ``xlim`` defines the samples that are plotted on the x-axis, not only a narrowed view of the data. 
     With this, the same data can be viewed with different zoom levels in an effcient way.
 
-An example of ``subplot_options`` with ``colspan``:
 
-.. code-block:: python
-
-    subplot_options = {
-        (0, 0): {
-            'xlim': (0, 2),
-            'ylim': (-5, 5),
-            'axis_style': 'linear',
-            'title': 'My title 1',
-            'colspan': 2,
-        },
-        (1, 0): {
-            'xlim': (-5, 5),
-            'ylim': (-5, 5),
-            'axis_style': 'linear',
-            'title': 'My title 3'
-        },
-        (1, 1): {
-            'xlim': (0, 2),
-            'axis_style': 'linear',
-            'title': 'My title 4',
-            'rowspan': 2
-        },
-    }
-
-Note that the subplot at location (0, 1) must be omitted, since it is spanned by the subplot at location (0, 0).
-The subplot at location (0, 1) must also be omitted in the ``layout``.

@@ -543,7 +543,9 @@ class MainWindow(QMainWindow):
         new_data = self.core._get_measurement_dict_PLOT()
         for source, buffer in self.vis.ring_buffers.items():
             if self.plots[source][-1]['pos'] == 'image':
-                buffer.extend(new_data[source]) # This should be last image
+                # buffer.extend(new_data[source]) # This should be last image
+                if len(new_data[source]) > 0:
+                    self.new_image = new_data[source][-1].T
             else:
                 buffer.extend(new_data[source])
 

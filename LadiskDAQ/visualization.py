@@ -536,7 +536,10 @@ class MainWindow(QMainWindow):
     def update_ring_buffers(self):
         new_data = self.core._get_measurement_dict_PLOT()
         for source, buffer in self.vis.ring_buffers.items():
-            buffer.extend(new_data[source])
+            if self.plots[source][-1]['pos'] == 'image':
+                buffer.extend(new_data[source]) # This should be last image
+            else:
+                buffer.extend(new_data[source])
 
 
     def update_plots(self, force_refresh=False):
@@ -580,8 +583,11 @@ class MainWindow(QMainWindow):
                         plot_channel['since_refresh'] = 0
                         
                         if plot_channel['pos'] == 'image':
-                            new_data = self.vis.ring_buffers[source].get_data()
-                            self.update_image(new_data, plot_channel)
+                            if hasattr(self, 'new_image'):
+                                new_data = self.new_image
+                            else:
+                                new_data = np.random.rand(200, 200)
+                            self.update_image(new_data)
                         else:
                             new_data = self.vis.ring_buffers[source].get_data()
                             self.update_line(new_data, plot_channel)
@@ -592,8 +598,8 @@ class MainWindow(QMainWindow):
                         plot_channel['since_refresh'] += self.vis.update_refresh_rate
     
     
-    def update_image(self, new_data, plot_channel):
-        self.image_view.setImage(np.tile(new_data[::500][-500:, 0], 500).reshape(500, 500).T)
+    def update_image(self, new_data):
+        self.image_view.setImage(new_data)
 
 
     def update_line(self, new_data, plot_channel):

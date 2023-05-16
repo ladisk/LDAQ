@@ -14,11 +14,17 @@ Live visualization of the measurments is possible by adding the :class:`LadiskDA
 
 .. code-block:: python
 
-    vis = LadiskDAQ.Visualization(refresh_rate=100)
+    vis = LadiskDAQ.Visualization(refresh_rate=100, max_points_to_refresh=1e4, sequential_plot_updates=True)
 
-``refresh_rate``: defines the refresh rate of the live plot in milliseconds. ``refresh_rate`` can also be defined for each 
-subplot separetely (see :ref:`subplot_options <subplot_options>` for more details).
+- ``refresh_rate``: defines the refresh rate of the live plot in milliseconds. ``refresh_rate`` can also be defined for each 
+  line/image separetely (see :ref:`add_lines <add_lines>` for more details).
+- ``max_points_to_refresh``: defines the maximum number of points to refresh in the plot. Adjust this number to optimize performance.
+  This number is used to compute the ``nth`` value automatically.
+- ``sequential_plot_updates``: if ``True``, the lines are updated sequentially in each iteration of the main loop. 
+  Potentially, the plot can show a phase shift between the lines. This is because when the first line is updated, 
+  the data for the second line is already acquired. To avoid this, set ``sequential_plot_updates`` to ``False``.
 
+.. _add_lines:
 Adding lines to the plot
 ------------------------
 

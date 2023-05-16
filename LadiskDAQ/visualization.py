@@ -29,6 +29,12 @@ class Visualization:
             This number is used to compute the ``nth`` value automatically.
         :param sequential_plot_updates: If ``True``, the plot is updated sequentially (one in each iteration of the main loop).
             If ``False``, all lines are updated in each iteration of the main loop.
+
+        .. note::
+
+            If ``sequential_plot_updates`` is ``True``, the lines are updated sequentially in each iteration of the main loop.
+            Potentially, the plot can show a phase shift between the lines. This is because when the first line is updated,
+            the data for the second line is already acquired. To avoid this, set ``sequential_plot_updates`` to ``False``.
         """
         self.max_plot_time = 1
         self.show_legend = True
@@ -574,8 +580,8 @@ class MainWindow(QMainWindow):
                         plot_channel['since_refresh'] = 0
                         
                         if plot_channel['pos'] == 'image':
-                            new_data = np.random.rand(50, 100, 30)
-                            self.update_image(new_data)
+                            new_data = self.vis.ring_buffers[source].get_data()
+                            self.update_image(new_data, plot_channel)
                         else:
                             new_data = self.vis.ring_buffers[source].get_data()
                             self.update_line(new_data, plot_channel)
@@ -586,8 +592,8 @@ class MainWindow(QMainWindow):
                         plot_channel['since_refresh'] += self.vis.update_refresh_rate
     
     
-    def update_image(self, new_data):
-        self.image_view.setImage(new_data[:, :, -1])
+    def update_image(self, new_data, plot_channel):
+        self.image_view.setImage(np.tile(new_data[::500][-500:, 0], 500).reshape(500, 500).T)
 
 
     def update_line(self, new_data, plot_channel):

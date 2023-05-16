@@ -137,7 +137,6 @@ class CustomPyTrigger(pyTrigger):
         self.rows_left = self.rows
         self.finished = False
 
-    
 class BaseAcquisition:
     """Parent acquisition class that should be used when creating new child acquisition source class.
     Child class should override methods the following methods:

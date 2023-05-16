@@ -7,8 +7,9 @@ from beautifultable import BeautifulTable
 
 import threading
 import pickle
-
-
+import sys
+import traceback
+        
 class Core():
     def __init__(self, acquisitions, generations=None, controls=None, visualization=None):
         """
@@ -47,7 +48,6 @@ class Core():
         and time shifts are calcualted.
         """
         pass
-    
     
     def run(self, measurement_duration=None, autoclose=True, autostart=False, run_name="Run", save_interval=None, root='', verbose=2):
         """
@@ -99,6 +99,7 @@ class Core():
         ####################
         
         self.lock = threading.Lock() # for locking a thread if needed.    
+        self.stop_event = threading.Event()
         self.triggered_globally = False
         self.thread_list = []
 
@@ -119,26 +120,26 @@ class Core():
             if autostart:
                 acquisition.update_trigger_parameters(level=1e40)   
                 
-            thread_acquisition = threading.Thread(target=acquisition.run_acquisition )
+            thread_acquisition = threading.Thread(target= self._stop_event_handling(acquisition.run_acquisition)  )
             self.thread_list.append(thread_acquisition)
 
         # If generation is present, create generation thread
         for generation in self.generations:
-            thread_generation  = threading.Thread(target=generation.run_generation )
+            thread_generation  = threading.Thread(target= self._stop_event_handling(generation.run_generation) )
             self.thread_list.append(thread_generation)
 
         for control in self.controls:
-            thread_control = threading.Thread(target=control.run_control)
+            thread_control = threading.Thread(target= self._stop_event_handling(control.run_control) )
             self.thread_list.append(thread_control)
              
         # check events:
-        thread_check_events = threading.Thread(target=self._check_events)
+        thread_check_events = threading.Thread(target= self._stop_event_handling( self._check_events) )
         self.thread_list.append(thread_check_events)
         
         # periodic data saving:
         if self.save_interval is not None:
             # create saving thread
-            thread_periodic_saving = threading.Thread(target=self._save_measurement_periodically)
+            thread_periodic_saving = threading.Thread(target= self._stop_event_handling(self._save_measurement_periodically) )
             self.thread_list.append(thread_periodic_saving)
             
         self.run_start_global = time.time()
@@ -147,8 +148,11 @@ class Core():
             thread.start()
         time.sleep(0.2)
 
+        # TODO: using self.stop_event.is_set() terminate threads if one thread fails.
+        #       self.stop_event.set() is called in _stop_event_handling() wrapper function
         if self.visualization is not None:
-            self.visualization.run(self)
+            self._stop_event_handling( self.visualization.run )(self)
+            #self.visualization.run(self)
         else:
             # Main Loop if no visualization:
             while self.is_running_global:
@@ -165,6 +169,22 @@ class Core():
         
         if self.visualization is None:
             self._keyboard_hotkeys_remove()
+    
+    def _stop_event_handling(self, func):
+        """Used to handle Exception events in a process.
+
+        Args:
+            func (func): Function that will be run in thread.
+        """
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception:
+                print("An exception occurred in a process:")
+                traceback.print_exception(*sys.exc_info())
+                self.stop_event.set()
+                
+        return wrapper
     
     def _check_events(self):
         """
@@ -323,9 +343,15 @@ class Core():
         """Stops all acquisition and generation sources.
         """
         for acquisition in self.acquisitions:
-            acquisition.stop()
+            try:
+                acquisition.stop()
+            except:
+                pass
         for generation in self.generations:
-            generation.stop()
+            try:
+                generation.stop()
+            except:
+                pass
             
     def start_acquisition(self):
         """Starts acquisitions sources.

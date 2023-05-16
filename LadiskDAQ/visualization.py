@@ -1,4 +1,5 @@
 import pyqtgraph as pg
+from pyqtgraph import ImageView, ImageItem
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QPushButton, QHBoxLayout, QDesktopWidget, QProgressBar, QLabel
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QIcon
@@ -247,12 +248,13 @@ class Visualization:
         self.refresh_rate = refresh_rate
         self.plots = None
         self.subplot_options = {}
+        self.add_image_widget = False
         
         self.update_refresh_rate = 10 # [ms] interval of calling the plot_update function
         self.max_points_to_refresh = 1e4
     
 
-    def add_lines(self, position, source, channels, function=None, nth="auto"):
+    def add_lines(self, position, source, channels, function=None, nth="auto", refresh_rate=None):
         """Build the layout dictionary.
 
         :param position: tuple, the position of the subplot. Example: ``(0, 0)``.
@@ -261,6 +263,9 @@ class Visualization:
             of integers to plot channel vs. channel. Example: ``[(0, 1), (2, 3)]``.
         :param function: function, the function to be applied to the data before plotting. If ``channels`` is a list of tuples,
             the function is applied to each tuple separately.
+        :param nth: int, the nth sample to be plotted. If ``nth`` is ``"auto"``, the nth sample is computed automatically.
+        :param refresh_rate: int, the refresh rate of the subplot in milliseconds. If this argument is not specified, the
+            refresh rate defined in the :class:`Visualization` is used.
 
         Channels
         ~~~~~~~~
@@ -354,6 +359,11 @@ class Visualization:
             apply_function = INBUILT_FUNCTIONS[function]
         else:
             apply_function = lambda x, y: y
+
+        if refresh_rate:
+            plot_refresh_rate = self.update_refresh_rate*(refresh_rate//self.update_refresh_rate)
+        else:
+            plot_refresh_rate = self.update_refresh_rate*(self.refresh_rate//self.update_refresh_rate)
         
         for channel in channels:
             self.plots[source].append({
@@ -362,10 +372,39 @@ class Visualization:
                 'apply_function': apply_function,
                 'nth': nth,
                 'since_refresh': 1e40,
+                'refresh_rate': plot_refresh_rate,
             })
 
 
-    def config_subplot(self, position, xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1, refresh_rate=None):
+    def add_image(self, source, function=None, refresh_rate=100):
+        """"""
+        self.add_image_widget = True
+
+        if self.plots is None:
+            self.plots = {}
+        
+        if source not in self.plots.keys():
+            self.plots[source] = []
+
+        if isinstance(function, types.FunctionType):
+            apply_function = function
+        elif function in INBUILT_FUNCTIONS.keys():
+            apply_function = INBUILT_FUNCTIONS[function]
+        else:
+            apply_function = lambda x, y: y
+        
+
+        self.plots[source].append({
+            'pos': 'image',
+            'channels': 'image',
+            'apply_function': apply_function,
+            'nth': 1,
+            'since_refresh': 1e40,
+            'refresh_rate': refresh_rate,
+        })
+
+
+    def config_subplot(self, position, xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1):
         """Configure a subplot at position ``position``.
         
         :param position: tuple of two integers, the position of the subplot in the layout.
@@ -376,8 +415,6 @@ class Visualization:
         :param title: string, the title of the subplot.
         :param rowspan: int, the number of rows the subplot spans. Default is 1.
         :param colspan: int, the number of columns the subplot spans. Default is 1.
-        :param refresh_rate: int, the refresh rate of the subplot in milliseconds.
-            If this option is not specified, the refresh rate defined in the :class:`Visualization` is used.
         """
         self.subplot_options[position] = {}
 
@@ -395,8 +432,6 @@ class Visualization:
             self.subplot_options[position]['rowspan'] = rowspan
         if colspan is not None:
             self.subplot_options[position]['colspan'] = colspan
-        if refresh_rate is not None:
-            self.subplot_options[position]['refresh_rate'] = refresh_rate
 
         if not check_subplot_options_validity(self.subplot_options, self.plots):
             raise ValueError("Invalid subplot options. Check the `rowspan` and `colspan` values.")
@@ -448,6 +483,7 @@ class Visualization:
 
     def check_subplot_options(self):
         self.positions = list(set([plot['pos'] for plot in [plot for plots in self.plots.values() for plot in plots]]))[::-1]
+        self.positions = [_ for _ in self.positions if _ != 'image']
 
         # Make sure that all subplots have options defined.
         for pos in self.positions:
@@ -465,12 +501,6 @@ class Visualization:
                 self.subplot_options[pos]['t_span'] = 1
             else:
                 pass
-
-            # Define the refresh rate for each subplot.
-            if 'refresh_rate' in options.keys():
-                self.subplot_options[pos]['subplot_refresh_rate'] = self.update_refresh_rate*(options['refresh_rate']//self.update_refresh_rate)
-            else:
-                self.subplot_options[pos]['subplot_refresh_rate'] = self.update_refresh_rate*(self.refresh_rate//self.update_refresh_rate)
 
 
     def create_ring_buffers(self):
@@ -606,9 +636,16 @@ class MainWindow(QMainWindow):
         self.time_start = time.time()
         grid_layout = pg.GraphicsLayoutWidget()
 
-        self.layout_widget.addWidget(grid_layout)
+        self.layout_widget.addWidget(grid_layout, stretch=1)
         self.subplots = {}
         self.legends = {}
+        
+        if self.vis.add_image_widget:
+            self.image_view = ImageView()
+            self.layout_widget.addWidget(self.image_view, stretch=1)
+            self.image_view.ui.histogram.hide()
+            self.image_view.ui.roiBtn.hide()
+            self.image_view.ui.menuBtn.hide()
 
         color_dict = {}
         ##################################################################
@@ -672,7 +709,7 @@ class MainWindow(QMainWindow):
                     self.vis.plots[source][i]['line'] = line
 
                 # Add legend to the subplot
-                if pos not in self.legends.keys():
+                if pos not in self.legends.keys() and pos != 'image':
                     legend = self.subplots[pos].addLegend()
                     for item in self.subplots[pos].items:
                         if isinstance(item, pg.PlotDataItem):
@@ -726,19 +763,27 @@ class MainWindow(QMainWindow):
 
                 # for line, pos, apply_function, *channels in plot_channels:
                 for plot_channel in plot_channels:
-                    refresh_rate = self.vis.subplot_options[plot_channel['pos']]['subplot_refresh_rate']
+                    refresh_rate = plot_channel['refresh_rate']
                     since_refresh = plot_channel['since_refresh']
 
                     if refresh_rate <= since_refresh + self.vis.update_refresh_rate or force_refresh:
                         # If time to refresh, refresh the plot and set since_refresh to 0.
                         plot_channel['since_refresh'] = 0
                         
-                        new_data = self.vis.ring_buffers[source].get_data()
-                        self.update_line(new_data, plot_channel)
+                        if plot_channel['pos'] == 'image':
+                            new_data = np.random.rand(50, 100, 30)
+                            self.update_image(new_data)
+                        else:
+                            new_data = self.vis.ring_buffers[source].get_data()
+                            self.update_line(new_data, plot_channel)
                     else:
                         # If not time to refresh, increase since_refresh by update_refresh_rate.
                         plot_channel['since_refresh'] += self.vis.update_refresh_rate
     
+    
+    def update_image(self, new_data):
+        self.image_view.setImage(new_data[:, :, -1])
+
 
     def update_line(self, new_data, plot_channel):
         # only plot data that are within xlim (applies only for normal plot, not ch vs. ch)
@@ -778,7 +823,7 @@ class MainWindow(QMainWindow):
             mask = (x >= xlim[0]) & (x <= xlim[1]) # Remove data outside of xlim
             
             plot_channel['line'].setData(x[mask][::nth], y[mask][::nth])
-        
+
         else:
             raise Exception("A single channel or channel vs. channel plot can be plotted at a time. Got more than 2 channels.")
 

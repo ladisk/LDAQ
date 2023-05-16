@@ -26,7 +26,7 @@ To show plot the data, the lines have to be added to the plot. The number of sub
 
 .. code-block:: python
 
-    vis.add_lines(position=(0, 0), source='DataSource', channels=0, function=None, nth=10)
+    vis.add_lines(position=(0, 0), source='DataSource', channels=0, function=None, nth=10, refresh_rate=1000)
 
 The arguments are:
 
@@ -36,6 +36,7 @@ The arguments are:
 - ``function``: the function to be applied to the data. This can be a built-in function or a custom function. See :ref:`the function argument <function_argument>` for more details.
 - ``nth``: the number of data points to be plotted. If ``nth`` is set to 10, every 10th data point will be plotted. This is useful when the data is acquired at a high sample rate and the plot is updated at a low refresh rate.
   By default, ``nth`` is set to ``'auto'``. In this case, the number of data points to be plotted is determined automatically.
+- ``refresh_rate``: the refresh rate of the subplot. If ``None``, the refresh rate is set to the refresh rate set in the ``Visualization`` object.
 
 
 .. _channels_argument:
@@ -131,7 +132,7 @@ To configure the subplots, the ``config_subplot`` method is used:
 
 .. code-block:: python
 
-    vis.config_subplots(position=(2, 2), xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1, refresh_rate=None)
+    vis.config_subplots(position=(2, 2), xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1)
 
 The valid arguments are:
 
@@ -143,7 +144,6 @@ The valid arguments are:
 - ``title``: the title of the subplot.
 - ``rowspan``: the number of rows the subplot spans.
 - ``colspan``: the number of columns the subplot spans.
-- ``refresh_rate``: the refresh rate of the subplot. If ``None``, the refresh rate is set to the refresh rate set in the ``Visualization`` object.
 
 .. note:: 
     When plotting a simple time signal, the ``t_span`` and ``xlim`` have the same effect. 

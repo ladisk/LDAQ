@@ -17,8 +17,8 @@ def check_subplot_options_validity(subplot_options, layout):
     :param layout: layout of the QT application. It specifies which channels are plotted on each subplot.
     :return: True if the layout is valid, False otherwise.
     """
-    max_row = max([channels['pos'][0] for acq_name, acq_layout in layout.items() for channels in acq_layout])
-    max_col = max([channels['pos'][1] for acq_name, acq_layout in layout.items() for channels in acq_layout])
+    max_row = max([channels['pos'][0] for acq_name, acq_layout in layout.items() for channels in acq_layout if isinstance(channels['pos'], tuple)])
+    max_col = max([channels['pos'][1] for acq_name, acq_layout in layout.items() for channels in acq_layout if isinstance(channels['pos'], tuple)])
 
     # Create a matrix to keep track of the occupied cells in the subplot grid
     occupied_cells = [[False] * (max_col + 1) for _ in range(max_row + 1)]

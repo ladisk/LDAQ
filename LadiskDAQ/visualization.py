@@ -19,229 +19,22 @@ INBUILT_FUNCTIONS = {'fft': _fun_fft, 'frf_amp': _fun_frf_amp, 'frf_phase': _fun
     
     
 class Visualization:
-    def __init__(self, refresh_rate=100):
+    def __init__(self, refresh_rate=100, max_points_to_refresh=1e4, sequential_plot_updates=True):
         """Live visualization of the measured data.
 
         For more details, see [documentation](https://ladiskdaq.readthedocs.io/en/latest/visualization.html).
         
-        :param layout: Dictionary containing the source names and subplot layout with channel definitions.
-            See examples below.
-        :param subplot_options: Dictionary containing the options for each of the subplots (xlim, ylim, axis_style, etc.).
-        :param nth: Number of points to skip when plotting. If 'auto', the number of points to skip is automatically determined
-            in a way to make ``max_points_to_refresh = 1e4``. ``max_points_to_refresh`` is the attribute of the Visualization class and
-            can be changed by the user.
         :param refresh_rate: Refresh rate of the plot in ms.
-
-        The ``layout``
-        --------------
-
-        The layout of the live plot is set by the ``layout`` argument. An example of the ``layout`` argument is:
-
-        >>> layout = {
-                'DataSource': {
-                    (0, 0): [0, 1],
-                    (1, 0): [2, 3],
-                }
-            }
-
-        This is a layout for a single acquisition source with name "DataSource". 
-        When multiple sources are used, the name of the source is used as the key in the ``layout`` dictionary. 
-        The value at each acquisition source is a dictionary where each key is a tuple of two integers. 
-        The first integer is the row number and the second integer is the column number of the subplots.
-
-        For the given example, the plot will have two subplots, each in one row.
-
-        For each subplot, the data is then specified. 
-        If the value is a list of integers, each integer corresponds to the index in the acquired data.
-        For example, for the subplot defined with:
-
-        >>> (0, 0): [0, 1]
-
-        data with indices 0 and 1 will be plotted in the subplot at location (0, 0).
-
-        Plotting from multiple sources
-        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-        When plotting from multiple sources, the layout is defined:
-
-        >>> layout = {
-                'DataSource1': {
-                    (0, 0): [0, 1],
-                    (1, 0): [2, 3],
-                },
-                'DataSource2': {
-                    (0, 0): [0],
-                    (0, 1): [1]
-                    (1, 1): [2, 3],
-                }
-            }
-
-        Notice the different names of the sources. Each name corresponds to the name of the acquisition source, defined in the acquisition class.
-
-        It is important to note that the subplot locations are the same for all acquisition sources, but the indices of the data are different. 
-
-        For example, the subplot at location ``(0, 0)``
-        will containt the plots from source "DataSource1" with indices 0 and 1, and the plots from source "DataSource2" with indices 0.
-
-        Channel vs. channel plot
-        ~~~~~~~~~~~~~~~~~~~~~~~~
-
-        When plotting from multiple sources, it is possible to plot the data from one channel of one source against the data from one channel of another source.
-        Example:
-
-        >>> layout = {
-                'DataSource': {
-                    (0, 0): [0, 1],
-                    (1, 0): [(2, 3)],
-                }
-            }
-
-        In subplot at location (1, 0), the data from channel 3 will be plotted as a function of the data from channel 2.
-        The first index of the ``tuple`` is considered the x-axis and the second index is considered the y-axis.
-
-        The ``function`` option
-        ~~~~~~~~~~~~~~~~~~~~~~~
-
-        The data can be processed on-the-fly by a specified function.
-        The functmion is added to the ``layout`` dictionary as follows:
-
-        >>> layout = {
-                'DataSource': {
-                    (0, 0): [0, 1],
-                    (1, 0): [2, 3, function],
-                }
-            }
-
-        The ``function`` can be specified by the user. To use the built-in functions, a string is passed to the ``function`` argument. 
-        An example of a built-in function is "fft" which computes the [Fast Fourier Transform](https://numpy.org/doc/stable/reference/generated/numpy.fft.rfft.html)
-        of the data with indices 2 and 3.
-
-        To build a custom function, the function must be defined as follows:
-
-        >>> def function(self, channel_data):
-                '''
-                :param self: instance of the acquisition object (has to be there so the function is called properly)
-                :param channel_data: channel data
-                '''
-                return channel_data**2
-
-        The ``self`` argument in the custom function referes to the instance of the acquisition object. 
-        This connection can be used to access the properties of the acquisition object, e.g. sample rate.
-        The ``channel_data`` argument is a list of numpy arrays, where each array corresponds to the data from one channel. 
-        The data is acquired in the order specified in the ``layout`` dictionary.
-
-        For the layout example above, the custom function is called for each channel separetely, the ``channel_data`` is a one-dimensional numpy array. 
-        To add mutiple channels to the ``channel_data`` argument,
-        the ``layout`` dictionary is modified as follows:
-
-        >>> layout = {
-                'DataSource': {
-                    (0, 0): [0, 1],
-                    (1, 0): [(2, 3), function],
-                }
-            }
-
-        The ``function`` is now passed the ``channel_data`` with shape (N, 2) where N is the number of samples.
-        The function can also return a 2D numpy array with shape (N, 2) where the first column is the x-axis and the second column is the y-axis.
-        An example of such a function is:
-
-        >>> def function(self, channel_data):
-                '''
-                :param self: instance of the acquisition object (has to be there so the function is called properly)
-                :param channel_data: 2D channel data array of size (N, 2)
-                :return: 2D array np.array([x, y]).T that will be plotted on the subplot.
-                '''
-                ch0, ch1 = channel_data.T
-                x =  np.arange(len(ch1)) / self.acquisition.sample_rate # time array
-                y = ch1**2 + ch0 - 10
-                return np.array([x, y]).T
-
-        The ``subplot_options``
-        -----------------------
-
-        The properties of each subplot, defined in ``layout`` can be specified with the ``subplot_options`` argument. The ``subplot_options`` argument is a dictionary where the keys are the positions of the subplots.
-
-        Example:
-
-        >>> subplot_options = {
-                (0, 0): {
-                    'xlim': (0, 2),
-                    'ylim': (-5, 5),
-                    'axis_style': 'linear',
-                    'title': 'My title 1'
-                },
-                (0, 1): {
-                    'xlim': (0, 25),
-                    'ylim': (1e-5, 1e3),
-                    'axis_style': 'semilogy',
-                    'title': 'My title 2'
-                },
-                (1, 0): {
-                    'xlim': (-5, 5),
-                    'ylim': (-5, 5),
-                    'axis_style': 'linear',
-                    'title': 'My title 3'
-                },
-                (1, 1): {
-                    'xlim': (0, 2),
-                    'axis_style': 'linear',
-                    'title': 'My title 4'
-                }
-            }
-
-        Currently, the following options are available:
-
-        - ``xlim``: tuple of two floats, the limits of the x-axis.
-        - ``ylim``: tuple of two floats, the limits of the y-axis.
-        - ``t_span``: int/float, the length of the time axis. If this option is not specified, it is computed from the ``xlim``.
-        - ``axis_style``: string, the style of the axis. Can be "linear", "semilogx", "semilogy" or "loglog".
-        - ``title``: string, the title of the subplot.
-        - ``rowspan``: int, the number of rows the subplot spans. Default is 1.
-        - ``colspan``: int, the number of columns the subplot spans. Default is 1.
-        - ``refresh_rate``: int, the refresh rate of the subplot in milliseconds. 
-        If this option is not specified, the refresh rate defined in the :class:`Visualization` is used.
-        - ``nth``: int, same as the ``nth`` argument in :class:`Visualization`. 
-        If this option is not specified, the ``nth`` argument defined in the :class:`Visualization` is used.
-
-        .. note:: 
-            When plotting a simple time signal, the ``t_span`` and ``xlim`` have the same effect. 
-            
-            However, when plotting channel vs. channel, the ``t_span`` specifies the time range of the data and the ``xlim`` specifies the range of the x-axis (spatial).
-
-            When plotting a function, the ``t_span`` determines the time range of the data that is passed to the function. 
-            Last ``t_span`` seconds of data are passed to the function.
-
+        :param max_points_to_refresh: Maximum number of points to refresh in the plot. Adjust this number to optimize performance.
+            This number is used to compute the ``nth`` value automatically.
+        :param sequential_plot_updates: If ``True``, the plot is updated sequentially (one in each iteration of the main loop).
+            If ``False``, all lines are updated in each iteration of the main loop.
 
         .. note::
-            The ``xlim`` defines the samples that are plotted on the x-axis, not only a narrowed view of the data. 
-            With this, the same data can be viewed with different zoom levels in an effcient way.
 
-        An example of ``subplot_options`` with ``colspan``:
-
-        >>> subplot_options = {
-                (0, 0): {
-                    'xlim': (0, 2),
-                    'ylim': (-5, 5),
-                    'axis_style': 'linear',
-                    'title': 'My title 1',
-                    'colspan': 2,
-                },
-                (1, 0): {
-                    'xlim': (-5, 5),
-                    'ylim': (-5, 5),
-                    'axis_style': 'linear',
-                    'title': 'My title 3'
-                },
-                (1, 1): {
-                    'xlim': (0, 2),
-                    'axis_style': 'linear',
-                    'title': 'My title 4',
-                    'rowspan': 2
-                },
-            }
-
-        Note that the subplot at location (0, 1) must be omitted, since it is spanned by the subplot at location (0, 0).
-        The subplot at location (0, 1) must also be omitted in the ``layout``.
+            If ``sequential_plot_updates`` is ``True``, the lines are updated sequentially in each iteration of the main loop.
+            Potentially, the plot can show a phase shift between the lines. This is because when the first line is updated,
+            the data for the second line is already acquired. To avoid this, set ``sequential_plot_updates`` to ``False``.
         """
         self.max_plot_time = 1
         self.show_legend = True
@@ -251,7 +44,8 @@ class Visualization:
         self.add_image_widget = False
         
         self.update_refresh_rate = 10 # [ms] interval of calling the plot_update function
-        self.max_points_to_refresh = 1e4
+        self.max_points_to_refresh = max_points_to_refresh
+        self.sequential_plot_updates = sequential_plot_updates
     
 
     def add_lines(self, position, source, channels, function=None, nth="auto", refresh_rate=None):
@@ -630,6 +424,20 @@ class MainWindow(QMainWindow):
 
     
     def init_plots(self):
+        # Compute the update refresh rate
+        n_lines = sum([len(plot_channels) for plot_channels in self.vis.plots.values()])
+        minimum_refresh_rate = int(min(list(set([plot['refresh_rate'] for plot in [plot for plots in self.vis.plots.values() for plot in plots]]))))
+        computed_update_refresh_rate = max(10, min(500, int(minimum_refresh_rate/(n_lines+1))))
+        self.vis.update_refresh_rate = computed_update_refresh_rate
+        
+        # Compute the max number of plots per refresh (if sequential plot updates are enabled)
+        if self.vis.sequential_plot_updates:
+            # Max number of plots per refresh is computed
+            self.vis.max_plots_per_refresh = int(np.ceil((n_lines * computed_update_refresh_rate) / minimum_refresh_rate))
+        else:
+            self.vis.max_plots_per_refresh = 1e40
+
+
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
 
@@ -758,6 +566,7 @@ class MainWindow(QMainWindow):
         self.update_ring_buffers()
 
         if not self.freeze_plot:
+            updated_plots = 0
             for source, plot_channels in self.plots.items():
                 self.vis.acquisition = self.core.acquisitions[self.core.acquisition_names.index(source)]
 
@@ -766,23 +575,25 @@ class MainWindow(QMainWindow):
                     refresh_rate = plot_channel['refresh_rate']
                     since_refresh = plot_channel['since_refresh']
 
-                    if refresh_rate <= since_refresh + self.vis.update_refresh_rate or force_refresh:
+                    if (refresh_rate <= since_refresh + self.vis.update_refresh_rate or force_refresh) and updated_plots < self.vis.max_plots_per_refresh:
                         # If time to refresh, refresh the plot and set since_refresh to 0.
                         plot_channel['since_refresh'] = 0
                         
                         if plot_channel['pos'] == 'image':
-                            new_data = np.random.rand(50, 100, 30)
-                            self.update_image(new_data)
+                            new_data = self.vis.ring_buffers[source].get_data()
+                            self.update_image(new_data, plot_channel)
                         else:
                             new_data = self.vis.ring_buffers[source].get_data()
                             self.update_line(new_data, plot_channel)
+
+                        updated_plots += 1
                     else:
                         # If not time to refresh, increase since_refresh by update_refresh_rate.
                         plot_channel['since_refresh'] += self.vis.update_refresh_rate
     
     
-    def update_image(self, new_data):
-        self.image_view.setImage(new_data[:, :, -1])
+    def update_image(self, new_data, plot_channel):
+        self.image_view.setImage(np.tile(new_data[::500][-500:, 0], 500).reshape(500, 500).T)
 
 
     def update_line(self, new_data, plot_channel):

@@ -302,7 +302,13 @@ class Visualization:
         for source in self.plots.keys():
             acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
             rows = int(max([self.subplot_options[pos]['t_span'] * acq.sample_rate for pos in self.positions]))
-            self.ring_buffers[source] = RingBuffer2D(rows, acq.n_channels)
+
+            if any(_['pos'] == 'image' for _ in self.plots[source]):
+                n_channels = 1 # TODO: if line is added with this source (position is not 'image'), then n_channels should be the number of lines added.
+            else:
+                n_channels = acq.n_channels
+
+            self.ring_buffers[source] = RingBuffer2D(rows, n_channels)
 
 
 class MainWindow(QMainWindow):

@@ -418,15 +418,18 @@ class MainWindow(QMainWindow):
 
     
     def init_plots(self):
+        # Compute the update refresh rate
+        n_lines = sum([len(plot_channels) for plot_channels in self.vis.plots.values()])
+        minimum_refresh_rate = int(min(list(set([plot['refresh_rate'] for plot in [plot for plots in self.vis.plots.values() for plot in plots]]))))
+        computed_update_refresh_rate = max(10, min(500, int(minimum_refresh_rate/(n_lines+1))))
+        self.vis.update_refresh_rate = computed_update_refresh_rate
+        
+        # Compute the max number of plots per refresh (if sequential plot updates are enabled)
         if self.vis.sequential_plot_updates:
-            self.vis.max_plots_per_refresh = 1
+            # Max number of plots per refresh is computed
+            self.vis.max_plots_per_refresh = int(np.ceil((n_lines * computed_update_refresh_rate) / minimum_refresh_rate))
         else:
             self.vis.max_plots_per_refresh = 1e40
-
-        # The update_plots is called every update_refresh_rate milliseconds
-        # update_refresh_rate is the minimum of all the update_refresh_rates of the plots divided by the number of lines in the plot
-        n_lines = sum([len(plot_channels) for plot_channels in self.vis.plots.values()])
-        self.vis.update_refresh_rate = min(500, int(min(list(set([plot['refresh_rate'] for plot in [plot for plots in self.vis.plots.values() for plot in plots]])))/(n_lines+1)))
 
 
         pg.setConfigOption('background', 'w')
@@ -557,10 +560,9 @@ class MainWindow(QMainWindow):
         self.update_ring_buffers()
 
         if not self.freeze_plot:
+            updated_plots = 0
             for source, plot_channels in self.plots.items():
                 self.vis.acquisition = self.core.acquisitions[self.core.acquisition_names.index(source)]
-
-                updated_plots = 0
 
                 # for line, pos, apply_function, *channels in plot_channels:
                 for plot_channel in plot_channels:

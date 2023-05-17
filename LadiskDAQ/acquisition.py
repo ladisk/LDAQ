@@ -28,7 +28,7 @@ from .ni_task import NITask
 try:
     import PySpin # This will be moved somewhere else in the future
 except:
-    print("Please don't be a pussy and install PySpin.")
+    print("PySpin library not found.")
 
 
 class DummyLock:
@@ -492,7 +492,6 @@ class BaseAcquisition:
         filename = f'{stamp}{name}.pkl'
         path = os.path.join(root, filename)
         pickle.dump(self.measurement_dict, open(path, 'wb'), protocol=-1)
-
 
 class WaveFormsAcquisition(BaseAcquisition):
     def __init__(self, channels=[0, 1], sample_rate=10000, 
@@ -999,14 +998,16 @@ class NIAcquisition(BaseAcquisition):
 
         super().run_acquisition(run_time)
 
+
 class IRFormatType:
     LINEAR_10MK = 1
     LINEAR_100MK = 2
     RADIOMETRIC = 3
     
 class FLIRThermalCamera(BaseAcquisition):    
+    """Acquisition class for FLIR thermal camera (A50)
+    """
     def __init__(self, acquisition_name=None):
-        
         super().__init__()
 
         self.acquisition_name = 'FLIR' if acquisition_name is None else acquisition_name
@@ -1027,6 +1028,10 @@ class FLIRThermalCamera(BaseAcquisition):
         self.set_trigger(1e20, 0, duration=1.0)
         
         self.camera_acq_started = False
+        
+        # TODO:
+        # - set sample rate (either subsample and only acquire every n-th frame or set camera fps)
+        # - adjust picture resolution
         
     def set_IRtype(self, IRtype):
         '''This function sest the IR type to be used by the camera.
@@ -1273,48 +1278,43 @@ class FLIRThermalCamera(BaseAcquisition):
         Must return a 2D numpy array of shape (n_samples, n_columns).
         """
         
+     
         image_result = self.cam.GetNextImage()
-
         #  Ensure image completion
         if image_result.IsIncomplete():
-            return np.empty((0, self.n_channels))
+            return  np.empty((0, self.n_channels))
 
+        # Getting the image data as a np array
+        image_data = image_result.GetNDArray()
+        if self.CHOSEN_IR_TYPE == IRFormatType.LINEAR_10MK:
+            # Transforming the data array into a temperature array, if streaming mode is set to TemperatueLinear10mK
+            image_Temp_Celsius_high = (image_data *
+                                        0.01) - 273.15
+            image_temp = image_Temp_Celsius_high
+            
+        elif self.CHOSEN_IR_TYPE == IRFormatType.LINEAR_100MK:
+            # Transforming the data array into a temperature array, if streaming mode is set to TemperatureLinear100mK
+            image_Temp_Celsius_low = (image_data * 0.1) - 273.15
+            image_temp = image_Temp_Celsius_low
+
+        elif self.CHOSEN_IR_TYPE == IRFormatType.RADIOMETRIC:
+            # Transforming the data array into a pseudo radiance array, if streaming mode is set to Radiometric.
+            # and then calculating the temperature array (degrees Celsius) with the full thermography formula
+            J0, J1, B, R, Emiss, Tau, K2, F = (self.calib_dict["J0"], self.calib_dict["J1"], self.calib_dict["B"], 
+                                            self.calib_dict["R"], self.calib_dict["Emiss"], self.calib_dict["Tau"], 
+                                            self.calib_dict["K2"], self.calib_dict["F"])
+            image_Radiance = (image_data - J0) / J1
+            image_temp = (B / np.log(R / ( (image_Radiance / Emiss / Tau) - K2) + F) ) - 273.15
         else:
-            # Getting the image data as a np array
-            image_data = image_result.GetNDArray()
-            if self.CHOSEN_IR_TYPE == IRFormatType.LINEAR_10MK:
-                # Transforming the data array into a temperature array, if streaming mode is set to TemperatueLinear10mK
-                image_Temp_Celsius_high = (image_data *
-                                            0.01) - 273.15
-                image_temp = image_Temp_Celsius_high
-                
-            elif self.CHOSEN_IR_TYPE == IRFormatType.LINEAR_100MK:
-                # Transforming the data array into a temperature array, if streaming mode is set to TemperatureLinear100mK
-                image_Temp_Celsius_low = (image_data * 0.1) - 273.15
-                image_temp = image_Temp_Celsius_low
-
-            elif self.CHOSEN_IR_TYPE == IRFormatType.RADIOMETRIC:
-                # Transforming the data array into a pseudo radiance array, if streaming mode is set to Radiometric.
-                # and then calculating the temperature array (degrees Celsius) with the full thermography formula
-                J0, J1, B, R, Emiss, Tau, K2, F = (self.calib_dict["J0"], self.calib_dict["J1"], self.calib_dict["B"], 
-                                                   self.calib_dict["R"], self.calib_dict["Emiss"], self.calib_dict["Tau"], 
-                                                   self.calib_dict["K2"], self.calib_dict["F"])
-                image_Radiance = (image_data - J0) / J1
-                image_temp = (B / np.log(R / (
-                    (image_Radiance / Emiss / Tau) - K2) + F)
-                                ) - 273.15
-
-        #  Release image
-        #
-        #  *** NOTES ***
-        #  Images retrieved directly from the camera (i.e. non-converted
-        #  images) need to be released in order to keep from filling the
-        #  buffer.
-        image_result.Release()
-        self.image_shape_read_data = image_temp.shape
-        image_temp = image_temp.flatten()
-        # TODO: here the function should be written in a way that it allows to read multiple pictures in one method call
-        return np.array([ image_temp ]) 
+            raise Exception('Unknown IRFormatType')
+        
+        image_temp = image_temp.reshape(-1, self.n_channels)
+        
+        if image_temp.shape[0] > 0:
+            image_result.Release()
+            return image_temp
+        else:
+            return np.empty((0, self.n_channels))
     
     def terminate_data_source(self):
         """        
@@ -1332,8 +1332,7 @@ class FLIRThermalCamera(BaseAcquisition):
         self.cam_list.Clear()
         # Release system instance
         self.system.ReleaseInstance()
-
-    
+   
     def get_sample_rate(self):
         """
         Returns sample rate of acquisition class.
@@ -1350,7 +1349,7 @@ class FLIRThermalCamera(BaseAcquisition):
         
         Returns None.
         """
-        self.read_data() #TODO: see docs on how to flush all the buffer!
+        self.read_data()
         
     def get_data(self, N_points=None):
         """

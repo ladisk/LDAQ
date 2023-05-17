@@ -1027,8 +1027,9 @@ class FLIRThermalCamera(BaseAcquisition):
         self.image_shape = None
         
         self.set_IRtype('LINEAR_10MK')
+        self.camera_acq_started = False
         self.set_data_source()
-        self.terminate_data_source()
+        # self.terminate_data_source()
         #print(self.image_shape)
         
         # there will always be only 1 channel and it will always display temperature
@@ -1040,7 +1041,6 @@ class FLIRThermalCamera(BaseAcquisition):
         # channel in set trigger is actually pixel in flatten array:
         self.set_trigger(1e20, 0, duration=1.0)
         
-        self.camera_acq_started = False
         
         # TODO:
         # - set sample rate (either subsample and only acquire every n-th frame or set camera fps)

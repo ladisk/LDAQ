@@ -41,6 +41,7 @@ class Visualization:
         self.refresh_rate = refresh_rate
         self.plots = None
         self.subplot_options = {}
+        self.add_line_widget = False
         self.add_image_widget = False
         
         self.update_refresh_rate = 10 # [ms] interval of calling the plot_update function
@@ -127,6 +128,8 @@ class Visualization:
                 return np.array([x, y]).T
 
         """
+        self.add_line_widget = True
+
         if not isinstance(source, str):
             raise ValueError("The source must be a string.")
         if not isinstance(position, tuple):
@@ -300,16 +303,16 @@ class Visualization:
     def create_ring_buffers(self):
         self.ring_buffers = {}
         for source in self.plots.keys():
-            acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
-            rows = int(max([self.subplot_options[pos]['t_span'] * acq.sample_rate for pos in self.positions]))
-
-            # if any(_['pos'] == 'image' for _ in self.plots[source]):
             if hasattr(self.core.acquisitions[self.core.acquisition_names.index(source)], 'image_shape'):
-                # n_channels = 1 # TODO: if line is added with this source (position is not 'image'), then n_channels should be the number of lines added.
+                n_channels = 1
+                rows = 1
 
                 # number of lines added with this source. If no lines are added, then n_channels is 1.
-                n_channels = max(1, sum([len(_['channels']) for _ in self.plots[source] if _['pos'] != 'image']))
+                # n_channels = max(1, sum([len(_['channels']) for _ in self.plots[source] if _['pos'] != 'image']))
+                # rows = ...
             else:
+                acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
+                rows = int(max([self.subplot_options[pos]['t_span'] * acq.sample_rate for pos in self.positions]))
                 n_channels = acq.n_channels
 
             self.ring_buffers[source] = RingBuffer2D(rows, n_channels)
@@ -455,9 +458,11 @@ class MainWindow(QMainWindow):
         self.time_start = time.time()
         grid_layout = pg.GraphicsLayoutWidget()
 
-        self.layout_widget.addWidget(grid_layout, stretch=1)
         self.subplots = {}
         self.legends = {}
+
+        if self.vis.add_line_widget:
+            self.layout_widget.addWidget(grid_layout, stretch=1)
         
         if self.vis.add_image_widget:
             cm = pg.colormap.get('CET-L17')
@@ -636,7 +641,7 @@ class MainWindow(QMainWindow):
 
         if hasattr(self, 'boxstate'):
             _view.setState(_state)
-            
+
         self.boxstate = True
 
 

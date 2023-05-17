@@ -303,8 +303,12 @@ class Visualization:
             acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
             rows = int(max([self.subplot_options[pos]['t_span'] * acq.sample_rate for pos in self.positions]))
 
-            if any(_['pos'] == 'image' for _ in self.plots[source]):
-                n_channels = 1 # TODO: if line is added with this source (position is not 'image'), then n_channels should be the number of lines added.
+            # if any(_['pos'] == 'image' for _ in self.plots[source]):
+            if hasattr(self.core.acquisitions[self.core.acquisition_names.index(source)], 'image_shape'):
+                # n_channels = 1 # TODO: if line is added with this source (position is not 'image'), then n_channels should be the number of lines added.
+
+                # number of lines added with this source. If no lines are added, then n_channels is 1.
+                n_channels = max(1, sum([len(_['channels']) for _ in self.plots[source] if _['pos'] != 'image']))
             else:
                 n_channels = acq.n_channels
 
@@ -433,15 +437,16 @@ class MainWindow(QMainWindow):
         # Compute the update refresh rate
         n_lines = sum([len(plot_channels) for plot_channels in self.vis.plots.values()])
         minimum_refresh_rate = int(min(list(set([plot['refresh_rate'] for plot in [plot for plots in self.vis.plots.values() for plot in plots]]))))
-        computed_update_refresh_rate = max(10, min(500, int(minimum_refresh_rate/(n_lines+1))))
-        self.vis.update_refresh_rate = computed_update_refresh_rate
         
         # Compute the max number of plots per refresh (if sequential plot updates are enabled)
         if self.vis.sequential_plot_updates:
             # Max number of plots per refresh is computed
+            computed_update_refresh_rate = max(10, min(500, int(minimum_refresh_rate/(n_lines+1))))
             self.vis.max_plots_per_refresh = int(np.ceil((n_lines * computed_update_refresh_rate) / minimum_refresh_rate))
+            self.vis.update_refresh_rate = computed_update_refresh_rate
         else:
             self.vis.max_plots_per_refresh = 1e40
+            self.vis.update_refresh_rate = minimum_refresh_rate
 
 
         pg.setConfigOption('background', 'w')
@@ -455,7 +460,11 @@ class MainWindow(QMainWindow):
         self.legends = {}
         
         if self.vis.add_image_widget:
+            cm = pg.colormap.get('CET-L17')
+            if cm.color[0, 0] == 1:
+                cm.reverse()
             self.image_view = ImageView()
+            self.image_view.setColorMap(cm)
             self.layout_widget.addWidget(self.image_view, stretch=1)
             self.image_view.ui.histogram.hide()
             self.image_view.ui.roiBtn.hide()
@@ -540,14 +549,25 @@ class MainWindow(QMainWindow):
 
 
     def update_ring_buffers(self):
-        new_data = self.core._get_measurement_dict_PLOT()
         for source, buffer in self.vis.ring_buffers.items():
-            if self.plots[source][-1]['pos'] == 'image':
-                # buffer.extend(new_data[source]) # This should be last image
-                if len(new_data[source]) > 0:
-                    self.new_image = new_data[source][-1].T
+            if hasattr(self.core.acquisitions[self.core.acquisition_names.index(source)], 'image_shape'):
+                plot_channel = self.plots[source][-1]
+                since_refresh = plot_channel['since_refresh']
+                refresh_rate = plot_channel['refresh_rate']
+                # only update if refresh rate is reached
+                if (refresh_rate <= since_refresh + self.vis.update_refresh_rate):
+                    _, new_data = self.core.acquisitions[self.core.acquisition_names.index(source)].get_data(N_points=1)
+
+                    if len(new_data) > 0:
+                        self.new_image = new_data[-1].T
+
+                    # ch = [_['channels'] for _ in self.plots[source] if _['pos'] == 'image']
+                    # ch_raweled = [np.ravel_multi_index(_, self.core.acquisitions[self.core.acquisition_names.index(source)].image_shape) for _ in ch]
+                    # if not isinstance(ch, str):
+                    #     buffer.extend(new_data[source].reshape(new_data[source].shape[0], -1)[ch_raweled])
             else:
-                buffer.extend(new_data[source])
+                new_data = self.core.acquisitions[self.core.acquisition_names.index(source)].get_data_PLOT()
+                buffer.extend(new_data)
 
 
     def update_plots(self, force_refresh=False):
@@ -592,7 +612,8 @@ class MainWindow(QMainWindow):
                         
                         if plot_channel['pos'] == 'image':
                             if hasattr(self, 'new_image'):
-                                new_data = self.new_image
+                                new_data = self.new_image#[::5, ::5]
+                                # new_data = np.random.rand(200, 200)
                             else:
                                 new_data = np.random.rand(200, 200)
                             self.update_image(new_data)
@@ -607,7 +628,16 @@ class MainWindow(QMainWindow):
     
     
     def update_image(self, new_data):
+        if hasattr(self, 'boxstate'):
+            _view = self.image_view.getView()
+            _state = _view.getState()
+
         self.image_view.setImage(new_data)
+
+        if hasattr(self, 'boxstate'):
+            _view.setState(_state)
+            
+        self.boxstate = True
 
 
     def update_line(self, new_data, plot_channel):

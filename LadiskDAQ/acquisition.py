@@ -7,7 +7,7 @@ import threading
 import copy
 
 import sys
-from pyTrigger import pyTrigger
+from pyTrigger import pyTrigger, RingBuffer2D
 
 # National Insturments:
 from PyDAQmx.DAQmxFunctions import *
@@ -31,7 +31,7 @@ except:
     print("PySpin library not found.")
     
 try:    
-    import pypylon
+    from pypylon import genicam, pylon
 except:
     print("pypylon library not found. Please install using pip install pypylon")
 
@@ -45,10 +45,34 @@ class DummyLock:
 class CustomPyTrigger(pyTrigger):
     """
     Upgrades pyTrigger class with features needed for acquisition class BaseAcquisition.
+    
+    :param rows: # of rows
+    :param channels: # of channels
+    :param trigger_channel: the channel used for triggering
+    :param trigger_level: the level to cross, to start trigger
+    :param trigger_type: 'up' is default, possible also 'down'/'abs'
+    :param presamples: # of presamples
     """
     triggered_global = False
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    #def __init__(self, *args, **kwargs):
+        #super().__init__(*args, **kwargs)
+    def __init__(self, rows=5120, channels=4, trigger_channel=0,
+                 trigger_level=1., trigger_type='up', presamples=1000,
+                 dtype=np.float64):
+        
+        self.rows = rows
+        self.channels = channels
+        self.trigger_channel = trigger_channel
+        self.trigger_level = trigger_level
+        self.trigger_type = trigger_type.lower()
+        self.presamples = presamples
+        self.ringbuff =  RingBuffer2D(rows=self.rows, columns=self.channels, dtype=dtype)
+        self.triggered = False
+        self.rows_left = self.rows
+        self.finished = False
+        self.first_data = True
+        
+        
         self.N_acquired_samples               = 0 # samples acquired throughout whole acquisition process
         self.N_acquired_samples_since_trigger = 0 # samples acquired since trigger
         self.N_new_samples                    = 0 # new samples that have not been retrieved yet
@@ -173,6 +197,7 @@ class BaseAcquisition:
     
     def __init__(self):
         """EDIT in child class"""
+        self.buffer_dtype = np.float64 # default dtype of data in ring buffer
         self.acquisition_name = "DefaultAcquisition"
         self.channel_names = []
         self.is_running = True
@@ -391,7 +416,8 @@ class BaseAcquisition:
             trigger_type=self.trigger_settings['type'],
             trigger_channel=self.trigger_settings['channel'], 
             trigger_level=self.trigger_settings['level'],
-            presamples=self.trigger_settings['presamples'])
+            presamples=self.trigger_settings['presamples'],
+            dtype=self.buffer_dtype)
         
         self.Trigger.continuous_mode = self.continuous_mode
         if self.continuous_mode:
@@ -1003,7 +1029,6 @@ class NIAcquisition(BaseAcquisition):
 
         super().run_acquisition(run_time)
 
-
 class IRFormatType:
     LINEAR_10MK = 1
     LINEAR_100MK = 2
@@ -1394,259 +1419,64 @@ class BaslerCamera(BaseAcquisition):
     2) Install python library with pip install pypylon
     
     """
-    def __init__(self, acquisition_name=None):
+    def __init__(self, acquisition_name=None, sample_rate=60, offset=(0, 0), size=(4096, 3000), pixel_format="Mono12", buffer_dtype=np.int16):
         super().__init__()
 
-        self.acquisition_name = 'FLIR' if acquisition_name is None else acquisition_name
+        self.acquisition_name = 'BaslerCamera' if acquisition_name is None else acquisition_name
         self.image_shape = None
         
-        self.camera_acq_started = False
-        self.set_data_source() # to read self.image_shape
+        self.sample_rate = sample_rate # camera fps
+        self.size = size # camera size
+        self.offset = offset # camera offsets
+        self.pixel_format = pixel_format
+        
+        self.buffer_dtype = buffer_dtype# TODO: adjust this according to pixel_format
+        
+        self.set_data_source(start_grabbing=False) # to read self.image_shape
         
         # there will always be only 1 channel and it will always display temperature
         self.n_channels  = self.image_shape[0]*self.image_shape[1]
-        self.channel_names = ['Temperature']
-        self.sample_rate = 30 # TODO: this can probably be set in thermal camera and read from it
-                              # default camera fps is 30.
+        self.channel_names = ['Camera']
         
         # channel in set trigger is actually pixel in flatten array:
         self.set_trigger(1e20, 0, duration=1.0)
         
-    def set_IRtype(self, IRtype):
-        '''This function sest the IR type to be used by the camera.
-
-        Sets the IR type to either:
-            - LINEAR_10MK: 10mK temperature resolution
-            - LINEAR_100MK: 100mK temperature resolution
-            - RADIOMETRIC: capture radiometric data and manually convert to temperature
-
-        Parameters
-        ----------
-        IRtype : str
-            IR type to be used by the camera (either LINEAR_10MK, LINEAR_100MK or RADIOMETRIC)
-        '''
-        avaliable_types = [
-            i for i in IRFormatType.__dict__.keys() if i[:1] != '_'
-        ]
-        if IRtype not in avaliable_types:
-            raise ValueError(
-                f'IRtype must be one of the following: {avaliable_types}')
-        self.CHOSEN_IR_TYPE = getattr(IRFormatType, IRtype)
         
-    def set_data_source(self):
+       
+    def set_data_source(self, start_grabbing=True):
         """
         Properly sets acquisition source before measurement is started.
         Should be set up in a way that it is able to be called multiple times in a row without issues.    
         """
-        if hasattr(self, 'cam'):
-            return # we already have a camera set up
-        
-        # Retrieve singleton reference to system object
-        self.system = PySpin.System.GetInstance()
-        # Get current library version
-        version = self.system.GetLibraryVersion()
-        #print('Library version: %d.%d.%d.%d' %
-        #      (version.major, version.minor, version.type, version.build))
+        if hasattr(self, 'camera'):
+            pass
+        else:
+            self.camera = pylon.InstantCamera( pylon.TlFactory.GetInstance().CreateFirstDevice() )
+            self.camera.Open()
+            print("Using device:", self.camera.GetDeviceInfo().GetModelName())
 
-        self.cam_list = self.system.GetCameras()
-        num_cameras = self.cam_list.GetSize()
-
-        #print('Number of cameras detected: %d' % num_cameras)
-
-        # Finish if there are no cameras
-        if num_cameras == 0:
-            # Clear camera list before releasing system
-            self.cam_list.Clear()
-            # Release system instance
-            self.system.ReleaseInstance()
-            raise ValueError('No cameras detected!')
-
-        elif num_cameras > 1:
-            # Clear camera list before releasing system
-            self.cam_list.Clear()
-            # Release system instance
-            self.system.ReleaseInstance()
-            raise ValueError('More than one camera detected!')
-        elif num_cameras < 0:
-            raise ValueError('Something went wrong with camera detection!')
-        
-        # we have exactly one camera:
-        self.cam = self.cam_list.GetByIndex(0)
-        # Initialize camera
-        self.cam.Init()
-        self.nodemap_tldevice = self.cam.GetTLDeviceNodeMap()
-        # Retrieve GenICam nodemap
-        self.nodemap = self.cam.GetNodeMap()
-        
-        sNodemap = self.cam.GetTLStreamNodeMap()
-
-        # Change bufferhandling mode to NewestOnly
-        node_bufferhandling_mode = PySpin.CEnumerationPtr(sNodemap.GetNode('StreamBufferHandlingMode'))
-        node_pixel_format = PySpin.CEnumerationPtr(self.nodemap.GetNode('PixelFormat'))
-        node_pixel_format_mono16 = PySpin.CEnumEntryPtr(node_pixel_format.GetEntryByName('Mono16'))
-        
-        pixel_format_mono16 = node_pixel_format_mono16.GetValue()
-        node_pixel_format.SetIntValue(pixel_format_mono16)
-        #print("pixelformat:", pixel_format_mono16)
-        
-        if self.CHOSEN_IR_TYPE == IRFormatType.LINEAR_10MK: # LINEAR_10MK
-            # This section is to be activated only to set the streaming mode to TemperatureLinear10mK
-            node_IRFormat = PySpin.CEnumerationPtr(self.nodemap.GetNode('IRFormat'))
-            node_temp_linear_high = PySpin.CEnumEntryPtr(node_IRFormat.GetEntryByName('TemperatureLinear10mK'))
-            node_temp_high = node_temp_linear_high.GetValue()
-            node_IRFormat.SetIntValue(node_temp_high)
-        elif self.CHOSEN_IR_TYPE == IRFormatType.LINEAR_100MK: # LINEAR_100MK
-            # This section is to be activated only to set the streaming mode to TemperatureLinear100mK
-            node_IRFormat = PySpin.CEnumerationPtr(self.nodemap.GetNode('IRFormat'))
-            node_temp_linear_low = PySpin.CEnumEntryPtr(node_IRFormat.GetEntryByName('TemperatureLinear100mK'))
-            node_temp_low = node_temp_linear_low.GetValue()
-            node_IRFormat.SetIntValue(node_temp_low)
-        elif self.CHOSEN_IR_TYPE == IRFormatType.RADIOMETRIC: # RADIOMETRIC
-            # This section is to be activated only to set the streaming mode to Radiometric
-            node_IRFormat = PySpin.CEnumerationPtr(self.nodemap.GetNode('IRFormat'))
-            node_temp_radiometric = PySpin.CEnumEntryPtr(node_IRFormat.GetEntryByName('Radiometric'))
-            node_radiometric = node_temp_radiometric.GetValue()
-            node_IRFormat.SetIntValue(node_radiometric)
+            self.camera.PixelFormat.SetValue(self.pixel_format)  # set pixel depth to 16 bits
+            self.camera.ExposureTime.SetValue(60000.0)  # set exposure time to 60 ms
+            self.camera.Width.SetValue(self.size[0])  # set the width
+            self.camera.Height.SetValue(self.size[1])  # set the height
+            self.camera.OffsetX.SetValue(self.offset[0])  # set the offset x
+            self.camera.OffsetY.SetValue(self.offset[1])  # set the offset y
             
-        if not PySpin.IsAvailable(node_bufferhandling_mode) or not PySpin.IsWritable(node_bufferhandling_mode):
-            self.terminate_data_source()
-            raise ValueError('Unable to set stream buffer handling mode.')
-        # Retrieve entry node from enumeration node
-        node_newestonly = node_bufferhandling_mode.GetEntryByName('NewestOnly')
-        if not PySpin.IsAvailable(node_newestonly) or not PySpin.IsReadable(node_newestonly):
-            self.terminate_data_source()
-            raise ValueError('Unable to set stream buffer handling mode.')
+            # Get the node map
+            nodemap = self.camera.GetNodeMap()
+
+            # Set the acquisition frame rate to 60 fps
+            self.camera.AcquisitionFrameRate.SetValue(self.sample_rate)
+                    
+            # Get the image size
+            width = self.camera.Width.GetValue()
+            height = self.camera.Height.GetValue()
+            self.image_shape = (height, width)    
         
-        # Retrieve integer value from entry node
-        node_newestonly_mode = node_newestonly.GetValue()
-        # Set integer value from entry node as new value of enumeration node
-        node_bufferhandling_mode.SetIntValue(node_newestonly_mode)
-        
-        try:
-            node_acquisition_mode = PySpin.CEnumerationPtr(self.nodemap.GetNode('AcquisitionMode'))
-            if not PySpin.IsAvailable(node_acquisition_mode) or not PySpin.IsWritable(node_acquisition_mode):
-                self.terminate_data_source()
-                raise ValueError('Unable to set acquisition mode to continuous.')   
-
-            # Retrieve entry node from enumeration node
-            node_acquisition_mode_continuous = node_acquisition_mode.GetEntryByName('Continuous')
-            if not PySpin.IsAvailable(node_acquisition_mode_continuous) or not PySpin.IsReadable(node_acquisition_mode_continuous):
-                self.terminate_data_source()
-                raise ValueError('Unable to set acquisition mode to continuous (entry retrieval).')
-
-            # Retrieve integer value from entry node
-            acquisition_mode_continuous = node_acquisition_mode_continuous.GetValue()
-            # Set integer value from entry node as new value of enumeration node
-            node_acquisition_mode.SetIntValue(acquisition_mode_continuous)
-
-            #  Begin acquiring images
-            #
-            #  *** NOTES ***
-            #  What happens when the camera begins acquiring images depends on the
-            #  acquisition mode. Single frame captures only a single image, multi
-            #  frame catures a set number of images, and continuous captures a
-            #  continuous stream of images.
-            #
-            #  *** LATER ***
-            #  Image acquisition must be ended when no more images are needed.
-            self.cam.BeginAcquisition()
-            self.camera_acq_started = True
-
-            #  Retrieve device serial number for filename
-            #
-            #  *** NOTES ***
-            #  The device serial number is retrieved in order to keep cameras from
-            #  overwriting one another. Grabbing image IDs could also accomplish
-            #  this.
-            device_serial_number = ''
-            node_device_serial_number = PySpin.CStringPtr(self.nodemap_tldevice.GetNode('DeviceSerialNumber'))
-            if PySpin.IsAvailable(node_device_serial_number) and PySpin.IsReadable(node_device_serial_number):
-                device_serial_number = node_device_serial_number.GetValue()
-
-            # Retrieve Calibration details
-            self.calib_dict = {}
-            CalibrationQueryR_node = PySpin.CFloatPtr(self.nodemap.GetNode('R'))
-            self.calib_dict['R'] = CalibrationQueryR_node.GetValue()
-
-            CalibrationQueryB_node = PySpin.CFloatPtr(self.nodemap.GetNode('B'))
-            self.calib_dict['B'] = CalibrationQueryB_node.GetValue()
-
-            CalibrationQueryF_node = PySpin.CFloatPtr(self.nodemap.GetNode('F'))
-            self.calib_dict['F'] = CalibrationQueryF_node.GetValue()
-
-            CalibrationQueryX_node = PySpin.CFloatPtr(self.nodemap.GetNode('X'))
-            self.calib_dict['X'] = CalibrationQueryX_node.GetValue()
-
-            CalibrationQueryA1_node = PySpin.CFloatPtr(self.nodemap.GetNode('alpha1'))
-            self.calib_dict['A1'] = CalibrationQueryA1_node.GetValue()
-
-            CalibrationQueryA2_node = PySpin.CFloatPtr(self.nodemap.GetNode('alpha2'))
-            self.calib_dict['A2'] = CalibrationQueryA2_node.GetValue()
-
-            CalibrationQueryB1_node = PySpin.CFloatPtr(self.nodemap.GetNode('beta1'))
-            self.calib_dict['B1'] = CalibrationQueryB1_node.GetValue()
-
-            CalibrationQueryB2_node = PySpin.CFloatPtr(self.nodemap.GetNode('beta2'))
-            self.calib_dict['B2'] = CalibrationQueryB2_node.GetValue()
-
-            CalibrationQueryJ1_node = PySpin.CFloatPtr(self.nodemap.GetNode('J1'))  # Gain
-            self.calib_dict['J1'] = CalibrationQueryJ1_node.GetValue()
-
-            CalibrationQueryJ0_node = PySpin.CIntegerPtr(self.nodemap.GetNode('J0'))  # Offset
-            self.calib_dict['J0'] = CalibrationQueryJ0_node.GetValue()
-            
-            
-            if self.CHOSEN_IR_TYPE == IRFormatType.RADIOMETRIC:
-                # Object Parameters. For this demo, they are imposed!
-                # This section is important when the streaming is set to radiometric and not TempLinear
-                # Image of temperature is calculated computer-side and not camera-side
-                # Parameters can be set to the whole image, or for a particular ROI (not done here)
-                Emiss = 0.97
-                TRefl = 293.15
-                TAtm = 293.15
-                TAtmC = TAtm - 273.15
-                Humidity = 0.55
-
-                Dist = 2
-                ExtOpticsTransmission = 1
-                ExtOpticsTemp = TAtm
-                
-                R, B, F, X, A1, A2, B1, B2, J1, J0 = (self.calib_dict['R'], self.calib_dict['B'], self.calib_dict['F'], self.calib_dict['X'], 
-                                                      self.calib_dict['A1'], self.calib_dict['A2'], self.calib_dict['B1'], self.calib_dict['B2'], 
-                                                      self.calib_dict['J1'], self.calib_dict['J0'])
-                
-                H2O = Humidity * np.exp(1.5587 + 0.06939 * TAtmC -
-                                        0.00027816 * TAtmC * TAtmC +
-                                        0.00000068455 * TAtmC * TAtmC * TAtmC)
-
-                Tau = X * np.exp(-np.sqrt(Dist) *
-                                 (A1 + B1 * np.sqrt(H2O))) + (1 - X) * np.exp(
-                                     -np.sqrt(Dist) * (A2 + B2 * np.sqrt(H2O)))
-
-                # Pseudo radiance of the reflected environment
-                r1 = ((1 - Emiss) / Emiss) * (R / (np.exp(B / TRefl) - F))
-
-                # Pseudo radiance of the atmosphere
-                r2 = ((1 - Tau) / (Emiss * Tau)) * (R / (np.exp(B / TAtm) - F))
-
-                # Pseudo radiance of the external optics
-                r3 = ((1 - ExtOpticsTransmission) /
-                      (Emiss * Tau * ExtOpticsTransmission)) * (
-                          R / (np.exp(B / ExtOpticsTemp) - F))
-
-                K2 = r1 + r2 + r3
-                self.calib_dict['K2'] = K2
-                self.calib_dict['Emiss'] = Emiss
-                self.calib_dict['Tau'] = Tau
-                
-            self.node_width = PySpin.CIntegerPtr(self.nodemap.GetNode('Width'))
-            self.node_height = PySpin.CIntegerPtr(self.nodemap.GetNode('Height'))
-            self.offsetX = PySpin.CIntegerPtr(self.nodemap.GetNode('OffsetX'))
-            self.offsetY = PySpin.CIntegerPtr(self.nodemap.GetNode('OffsetY'))
-            self.image_shape = (self.node_height.GetMax() - self.offsetY.GetMax(), self.node_width.GetValue()-self.offsetX.GetMax())
-        
-        except PySpin.SpinnakerException as ex:
-            raise Exception('Error: %s' % ex)
+        if start_grabbing:
+            self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)  
+            print("start")
+            time.sleep(0.2)
 
     def read_data(self):
         """
@@ -1656,42 +1486,15 @@ class BaslerCamera(BaseAcquisition):
         
         Must return a 2D numpy array of shape (n_samples, n_columns).
         """
+        # Wait for an image and then retrieve it. A timeout of is used.
+        grabResult = self.camera.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
+        # Image grabbed successfully?
         
-     
-        image_result = self.cam.GetNextImage()
-        #  Ensure image completion
-        if image_result.IsIncomplete():
-            return  np.empty((0, self.n_channels))
-
-        # Getting the image data as a np array
-        image_data = image_result.GetNDArray()
-        if self.CHOSEN_IR_TYPE == IRFormatType.LINEAR_10MK:
-            # Transforming the data array into a temperature array, if streaming mode is set to TemperatueLinear10mK
-            image_Temp_Celsius_high = (image_data *
-                                        0.01) - 273.15
-            image_temp = image_Temp_Celsius_high
-            
-        elif self.CHOSEN_IR_TYPE == IRFormatType.LINEAR_100MK:
-            # Transforming the data array into a temperature array, if streaming mode is set to TemperatureLinear100mK
-            image_Temp_Celsius_low = (image_data * 0.1) - 273.15
-            image_temp = image_Temp_Celsius_low
-
-        elif self.CHOSEN_IR_TYPE == IRFormatType.RADIOMETRIC:
-            # Transforming the data array into a pseudo radiance array, if streaming mode is set to Radiometric.
-            # and then calculating the temperature array (degrees Celsius) with the full thermography formula
-            J0, J1, B, R, Emiss, Tau, K2, F = (self.calib_dict["J0"], self.calib_dict["J1"], self.calib_dict["B"], 
-                                            self.calib_dict["R"], self.calib_dict["Emiss"], self.calib_dict["Tau"], 
-                                            self.calib_dict["K2"], self.calib_dict["F"])
-            image_Radiance = (image_data - J0) / J1
-            image_temp = (B / np.log(R / ( (image_Radiance / Emiss / Tau) - K2) + F) ) - 273.15
-        else:
-            raise Exception('Unknown IRFormatType')
-        
-        image_temp = image_temp.reshape(-1, self.n_channels)
-        
-        if image_temp.shape[0] > 0:
-            image_result.Release()
-            return image_temp
+        if grabResult.GrabSucceeded():
+            image_temp = grabResult.Array
+            self.image_shape = image_temp.shape
+            grabResult.Release()
+            return image_temp.reshape(-1, self.n_channels)
         else:
             return np.empty((0, self.n_channels))
     
@@ -1701,16 +1504,9 @@ class BaslerCamera(BaseAcquisition):
         
         Returns None.
         """
-        if self.camera_acq_started:
-            self.cam.EndAcquisition()
-            self.camera_acq_started = False
-            
-        self.cam.DeInit()
-        del self.cam
-        # Clear camera list before releasing system
-        self.cam_list.Clear()
-        # Release system instance
-        self.system.ReleaseInstance()
+        self.camera.StopGrabbing()
+        #grabResult.Release()
+        self.camera.Close()
    
     def get_sample_rate(self):
         """

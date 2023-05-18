@@ -173,7 +173,7 @@ class Visualization:
             })
 
 
-    def add_image(self, source, function=None, refresh_rate=100):
+    def add_image(self, source, function=None, refresh_rate=100, colormap='CET-L17'):
         """"""
         self.add_image_widget = True
 
@@ -199,6 +199,8 @@ class Visualization:
             'since_refresh': 1e40,
             'refresh_rate': refresh_rate,
         })
+
+        self.color_map = colormap
 
 
     def config_subplot(self, position, xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1):
@@ -465,7 +467,10 @@ class MainWindow(QMainWindow):
             self.layout_widget.addWidget(grid_layout, stretch=1)
         
         if self.vis.add_image_widget:
-            cm = pg.colormap.get('CET-L17')
+            if self.vis.color_map == 'CET-L17':
+                cm = pg.colormap.get(self.vis.color_map)
+            else:
+                cm = pg.colormap.getFromMatplotlib(self.vis.color_map)
             if cm.color[0, 0] == 1:
                 cm.reverse()
             self.image_view = ImageView()

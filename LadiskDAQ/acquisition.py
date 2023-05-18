@@ -353,6 +353,7 @@ class BaseAcquisition:
             self._set_trigger_instance()
         else:
             self.update_trigger_parameters(duration=run_time, duration_unit='seconds')
+            
         self.set_data_source()
         
         # if acquisition is used in some other classes, wait until all acquisition sources are ready:
@@ -366,6 +367,9 @@ class BaseAcquisition:
                 
             time.sleep(0.01)
             self.clear_buffer() # ensure buffer is cleared at least once. 
+        else:
+            # acquisition is being run as a standalone process, so no need to wait for other sources
+            pass
         
         self.actual_run_time = 0 # actual time run to obtain all samples
         time_start_acq = time.time()
@@ -1045,9 +1049,9 @@ class FLIRThermalCamera(BaseAcquisition):
     1) Install Spinnaker SDK (i.e. SpinnakerSDK_FULL_3.1.0.79_x64.exe, found on provided link)
     2) Install PySpin (python wrapper for Spinnaker SDK)
     """
-    def __init__(self, acquisition_name=None):
+    def __init__(self, acquisition_name=None, buffer_dtype=np.float16):
         super().__init__()
-
+        self.buffer_dtype = buffer_dtype
         self.acquisition_name = 'FLIR' if acquisition_name is None else acquisition_name
         self.image_shape = None
         
@@ -1419,19 +1423,20 @@ class BaslerCamera(BaseAcquisition):
     2) Install python library with pip install pypylon
     
     """
-    def __init__(self, acquisition_name=None, sample_rate=60, offset=(0, 0), size=(4096, 3000), pixel_format="Mono12", buffer_dtype=np.int16):
+    def __init__(self, acquisition_name=None, sample_rate=60, offset=(0, 0), size=(4112, 3008),
+                 subsample=1, pixel_format="Mono12", buffer_dtype=np.uint16):
         super().__init__()
 
         self.acquisition_name = 'BaslerCamera' if acquisition_name is None else acquisition_name
         self.image_shape = None
         
         self.sample_rate = sample_rate # camera fps
+        self.subsample = subsample # subsample factor to reduce resolution
         self.size = size # camera size
         self.offset = offset # camera offsets
         self.pixel_format = pixel_format
         
         self.buffer_dtype = buffer_dtype# TODO: adjust this according to pixel_format
-        
         self.set_data_source(start_grabbing=False) # to read self.image_shape
         
         # there will always be only 1 channel and it will always display temperature
@@ -1457,10 +1462,11 @@ class BaslerCamera(BaseAcquisition):
 
             self.camera.PixelFormat.SetValue(self.pixel_format)  # set pixel depth to 16 bits
             self.camera.ExposureTime.SetValue(60000.0)  # set exposure time to 60 ms
-            self.camera.Width.SetValue(self.size[0])  # set the width
-            self.camera.Height.SetValue(self.size[1])  # set the height
             self.camera.OffsetX.SetValue(self.offset[0])  # set the offset x
             self.camera.OffsetY.SetValue(self.offset[1])  # set the offset y
+            self.camera.Width.SetValue(self.size[0])  # set the width
+            self.camera.Height.SetValue(self.size[1])  # set the height
+            
             
             # Get the node map
             nodemap = self.camera.GetNodeMap()
@@ -1471,12 +1477,13 @@ class BaslerCamera(BaseAcquisition):
             # Get the image size
             width = self.camera.Width.GetValue()
             height = self.camera.Height.GetValue()
-            self.image_shape = (height, width)    
+            
+            self.image_shape = ( (np.arange(height)[::self.subsample]).shape[0], (np.arange(width)[::self.subsample]).shape[0]) 
+               
         
         if start_grabbing:
             self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)  
-            print("start")
-            time.sleep(0.2)
+            time.sleep(0.01)
 
     def read_data(self):
         """
@@ -1491,8 +1498,8 @@ class BaslerCamera(BaseAcquisition):
         # Image grabbed successfully?
         
         if grabResult.GrabSucceeded():
-            image_temp = grabResult.Array
-            self.image_shape = image_temp.shape
+            image_temp = grabResult.Array[::self.subsample, ::self.subsample]
+            #self.image_shape = image_temp.shape
             grabResult.Release()
             return image_temp.reshape(-1, self.n_channels)
         else:

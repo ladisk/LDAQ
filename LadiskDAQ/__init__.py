@@ -3,9 +3,10 @@ A project template for the sdPy effort..
 """
 
 __version__ = "0.0.1"
-from .core import *
-from .acquisition import *
-from .generation import *
-from .control import *
+from .core import Core, load_measurement
 from .visualization import *
-from .ni_task import *
+from .basler import *
+from .digilent import *
+from .flir import *
+from .national_instruments import *
+from .serial import *

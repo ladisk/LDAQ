@@ -6,30 +6,9 @@ import copy
 from .daqtask import DAQTask
 from .ni_task import NITaskOutput
 
-class BaseGenerator:
-    def __init__(self):
-        self.is_running = True
-        self.generation_name = "DefaultSignalGeneration"
+from ..generation_base import BaseGeneration
 
-    def generate(self):
-        pass
-
-    def run_generation(self):
-        while self.is_running:
-            self.generate()
-
-    def set_data_source(self):
-        pass
-
-    def terminate_data_source(self):
-        pass
-
-    def stop(self):
-        self.is_running = False
-        self.terminate_data_source()
-
-
-class NIGenerator(BaseGenerator):
+class NIGeneration(BaseGeneration):
     def __init__(self, task_name, signal, generation_name=None):
         """NI Generator class.
         
@@ -104,4 +83,3 @@ class NIGenerator(BaseGenerator):
         self.set_data_source()
 
         self.generate()
-        

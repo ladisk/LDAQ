@@ -329,7 +329,7 @@ class MainWindow(QMainWindow):
         self.app = app
 
         script_directory = os.path.dirname(os.path.realpath(__file__))
-        icon_path = os.path.join(script_directory, "logo.png")
+        icon_path = os.path.join(script_directory, "../logo.png")
         app_icon = QIcon(icon_path)
         self.setWindowIcon(app_icon)
 

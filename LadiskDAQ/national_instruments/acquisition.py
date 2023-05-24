@@ -49,6 +49,7 @@ class NIAcquisition(BaseAcquisition):
         self.sample_rate = self.Task.sample_rate
         self.channel_names = self.Task.channel_list
         self.n_channels = self.Task.number_of_ch
+        self.n_channels_trigger = self.n_channels
 
         if not self.NITask_used:
             glob_vars = globals()

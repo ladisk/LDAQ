@@ -19,6 +19,7 @@ class WaveFormsAcquisition(BaseAcquisition):
         self.channel_idx = channels
         
         self.n_channels  = len(channels)
+        self.n_channels_trigger = self.n_channels
         self.sample_rate = sample_rate
         self.device_number = device_number if device_number is not None else -1
         

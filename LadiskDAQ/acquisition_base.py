@@ -177,6 +177,7 @@ class BaseAcquisition:
         self.N_samples_to_acquire = None
         # child class needs to have variables below:
         self.n_channels  = 0
+        self.n_channels_trigger = 0
         self.sample_rate = 0
         
     def read_data(self):
@@ -383,7 +384,7 @@ class BaseAcquisition:
         """
         self.Trigger = CustomPyTrigger( #pyTrigger
             rows=self.trigger_settings['duration_samples'], 
-            channels=self.n_channels,
+            channels=self.n_channels_trigger,
             trigger_type=self.trigger_settings['type'],
             trigger_channel=self.trigger_settings['channel'], 
             trigger_level=self.trigger_settings['level'],

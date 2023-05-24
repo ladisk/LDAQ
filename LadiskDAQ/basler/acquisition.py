@@ -41,9 +41,9 @@ class BaslerCamera(BaseAcquisition):
         self.set_data_source(start_grabbing=False) # to read self.image_shape
         
         # there will always be only 1 channel and it will always display temperature
-        self.n_channels  = self.image_shape[0]*self.image_shape[1]
+        self.n_channels_trigger  = self.image_shape[0]*self.image_shape[1]
         self.channel_names = ['Camera']
-        
+        self.n_channels = len(self.channel_names)
         
         # channel in set trigger is actually pixel in flatten array:
         self.set_trigger(1e20, 0, duration=1.0)

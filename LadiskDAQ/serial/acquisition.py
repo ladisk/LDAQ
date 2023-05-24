@@ -62,6 +62,8 @@ class SerialAcquisition(BaseAcquisition):
         self.set_unpack_data_settings() # sets unpack_string, expected_number_of_bytes, n_channels
         self.set_channel_names()        # sets channel names if none were given to the class
         
+        self.n_channels_trigger = self.n_channels # number of channels used for triggering
+        
         self.set_data_source()          # initializes serial connection
     
         self.buffer = b""                # buffer to which recieved data is added

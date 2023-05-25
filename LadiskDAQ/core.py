@@ -542,7 +542,7 @@ class Core():
                         data[name]['data'] = np.concatenate((data[name]['data'], new_data), axis=0)
                     if 'video' in measurement.keys():
                         new_video = measurement['video']
-                        data[name]['video'] = np.concatenate((data[name]['video'], new_video), axis=0)
+                        data[name]['video'] = [np.concatenate((data[name]['video'][i], new_video[i]), axis=0) for i in range(len(new_video))]
                     
 
         # Save updated data

@@ -173,7 +173,7 @@ class Visualization:
             })
 
 
-    def add_image(self, source, function=None, refresh_rate=100, colormap='CET-L17'):
+    def add_image(self, source, channel, function=None, refresh_rate=100, colormap='CET-L17'):
         """"""
         self.add_image_widget = True
 
@@ -193,7 +193,7 @@ class Visualization:
 
         self.plots[source].append({
             'pos': 'image',
-            'channels': 'image',
+            'channels': channel,
             'apply_function': apply_function,
             'nth': 1,
             'since_refresh': 1e40,
@@ -313,7 +313,8 @@ class Visualization:
                 self.ring_buffers[source] = RingBuffer2D(rows, n_channels)
             
             if acq.channel_names_video:
-                self.new_images = [np.random.rand(10, 10)] * len(acq.channel_names_video)
+                # self.new_images = [np.random.rand(10, 10)] * len(acq.channel_names_video)
+                self.new_images = [(ch, np.random.rand(10, 10)) for ch in acq.channel_names_video]
 
             if source not in self.ring_buffers.keys():
                 self.ring_buffers[source] = RingBuffer2D(1, 1)
@@ -570,7 +571,8 @@ class MainWindow(QMainWindow):
                 refresh_rate = plot_channel['refresh_rate']
                 if (refresh_rate <= since_refresh + self.vis.update_refresh_rate):
                     _, new_data = acq.get_data(N_points=1, image=True)
-                    self.new_images = [_[-1].T for _ in new_data]
+                    # self.new_images = [_[-1].T for _ in new_data]
+                    self.new_images = dict([(ch, _[-1].T) for ch, _ in zip(acq.channel_names_video, new_data)])
 
             if acq.channel_names:
                 new_data = acq.get_data_PLOT()
@@ -618,8 +620,8 @@ class MainWindow(QMainWindow):
                         plot_channel['since_refresh'] = 0
                         
                         if plot_channel['pos'] == 'image':
-                            new_data = self.new_images[i]
-                            self.update_image(new_data, source, i)
+                            new_data = self.new_images[plot_channel['channels']]
+                            self.update_image(new_data, plot_channel)
                         else:
                             new_data = self.vis.ring_buffers[source].get_data()
                             self.update_line(new_data, plot_channel)
@@ -630,12 +632,12 @@ class MainWindow(QMainWindow):
                         plot_channel['since_refresh'] += self.vis.update_refresh_rate
     
     
-    def update_image(self, new_data, source, i):
+    def update_image(self, new_data, plot_channel):
         if hasattr(self, 'boxstate'):
-            _view = self.vis.plots[source][i]['image_view'].getView()
+            _view = plot_channel['image_view'].getView()
             _state = _view.getState()
 
-        self.vis.plots[source][i]['image_view'].setImage(new_data)
+        plot_channel['image_view'].setImage(new_data)
 
         if hasattr(self, 'boxstate'):
             _view.setState(_state)

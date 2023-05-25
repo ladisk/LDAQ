@@ -172,10 +172,15 @@ class FLIRThermalCamera(BaseAcquisition):
         # read/calculate virtual channels:
         for key in self.virtual_channel_dict.keys():
             func, use_on_channel_idx = self.virtual_channel_dict[key]
-            if use_on_channel_idx == 0: # use on thermal camera:
-                data_virt_ch = func(data_thermal_camera)
-                i1, i2 = self.channel_pos[ self.channel_names_all.index(key) ]
-                self._temp_read_data[i1:i2] = data_virt_ch.flatten() # save as flatten
+            #if use_on_channel_idx == 0: # use on thermal camera:
+            #    data_virt_ch = func(data_thermal_camera)
+                #i1, i2 = self.channel_pos[ self.channel_names_all.index(key) ]
+                #self._temp_read_data[i1:i2] = data_virt_ch.flatten() # save as flatten
+                
+            data_used_ch = self._temp_read_data[ self.channel_pos[use_on_channel_idx][0] : self.channel_pos[use_on_channel_idx][1] ].reshape(self.channel_shapes[use_on_channel_idx])
+            data_virt_ch = func(data_used_ch)    
+            i1, i2 = self.channel_pos[ self.channel_names_all.index(key) ]
+            self._temp_read_data[i1:i2] = data_virt_ch.flatten() # save as flatten
         
         return self._temp_read_data.reshape(-1, self.n_channels_trigger)
             

@@ -111,7 +111,12 @@ class FLIRThermalCamera(BaseAcquisition):
             # add virtual channels:
             for key in self.virtual_channel_dict.keys():
                 self.channel_names_all.append(key)
-                self.channel_shapes.append( (1,) )
+                func, channel_used = self.virtual_channel_dict[key]
+                shape_used = self.channel_shapes[ self.channel_names_all.index(channel_used) ]
+                dummy_array = np.random.rand( *shape_used )
+                output = func(dummy_array)
+                
+                self.channel_shapes.append( output.shape )
                
             # calculate total number of channels: 
             self.n_channels = len(self.channel_names_all)

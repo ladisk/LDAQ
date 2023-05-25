@@ -249,15 +249,14 @@ class BaseAcquisition:
             self.stop()
             self.terminate_data_source()
 
-    def get_data(self, N_points=None):
+    def get_data(self, N_points=None, image=False):
         """Reads and returns data from the pyTrigger buffer.
         :param N_points (int, str, None): number of last N points to read from pyTrigger buffer. 
                             if N_points="new", then only new points will be retrieved.
                             if None all samples are returned.
         Returns:
             tuple: (time, data) - 1D time vector and 2D measured data, both np.ndarray
-        """
-        
+        """        
         if N_points is None:
             data = self.Trigger.get_data()[-self.Trigger.N_acquired_samples_since_trigger:]
             
@@ -270,7 +269,7 @@ class BaseAcquisition:
         time = np.arange(data.shape[0])/self.sample_rate     
         return time, data
     
-    def get_data_PLOT(self):
+    def get_data_PLOT(self, image=False):
         """Reads only new data from pyTrigger ring buffer and returns it.
         NOTE: this method is used only for plotting purposes and should not be used for any other purpose.
               also it does not return time vector, only data.
@@ -293,22 +292,25 @@ class BaseAcquisition:
         Returns:
             dict: {'data': data, 'time': time, 'channel_names': self.channel_names, 'sample_rate' : sample_rate}
         """
-        if N_points is None:
-            time, data = self.get_data(N_points=N_points)
-        else:
-            time, data = self.get_data(N_points=N_points)
+        self.measurement_dict = {}
         
-        self.measurement_dict = {
-            'time': time,
-            'channel_names': self.channel_names,
-            'sample_rate' : None, 
-        }
-        
-        self.measurement_dict['data'] = data
-        
+        if len(self.channel_names) > 0:
+            time, data = self.get_data(N_points=N_points, image=False)
+            
+            self.measurement_dict['time'] = time
+            self.measurement_dict['channel_names'] = self.channel_names
+            self.measurement_dict['data'] = data
+            
+        if len(self.channel_names_video) > 0:
+            time, data_video = self.get_data(N_points=N_points, image=True)
+            self.measurement_dict['time'] = time
+            self.measurement_dict['channel_names_video'] = self.channel_names_video
+            self.measurement_dict['video'] = data_video
         
         if hasattr(self, 'sample_rate'):
             self.measurement_dict['sample_rate'] = self.sample_rate
+        else:
+            self.measurement_dict['sample_rate'] = None
             
         return self.measurement_dict
         

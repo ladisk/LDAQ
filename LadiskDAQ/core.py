@@ -529,17 +529,21 @@ class Core():
                     data[name]['time'] += time_last_dict[name] + 1 / acq.sample_rate
         
                 else:
-                    new_data = measurement['data']
-
                     if len(data[name]['time']) > 0:
                         time_last = data[name]['time'][-1]
                     else:
                         time_last = time_last_dict[name]
-
+                        
                     new_time = measurement['time'] + time_last + 1 / acq.sample_rate
-
-                    data[name]['data'] = np.concatenate((data[name]['data'], new_data), axis=0)
                     data[name]['time'] = np.concatenate((data[name]['time'], new_time), axis=0)
+                    
+                    if 'data' in measurement.keys():
+                        new_data = measurement['data']
+                        data[name]['data'] = np.concatenate((data[name]['data'], new_data), axis=0)
+                    if 'video' in measurement.keys():
+                        new_video = measurement['video']
+                        data[name]['video'] = np.concatenate((data[name]['video'], new_video), axis=0)
+                    
 
         # Save updated data
         with open(file_path, 'wb') as f:

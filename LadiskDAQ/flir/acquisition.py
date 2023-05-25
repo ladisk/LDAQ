@@ -44,7 +44,7 @@ class FLIRThermalCamera(BaseAcquisition):
         self.buffer_dtype = np.float16 # this is used when CustomPyTrigger instance is created
         self.virtual_channel_dict = {}
         
-        self.image_shape = None # TODO: remove this
+        #self.image_shape = None # TODO: remove this
         
         self.channel_names_all = []
         self.channel_shapes = []
@@ -215,18 +215,17 @@ class FLIRThermalCamera(BaseAcquisition):
         """
         self.read_data()
         
-    def get_data(self, N_points=None, image=True):
+    def get_data(self, N_points=None, data_to_return="video"):
         """
         Overwrites the get_data method of the parent class.
         Additionally reshapes the data into a 3D array of shape (n_samples, height, width).
         
-        if image = True, then list of 3D arrays is returned, 
-        if False, 2D array is returned with containing virtual channels
+        data_to_return : "video", "data" or "flattened"
         """
         
         time, data = super().get_data(N_points=N_points)
         
-        if image:
+        if data_to_return=="video":
             channels = [self.channel_names_all.index(name) for name in self.channel_names_video]
             
             data_return = []
@@ -234,23 +233,26 @@ class FLIRThermalCamera(BaseAcquisition):
                 shape = self.channel_shapes[channel]
                 pos = self.channel_pos[channel]
                 data_return.append( data[:, pos[0]:pos[1]].reshape( (data.shape[0], *shape) ) )
-        else:
+        elif data_to_return=="data":
             channels = [self.channel_names_all.index(name) for name in self.channel_names]
             pos_list = [np.arange(self.channel_pos[channel][0], self.channel_pos[channel][1]) for channel in channels]
             pos_list = np.concatenate(pos_list)
             
             data_return = data[:, pos_list]
+        else: # return flattened buffer
+            data_return = data
     
         return time, data_return
     
-    def get_data_PLOT(self, image=False): # this function is actually called only for line plots
+    def get_data_PLOT(self, data_to_return="data"): # this function is actually called only for line plots
         """
         Overwrites the get_data method of the parent class.
-        Additionally reshapes the data into a 3D array of shape (n_samples, height, width).
+        
+        data_to_return : "video", "data" or "flattened"
         """
         data = super().get_data_PLOT()
         
-        if image:
+        if data_to_return=="video":
             channels = [self.channel_names_all.index(name) for name in self.channel_names_video]
             
             data_return = []
@@ -258,12 +260,14 @@ class FLIRThermalCamera(BaseAcquisition):
                 shape = self.channel_shapes[channel]
                 pos = self.channel_pos[channel]
                 data_return.append( data[:, pos[0]:pos[1]].reshape( (data.shape[0], *shape) ) )
-        else:
+        elif data_to_return=="data":
             channels = [self.channel_names_all.index(name) for name in self.channel_names]
             pos_list = [np.arange(self.channel_pos[channel][0], self.channel_pos[channel][1]) for channel in channels]
             pos_list = np.concatenate(pos_list)
             
             data_return = data[:, pos_list]
+        else:
+            data_return = data
         
         return data_return
     

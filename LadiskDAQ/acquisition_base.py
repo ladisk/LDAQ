@@ -167,9 +167,12 @@ class BaseAcquisition:
         """EDIT in child class"""
         self.buffer_dtype = np.float64 # default dtype of data in ring buffer
         self.acquisition_name = "DefaultAcquisition"
-        self.channel_names = []
-        self.channel_names_all = []
-        self.channel_names_video = []
+        self.channel_names = [] # list of channel names with shape (1, )
+        self.channel_names_all = [] # list of all channel names 
+        self.channel_names_video = [] # list of channel names with shape (M, N)
+        self.channel_pos = [] # list of tuples with start and end index positions of the data in the flattened ring buffer corresponding to each channel
+        self.channel_shapes = [] # list of tuples with shapes of each channel (self.channel_names_all)
+        
         self.is_running = True
         self.is_standalone = True # if this is part of bigger system or used as standalone object
         self.is_ready = False
@@ -249,7 +252,7 @@ class BaseAcquisition:
             self.stop()
             self.terminate_data_source()
 
-    def get_data(self, N_points=None, image=False):
+    def get_data(self, N_points=None, data_to_return="data"):
         """Reads and returns data from the pyTrigger buffer.
         :param N_points (int, str, None): number of last N points to read from pyTrigger buffer. 
                             if N_points="new", then only new points will be retrieved.
@@ -269,7 +272,7 @@ class BaseAcquisition:
         time = np.arange(data.shape[0])/self.sample_rate     
         return time, data
     
-    def get_data_PLOT(self, image=False):
+    def get_data_PLOT(self, data_to_return="data"):
         """Reads only new data from pyTrigger ring buffer and returns it.
         NOTE: this method is used only for plotting purposes and should not be used for any other purpose.
               also it does not return time vector, only data.
@@ -280,7 +283,6 @@ class BaseAcquisition:
             return self.Trigger.get_data_new_PLOT()
     
     def get_measurement_dict(self, N_points=None):
-        #TODO: this has to be modified once camera data is stored in 'video' key
         """Reads data from pyTrigger ring buffer using self.get_data() method and returns a dictionary
            {'data': data, 'time': time, 'channel_names': self.channel_names, 'sample_rate' : sample_rate}
 
@@ -294,18 +296,36 @@ class BaseAcquisition:
         """
         self.measurement_dict = {}
         
-        if len(self.channel_names) > 0:
-            time, data = self.get_data(N_points=N_points, image=False)
+        time, data = self.get_data(N_points=N_points, data_to_return="flattened")
+        
+        if len(self.channel_names_video) > 0:
+            # get data only:
+            idx_data_channels = [self.channel_names_all.index(name) for name in self.channel_names]
+            pos_list = [np.arange(self.channel_pos[channel][0], self.channel_pos[channel][1]) for channel in idx_data_channels]
+            pos_list = np.concatenate(pos_list)
+            data_only = data[:, pos_list]
             
+            # get video only:
+            idx_video_channels = [self.channel_names_all.index(name) for name in self.channel_names_video]
+            video_only = []
+            for channel in idx_video_channels:
+                shape = self.channel_shapes[channel]
+                pos = self.channel_pos[channel]
+                video_only.append( data[:, pos[0]:pos[1]].reshape( (data.shape[0], *shape) ) )
+            
+            # save video and data separately
+            self.measurement_dict['time'] = time
+            
+            self.measurement_dict['channel_names'] = self.channel_names
+            self.measurement_dict['data']  = data_only
+            
+            self.measurement_dict['channel_names_video'] = self.channel_names_video
+            self.measurement_dict['video'] = video_only
+            
+        else: # no video, flattened array is actually only data:
             self.measurement_dict['time'] = time
             self.measurement_dict['channel_names'] = self.channel_names
             self.measurement_dict['data'] = data
-            
-        if len(self.channel_names_video) > 0:
-            time, data_video = self.get_data(N_points=N_points, image=True)
-            self.measurement_dict['time'] = time
-            self.measurement_dict['channel_names_video'] = self.channel_names_video
-            self.measurement_dict['video'] = data_video
         
         if hasattr(self, 'sample_rate'):
             self.measurement_dict['sample_rate'] = self.sample_rate

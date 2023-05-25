@@ -573,7 +573,7 @@ class MainWindow(QMainWindow):
                     self.new_images = [_[-1].T for _ in new_data]
 
             if acq.channel_names:
-                new_data = self.core.acquisitions[self.core.acquisition_names.index(source)].get_data_PLOT()
+                new_data = acq.get_data_PLOT()
                 buffer.extend(new_data)
 
 

@@ -112,7 +112,7 @@ class FLIRThermalCamera(BaseAcquisition):
             for key in self.virtual_channel_dict.keys():
                 self.channel_names_all.append(key)
                 func, channel_used = self.virtual_channel_dict[key]
-                shape_used = self.channel_shapes[ self.channel_names_all.index(channel_used) ]
+                shape_used = self.channel_shapes[ channel_used ]
                 dummy_array = np.random.rand( *shape_used )
                 output = func(dummy_array)
                 

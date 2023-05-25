@@ -168,6 +168,8 @@ class BaseAcquisition:
         self.buffer_dtype = np.float64 # default dtype of data in ring buffer
         self.acquisition_name = "DefaultAcquisition"
         self.channel_names = []
+        self.channel_names_all = []
+        self.channel_names_video = []
         self.is_running = True
         self.is_standalone = True # if this is part of bigger system or used as standalone object
         self.is_ready = False

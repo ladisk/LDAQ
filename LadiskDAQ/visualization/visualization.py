@@ -633,16 +633,24 @@ class MainWindow(QMainWindow):
     
     
     def update_image(self, new_data, plot_channel):
-        if hasattr(self, 'boxstate'):
-            _view = plot_channel['image_view'].getView()
+        # if hasattr(self, 'boxstate'):
+        #     _view = plot_channel['image_view'].getView()
+        #     _state = _view.getState()
+        # if 'boxstate' in plot_channel.keys():
+        _view = plot_channel['image_view'].getView()
+        if 'boxstate' in plot_channel.keys():
             _state = _view.getState()
 
         plot_channel['image_view'].setImage(new_data)
 
-        if hasattr(self, 'boxstate'):
+        # if hasattr(self, 'boxstate'):
+        #     _view.setState(_state)
+        if 'boxstate' in plot_channel.keys():
             _view.setState(_state)
+        
+        plot_channel['boxstate'] = True
 
-        self.boxstate = True
+        # self.boxstate = True
 
 
     def update_line(self, new_data, plot_channel):

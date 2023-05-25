@@ -37,30 +37,31 @@ class FLIRThermalCamera(BaseAcquisition):
                                     - LINEAR_100MK: 100mK temperature resolution
                                     - RADIOMETRIC: capture radiometric data and manually convert to temperature
                                                     (this requires calibration coefficients, currently some
-                                                     calibration values are read from the camera)
-                                                       
+                                                     calibration values are read from the camera)         
         """
         super().__init__()
-        self.buffer_dtype = np.float16 # this is used when CustomPyTrigger instance is created
         self.acquisition_name = 'FLIR' if acquisition_name is None else acquisition_name
-        self.image_shape = None
+        self.buffer_dtype = np.float16 # this is used when CustomPyTrigger instance is created
+        self.virtual_channel_dict = {}
         
-        self.channel_names = ['Temperature']
-        self.channel_shapes = [None for i in range(self.channel_names)]
-        self.n_channels = len(self.channel_names)
+        self.image_shape = None # TODO: remove this
         
-        self.set_IRtype('LINEAR_10MK') 
+        self.channel_names_all = []
+        self.channel_shapes = []
+        self.channel_pos = [] # data position in the buffer (pyTrigger ring buffer)
+        
+        self.channel_names = []
+        self.channel_names_video = []
+        
+        self.set_IRtype(IRtype) 
         self.camera_acq_started = False
         self.set_data_source()
         
-        # there will always be only 1 channel and it will always display temperature
-        self.n_channels_trigger  = self.image_shape[0]*self.image_shape[1]
         self.sample_rate = 30 # TODO: this can probably be set in thermal camera and read from it
                               # default camera fps is 30.
         
         # channel in set trigger is actually pixel in flatten array:
         self.set_trigger(1e20, 0, duration=1.0)
-        
         
         # TODO:
         # - set sample rate (either subsample and only acquire every n-th frame or set camera fps)
@@ -97,7 +98,39 @@ class FLIRThermalCamera(BaseAcquisition):
         if hasattr(self, 'cam'):
             pass
         else:
-            self._camera_init()
+            self.channel_names_all = []
+            self.channel_shapes = []
+            # Temperature field camera:
+            image_shape_temperature = self._init_thermal_camera()
+            self.channel_names_all.append('temperature_field')
+            self.channel_shapes.append(image_shape_temperature)
+            
+            # Regular camera:
+            # TODO: add regular camera
+            
+            # add virtual channels:
+            for key in self.virtual_channel_dict.keys():
+                self.channel_names_all.append(key)
+                self.channel_shapes.append( (1,) )
+               
+            # calculate total number of channels: 
+            self.n_channels = len(self.channel_names_all)
+            self.n_channels_trigger  = 0
+            self.channel_pos = []
+            pos = 0
+            for shape in self.channel_shapes:
+                self.n_channels_trigger += np.prod(shape)
+    
+                pos_next = pos+np.prod(shape)
+                self.channel_pos.append( (pos, pos_next) )
+                pos = pos_next
+                
+            # TODO: this is temporary:
+            self.channel_names = [self.channel_names_all[i] for i in range(self.n_channels) if self.channel_shapes[i] == (1,)]
+            self.channel_names_video = [self.channel_names_all[i] for i in range(self.n_channels) if self.channel_shapes[i] != (1,)]
+                        
+            # create buffer for reading all the data in in flatten format:
+            self._temp_read_data = np.zeros(self.n_channels_trigger, dtype=self.buffer_dtype)
             
         if not self.camera_acq_started:
             #  Begin acquiring images
@@ -119,11 +152,121 @@ class FLIRThermalCamera(BaseAcquisition):
         
         Must return a 2D numpy array of shape (n_samples, n_columns).
         """
+        # TODO: add reading of multiple samples
         
+        # read thermal camera data:
+        data_thermal_camera = self._read_data_thermal_camera() 
+        if not data_thermal_camera.shape[0] > 0: # add regular camera condition
+            return np.empty((0, self.n_channels_trigger))
+        
+        i1, i2 = self.channel_pos[0]
+        self._temp_read_data[i1:i2] = data_thermal_camera.flatten() # save as flatten
+        # read regular camera data:
+        # TODO: add regular camera
+        
+        # read/calculate virtual channels:
+        for key in self.virtual_channel_dict.keys():
+            func, use_on_channel_idx = self.virtual_channel_dict[key]
+            if use_on_channel_idx == 0: # use on thermal camera:
+                data_virt_ch = func(data_thermal_camera)
+                i1, i2 = self.channel_pos[ self.channel_names_all.index(key) ]
+                self._temp_read_data[i1:i2] = data_virt_ch.flatten() # save as flatten
+        
+        return self._temp_read_data.reshape(-1, self.n_channels_trigger)
+            
+    def terminate_data_source(self):
+        """        
+        Properly closes acquisition source after the measurement.
+        
+        Returns None.
+        """
+        if self.camera_acq_started:
+            #  Image acquisition must be ended when no more images are needed.
+            self.cam.EndAcquisition()
+            self.camera_acq_started = False
+            
+        #self._exit_thermal_camera()
+   
+    def get_sample_rate(self):
+        """
+        Returns sample rate of acquisition class.
+        This function is also useful to compute sample_rate estimation if no sample rate is given
+        
+        Returns self.sample_rate
+        """
+        return self.sample_rate
+    
+    def clear_buffer(self):
+        """
+        The source buffer should be cleared with this method. Either actually clears the buffer, or
+        just reads the data with self.read_data() and does not add/save data anywhere.
+        
+        Returns None.
+        """
+        self.read_data()
+        
+    def get_data(self, N_points=None, image=True):
+        """
+        Overwrites the get_data method of the parent class.
+        Additionally reshapes the data into a 3D array of shape (n_samples, height, width).
+        
+        if image = True, then list of 3D arrays is returned, 
+        if False, 2D array is returned with containing virtual channels
+        """
+        
+        time, data = super().get_data(N_points=N_points)
+        
+        if image:
+            channels = [self.channel_names_all.index(name) for name in self.channel_names_video]
+            
+            data_return = []
+            for channel in channels:
+                shape = self.channel_shapes[channel]
+                pos = self.channel_pos[channel]
+                data_return.append( data[:, pos[0]:pos[1]].reshape( (data.shape[0], *shape) ) )
+        else:
+            channels = [self.channel_names_all.index(name) for name in self.channel_names]
+            pos_list = [np.arange(self.channel_pos[channel][0], self.channel_pos[channel][1]) for channel in channels]
+            pos_list = np.concatenate(pos_list)
+            
+            data_return = data[:, pos_list]
+    
+        return time, data_return
+    
+    def get_data_PLOT(self, image=False): # this function is actually called only for line plots
+        """
+        Overwrites the get_data method of the parent class.
+        Additionally reshapes the data into a 3D array of shape (n_samples, height, width).
+        """
+        data = super().get_data_PLOT()
+        
+        if image:
+            channels = [self.channel_names_all.index(name) for name in self.channel_names_video]
+            
+            data_return = []
+            for channel in channels:
+                shape = self.channel_shapes[channel]
+                pos = self.channel_pos[channel]
+                data_return.append( data[:, pos[0]:pos[1]].reshape( (data.shape[0], *shape) ) )
+        else:
+            channels = [self.channel_names_all.index(name) for name in self.channel_names]
+            pos_list = [np.arange(self.channel_pos[channel][0], self.channel_pos[channel][1]) for channel in channels]
+            pos_list = np.concatenate(pos_list)
+            
+            data_return = data[:, pos_list]
+        
+        return data_return
+    
+    def _read_data_thermal_camera(self):
+        """Reads and retrieves data from the thermal camera.
+
+        Returns:
+            np.ndarray: flattened array of pixel values
+        """
         image_result = self.cam.GetNextImage()
         #  Ensure image completion
         if image_result.IsIncomplete():
-            return  np.empty((0, self.n_channels))
+            return  np.empty((0, self.n_channels_trigger))
 
         # Getting the image data as a np array
         image_data = image_result.GetNDArray()
@@ -148,69 +291,16 @@ class FLIRThermalCamera(BaseAcquisition):
         else:
             raise Exception('Unknown IRFormatType')
         
-        image_temp = image_temp.reshape(-1, self.n_channels)
-        
         if image_temp.shape[0] > 0:
             image_result.Release()
-            return image_temp
-        else:
-            return np.empty((0, self.n_channels))
-    
-    def terminate_data_source(self):
-        """        
-        Properly closes acquisition source after the measurement.
         
-        Returns None.
-        """
-        if self.camera_acq_started:
-            #  Image acquisition must be ended when no more images are needed.
-            self.cam.EndAcquisition()
-            self.camera_acq_started = False
-            
-        #self.cam.DeInit()
-        #del self.cam
-        ## Clear camera list before releasing system
-        #self.cam_list.Clear()
-        ## Release system instance
-        #self.system.ReleaseInstance()
-   
-    def get_sample_rate(self):
-        """
-        Returns sample rate of acquisition class.
-        This function is also useful to compute sample_rate estimation if no sample rate is given
+        return image_temp
         
-        Returns self.sample_rate
-        """
-        return self.sample_rate
-    
-    def clear_buffer(self):
-        """
-        The source buffer should be cleared with this method. Either actually clears the buffer, or
-        just reads the data with self.read_data() and does not add/save data anywhere.
+    def _init_thermal_camera(self):
+        ###########################
+        #  Thermal Camera Setup   #
+        ###########################
         
-        Returns None.
-        """
-        self.read_data()
-        
-    def get_data(self, N_points=None):
-        """
-        Overwrites the get_data method of the parent class.
-        Additionally reshapes the data into a 3D array of shape (n_samples, height, width).
-        """
-        time, data = super().get_data(N_points=N_points)
-        data = data.reshape(data.shape[0], self.image_shape[0], self.image_shape[1])
-        return time, data
-    
-    def get_data_PLOT(self):
-        """
-        Overwrites the get_data method of the parent class.
-        Additionally reshapes the data into a 3D array of shape (n_samples, height, width).
-        """
-        data = super().get_data_PLOT()
-        data = data.reshape(data.shape[0], self.image_shape[0], self.image_shape[1])
-        return data
-    
-    def _camera_init(self):
         # Retrieve singleton reference to system object
         self.system = PySpin.System.GetInstance()
         # Get current library version
@@ -383,8 +473,34 @@ class FLIRThermalCamera(BaseAcquisition):
             self.node_height = PySpin.CIntegerPtr(self.nodemap.GetNode('Height'))
             self.offsetX = PySpin.CIntegerPtr(self.nodemap.GetNode('OffsetX'))
             self.offsetY = PySpin.CIntegerPtr(self.nodemap.GetNode('OffsetY'))
-            self.image_shape = (self.node_height.GetMax() - self.offsetY.GetMax(), self.node_width.GetValue()-self.offsetX.GetMax())
+            image_shape = (self.node_height.GetMax() - self.offsetY.GetMax(), self.node_width.GetValue()-self.offsetX.GetMax())
+            return image_shape
         
         except PySpin.SpinnakerException as ex:
             raise Exception('Error: %s' % ex)
         
+    def _exit_thermal_camera(self):
+        self.cam.DeInit()
+        del self.cam
+        # Clear camera list before releasing system
+        self.cam_list.Clear()
+        # Release system instance
+        self.system.ReleaseInstance()
+        
+    def add_virtual_channel(self, virtual_channel_name, channel, function):
+        """
+        Add a virtual channel to the camera class.
+        
+        Args:
+            virtual_channel_name (str): Name of the channel that will be created
+            channel (str): Name or index of the channel on which function will be applied
+            function (function): Function used on the image. Takes array shape of the channel as input and has to return a np.array([value]).
+        """
+        self.terminate_data_source()
+        self._exit_thermal_camera()
+        if type(channel) == str:
+            channel = self.channel_names_all.index(channel)
+        self.virtual_channel_dict[virtual_channel_name] = (function, channel)
+        self.set_data_source()
+    
+    

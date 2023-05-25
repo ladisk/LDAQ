@@ -150,6 +150,7 @@ class BaseAcquisition:
     
     Additionally, the __init__() method should override the following attributes:
     - self.n_channels 
+    - self.n_channels_trigger (same as n_channels if source is not a camera)
     - self.channel_names 
     - self.sample_rate
     - self.acquisition_name (optional)
@@ -167,6 +168,8 @@ class BaseAcquisition:
         self.buffer_dtype = np.float64 # default dtype of data in ring buffer
         self.acquisition_name = "DefaultAcquisition"
         self.channel_names = []
+        self.channel_names_all = []
+        self.channel_names_video = []
         self.is_running = True
         self.is_standalone = True # if this is part of bigger system or used as standalone object
         self.is_ready = False
@@ -278,6 +281,7 @@ class BaseAcquisition:
             return self.Trigger.get_data_new_PLOT()
     
     def get_measurement_dict(self, N_points=None):
+        #TODO: this has to be modified once camera data is stored in 'video' key
         """Reads data from pyTrigger ring buffer using self.get_data() method and returns a dictionary
            {'data': data, 'time': time, 'channel_names': self.channel_names, 'sample_rate' : sample_rate}
 
@@ -295,11 +299,13 @@ class BaseAcquisition:
             time, data = self.get_data(N_points=N_points)
         
         self.measurement_dict = {
-            'data': data,
             'time': time,
             'channel_names': self.channel_names,
             'sample_rate' : None, 
         }
+        
+        self.measurement_dict['data'] = data
+        
         
         if hasattr(self, 'sample_rate'):
             self.measurement_dict['sample_rate'] = self.sample_rate

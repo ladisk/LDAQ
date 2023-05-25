@@ -198,6 +198,7 @@ class Visualization:
             'nth': 1,
             'since_refresh': 1e40,
             'refresh_rate': refresh_rate,
+            'color_map': colormap,
         })
 
         self.color_map = colormap
@@ -305,19 +306,17 @@ class Visualization:
     def create_ring_buffers(self):
         self.ring_buffers = {}
         for source in self.plots.keys():
-            if hasattr(self.core.acquisitions[self.core.acquisition_names.index(source)], 'image_shape'):
-                n_channels = 1
-                rows = 1
-
-                # number of lines added with this source. If no lines are added, then n_channels is 1.
-                # n_channels = max(1, sum([len(_['channels']) for _ in self.plots[source] if _['pos'] != 'image']))
-                # rows = ...
-            else:
-                acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
+            acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
+            if acq.channel_names:
+                n_channels = len(acq.channel_names)
                 rows = int(max([self.subplot_options[pos]['t_span'] * acq.sample_rate for pos in self.positions]))
-                n_channels = acq.n_channels
+                self.ring_buffers[source] = RingBuffer2D(rows, n_channels)
+            
+            if acq.channel_names_video:
+                self.new_images = [np.random.rand(10, 10)] * len(acq.channel_names_video)
 
-            self.ring_buffers[source] = RingBuffer2D(rows, n_channels)
+            if source not in self.ring_buffers.keys():
+                self.ring_buffers[source] = RingBuffer2D(1, 1)
 
 
 class MainWindow(QMainWindow):
@@ -465,20 +464,6 @@ class MainWindow(QMainWindow):
 
         if self.vis.add_line_widget:
             self.layout_widget.addWidget(grid_layout, stretch=1)
-        
-        if self.vis.add_image_widget:
-            if self.vis.color_map == 'CET-L17':
-                cm = pg.colormap.get(self.vis.color_map)
-            else:
-                cm = pg.colormap.getFromMatplotlib(self.vis.color_map)
-            if cm.color[0, 0] == 1:
-                cm.reverse()
-            self.image_view = ImageView()
-            self.image_view.setColorMap(cm)
-            self.layout_widget.addWidget(self.image_view, stretch=1)
-            self.image_view.ui.histogram.hide()
-            self.image_view.ui.roiBtn.hide()
-            self.image_view.ui.menuBtn.hide()
 
         color_dict = {}
         ##################################################################
@@ -532,22 +517,40 @@ class MainWindow(QMainWindow):
             for i, plot_channel in enumerate(plot_channels):
                 pos = plot_channel['pos']
                 ch = plot_channel['channels']
-                if isinstance(ch, tuple):
-                    x, y = ch
-                    line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[y]], width=2), name=f"{channel_names[x]} vs. {channel_names[y]}")
-                    self.vis.plots[source][i]['line'] = line
 
-                elif isinstance(ch, int):
-                    line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[ch]], width=2), name=f"{channel_names[ch]}")
-                    self.vis.plots[source][i]['line'] = line
+                if pos == 'image':
+                    if plot_channel['color_map'] == 'CET-L17':
+                        cm = pg.colormap.get(plot_channel['color_map'])
+                    else:
+                        cm = pg.colormap.getFromMatplotlib(plot_channel['color_map'])
 
-                # Add legend to the subplot
-                if pos not in self.legends.keys() and pos != 'image':
-                    legend = self.subplots[pos].addLegend()
-                    for item in self.subplots[pos].items:
-                        if isinstance(item, pg.PlotDataItem):
-                            legend.addItem(item, item.opts['name'])
-                    self.legends[pos] = legend
+                    if cm.color[0, 0] == 1:
+                        cm.reverse()
+
+                    image_view = ImageView()
+                    image_view.setColorMap(cm)
+                    self.layout_widget.addWidget(image_view, stretch=1)
+                    image_view.ui.histogram.hide()
+                    image_view.ui.roiBtn.hide()
+                    image_view.ui.menuBtn.hide()
+                    self.vis.plots[source][i]['image_view'] = image_view
+                else:
+                    if isinstance(ch, tuple):
+                        x, y = ch
+                        line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[y]], width=2), name=f"{channel_names[x]} vs. {channel_names[y]}")
+                        self.vis.plots[source][i]['line'] = line
+
+                    elif isinstance(ch, int):
+                        line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[ch]], width=2), name=f"{channel_names[ch]}")
+                        self.vis.plots[source][i]['line'] = line
+
+                    # Add legend to the subplot
+                    if pos not in self.legends.keys() and pos != 'image':
+                        legend = self.subplots[pos].addLegend()
+                        for item in self.subplots[pos].items:
+                            if isinstance(item, pg.PlotDataItem):
+                                legend.addItem(item, item.opts['name'])
+                        self.legends[pos] = legend
 
         self.plots = self.vis.plots
         
@@ -560,23 +563,17 @@ class MainWindow(QMainWindow):
 
     def update_ring_buffers(self):
         for source, buffer in self.vis.ring_buffers.items():
-            if hasattr(self.core.acquisitions[self.core.acquisition_names.index(source)], 'image_shape'):
+            acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
+            if acq.channel_names_video:
                 plot_channel = self.plots[source][-1]
                 since_refresh = plot_channel['since_refresh']
                 refresh_rate = plot_channel['refresh_rate']
-                # only update if refresh rate is reached
                 if (refresh_rate <= since_refresh + self.vis.update_refresh_rate):
-                    _, new_data = self.core.acquisitions[self.core.acquisition_names.index(source)].get_data(N_points=1)
+                    _, new_data = acq.get_data(N_points=1, image=True)
+                    self.new_images = [_[-1].T for _ in new_data]
 
-                    if len(new_data) > 0:
-                        self.new_image = new_data[-1].T
-
-                    # ch = [_['channels'] for _ in self.plots[source] if _['pos'] == 'image']
-                    # ch_raweled = [np.ravel_multi_index(_, self.core.acquisitions[self.core.acquisition_names.index(source)].image_shape) for _ in ch]
-                    # if not isinstance(ch, str):
-                    #     buffer.extend(new_data[source].reshape(new_data[source].shape[0], -1)[ch_raweled])
-            else:
-                new_data = self.core.acquisitions[self.core.acquisition_names.index(source)].get_data_PLOT()
+            if acq.channel_names:
+                new_data = acq.get_data_PLOT()
                 buffer.extend(new_data)
 
 
@@ -612,7 +609,7 @@ class MainWindow(QMainWindow):
                 self.vis.acquisition = self.core.acquisitions[self.core.acquisition_names.index(source)]
 
                 # for line, pos, apply_function, *channels in plot_channels:
-                for plot_channel in plot_channels:
+                for i, plot_channel in enumerate(plot_channels):
                     refresh_rate = plot_channel['refresh_rate']
                     since_refresh = plot_channel['since_refresh']
 
@@ -621,12 +618,8 @@ class MainWindow(QMainWindow):
                         plot_channel['since_refresh'] = 0
                         
                         if plot_channel['pos'] == 'image':
-                            if hasattr(self, 'new_image'):
-                                new_data = self.new_image#[::5, ::5]
-                                # new_data = np.random.rand(200, 200)
-                            else:
-                                new_data = np.random.rand(200, 200)
-                            self.update_image(new_data)
+                            new_data = self.new_images[i]
+                            self.update_image(new_data, source, i)
                         else:
                             new_data = self.vis.ring_buffers[source].get_data()
                             self.update_line(new_data, plot_channel)
@@ -637,12 +630,12 @@ class MainWindow(QMainWindow):
                         plot_channel['since_refresh'] += self.vis.update_refresh_rate
     
     
-    def update_image(self, new_data):
+    def update_image(self, new_data, source, i):
         if hasattr(self, 'boxstate'):
-            _view = self.image_view.getView()
+            _view = self.vis.plots[source][i]['image_view'].getView()
             _state = _view.getState()
 
-        self.image_view.setImage(new_data)
+        self.vis.plots[source][i]['image_view'].setImage(new_data)
 
         if hasattr(self, 'boxstate'):
             _view.setState(_state)

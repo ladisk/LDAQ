@@ -9,4 +9,4 @@ from .basler import *
 from .digilent import *
 from .flir import *
 from .national_instruments import *
-from .serial import *
+from .serial_communication import *

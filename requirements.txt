@@ -10,7 +10,7 @@ keyboard
 pyTrigger
 PyDAQmx
 sphinx-copybutton
-serial
+pyserial
 nidaqmx
 openpyxl
 pandas

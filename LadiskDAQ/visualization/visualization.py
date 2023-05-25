@@ -520,6 +520,10 @@ class MainWindow(QMainWindow):
                 ch = plot_channel['channels']
 
                 if pos == 'image':
+                    if "boxstate" in plot_channel.keys():
+                        # remove the key
+                        plot_channel.pop("boxstate")
+
                     if plot_channel['color_map'] == 'CET-L17':
                         cm = pg.colormap.get(plot_channel['color_map'])
                     else:
@@ -620,8 +624,9 @@ class MainWindow(QMainWindow):
                         plot_channel['since_refresh'] = 0
                         
                         if plot_channel['pos'] == 'image':
-                            new_data = self.new_images[plot_channel['channels']]
-                            self.update_image(new_data, plot_channel)
+                            if hasattr(self, 'new_images'):
+                                new_data = self.new_images[plot_channel['channels']]
+                                self.update_image(new_data, plot_channel)
                         else:
                             new_data = self.vis.ring_buffers[source].get_data()
                             self.update_line(new_data, plot_channel)
@@ -633,24 +638,16 @@ class MainWindow(QMainWindow):
     
     
     def update_image(self, new_data, plot_channel):
-        # if hasattr(self, 'boxstate'):
-        #     _view = plot_channel['image_view'].getView()
-        #     _state = _view.getState()
-        # if 'boxstate' in plot_channel.keys():
         _view = plot_channel['image_view'].getView()
         if 'boxstate' in plot_channel.keys():
             _state = _view.getState()
 
         plot_channel['image_view'].setImage(new_data)
 
-        # if hasattr(self, 'boxstate'):
-        #     _view.setState(_state)
         if 'boxstate' in plot_channel.keys():
             _view.setState(_state)
         
         plot_channel['boxstate'] = True
-
-        # self.boxstate = True
 
 
     def update_line(self, new_data, plot_channel):

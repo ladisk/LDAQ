@@ -9,6 +9,7 @@ import threading
 import pickle
 import sys
 import traceback
+from .utils import load_measurement
         
 class Core():
     def __init__(self, acquisitions, generations=None, controls=None, visualization=None):
@@ -552,11 +553,3 @@ class Core():
 
         return file_index
 
-# open measurements:
-def load_measurement(name: str, directory: str = ''):
-    """
-    Loads a measurement from a pickle file.
-    """
-    file_path = os.path.join(directory, name)
-    with open(file_path, 'rb') as f:
-        return pickle.load(f)

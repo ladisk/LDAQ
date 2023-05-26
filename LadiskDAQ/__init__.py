@@ -3,7 +3,8 @@ A project template for the sdPy effort..
 """
 
 __version__ = "0.0.1"
-from .core import Core, load_measurement
+from .utils import *
+from .core import Core
 from .visualization import *
 from .basler import *
 from .digilent import *

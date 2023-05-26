@@ -175,6 +175,9 @@ class Visualization:
 
     def add_image(self, source, channel, function=None, refresh_rate=100, colormap='CET-L17'):
         """"""
+        if type(channel) == int:
+            raise ValueError("The channel argument must be string of the channel name.")
+            
         self.add_image_widget = True
 
         if self.plots is None:
@@ -574,7 +577,7 @@ class MainWindow(QMainWindow):
                 since_refresh = plot_channel['since_refresh']
                 refresh_rate = plot_channel['refresh_rate']
                 if (refresh_rate <= since_refresh + self.vis.update_refresh_rate):
-                    _, new_data = acq.get_data(N_points=1, image=True)
+                    _, new_data = acq.get_data(N_points=1, data_to_return="video")
                     # self.new_images = [_[-1].T for _ in new_data]
                     self.new_images = dict([(ch, _[-1].T) for ch, _ in zip(acq.channel_names_video, new_data)])
 

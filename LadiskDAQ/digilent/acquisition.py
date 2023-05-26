@@ -41,7 +41,7 @@ class WaveFormsAcquisition(BaseAcquisition):
         #self.set_data_source()
         self.configure_channels() # configure channel range
         
-        self.set_trigger(1e20, 0, duration=600)
+        self.set_trigger(1e20, 0, duration=1.0)
         
         
     def configure_channels(self, input_range=None):

@@ -155,7 +155,7 @@ class BaseAcquisition:
     - self.sample_rate
     - self.acquisition_name (optional)
     
-    NOTE: the __init__() method should call self.set_trigger(1e20, 0, duration=600)
+    NOTE: the __init__() method should call self.set_trigger(1e20, 0, duration=1.0)
     at the end of __init__ method to set trigger eventhough not used.
 
     Returns:
@@ -238,6 +238,12 @@ class BaseAcquisition:
         """Stops acquisition run.
         """
         self.is_running = False
+        
+        # what for the thread to finish if it exists:
+        if hasattr(self, "background_thread") and threading.current_thread() == threading.main_thread():
+            if self.background_thread.is_alive():
+                self.background_thread.join()
+            
     
     def acquire(self):
         """Acquires data from acquisition source and also properly saves the data to pyTrigger ringbuffer.
@@ -334,12 +340,13 @@ class BaseAcquisition:
             
         return self.measurement_dict
         
-    def run_acquisition(self, run_time=None):
+    def run_acquisition(self, run_time=None, run_in_background=False):
         """
         Runs acquisition.
         :params: run_time - (float) number of seconds for which the acquisition will run. 
             If None acquisition runs indefinitely until self.is_running variable is set
             False externally (i.e. in a different process)
+        :params: run_in_background - (bool) if True, acquisition will run in a separate thread.
         """
         BaseAcquisition.all_acquisitions_ready = False 
         self.is_ready = False
@@ -367,26 +374,26 @@ class BaseAcquisition:
             # acquisition is being run as a standalone process, so no need to wait for other sources
             pass
         
-        self.actual_run_time = 0 # actual time run to obtain all samples
-        time_start_acq = time.time()
-        
-        # main acquisition loop:
-        if run_time == None:
-            while self.is_running:
-                time.sleep(0.01)
-                self.acquire()
+        def _loop():
+            # main acquisition loop:
+            if run_time == None:
+                while self.is_running:
+                    time.sleep(0.01)
+                    self.acquire()
+            else:
+                N_total_samples = int(run_time*self.sample_rate)
+                while self.is_running:  
+                    if self.Trigger.N_acquired_samples >= N_total_samples:
+                        self.is_running = False
+                        
+                    self.acquire()
+                    time.sleep(0.01)
+                    
+        if run_in_background:
+            self.background_thread = threading.Thread(target=_loop)
+            self.background_thread.start() 
         else:
-            time_start = time.time()
-            while self.is_running:  
-                if time_start + run_time < time.time():
-                    self.is_running = False
-
-                time.sleep(0.01)
-                self.acquire()
-                
-        # save actual measurement time (NOTE: currently not used anywhere, might be useful in the future)
-        time_end_acq  = time.time()
-        self.actual_run_time = time_end_acq-time_start_acq
+            _loop()        
        
     def set_continuous_mode(self, boolean=True, measurement_duration=None):
         """Sets continuous mode of the acquisition. If True, acquisition will run indefinitely until

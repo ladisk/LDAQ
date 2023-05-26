@@ -56,7 +56,7 @@ class NIAcquisition(BaseAcquisition):
             glob_vars['taskHandle_acquisition'] = self.Task.taskHandle
 
         # set default trigger, so the signal will not be trigered:
-        self.set_trigger(1e20, 0, duration=600)
+        self.set_trigger(1e20, 0, duration=1.0)
 
     def clear_task(self):
         """Clear a task."""

@@ -4,7 +4,7 @@ from ctypes import *
 from ..acquisition_base import BaseAcquisition
 
 try:
-    import PySpin # This will be moved somewhere else in the future
+    import PySpin 
 except:
     print("PySpin library not found.")
 

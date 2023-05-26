@@ -72,7 +72,7 @@ class SerialAcquisition(BaseAcquisition):
         self.pretest_time = pretest_time if pretest_time is not None else 10.
         self.sample_rate = sample_rate if sample_rate is not None else self.get_sample_rate()
         # set default trigger, so the signal will not be trigered:
-        self.set_trigger(1e20, 0, duration=600)
+        self.set_trigger(1e20, 0, duration=1.0)
 
     def set_data_source(self):
         # open terminal:

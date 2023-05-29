@@ -544,7 +544,7 @@ class MainWindow(QMainWindow):
                         self.image_grid_layout = QGridLayout()
                         self.layout_widget.addLayout(self.image_grid_layout, stretch=1)
                     
-                    row, col = divmod(images, 2)
+                    col, row = divmod(images-1, 2)
                     self.image_grid_layout.addWidget(image_view, row, col)
                     image_view.ui.histogram.hide()
                     image_view.ui.roiBtn.hide()

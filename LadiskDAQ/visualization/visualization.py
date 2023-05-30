@@ -514,6 +514,7 @@ class MainWindow(QMainWindow):
                         self.subplots[pos].setYRange(transform_lim_y(options['ylim'][0]), transform_lim_y(options['ylim'][1]))
                 
         # Create lines for each plot channel
+        images = 0
         for source, plot_channels in self.vis.plots.items():
             channel_names = self.core.acquisitions[self.core.acquisition_names.index(source)].channel_names
             color_dict.update({ch: ind+len(color_dict) for ind, ch in enumerate(channel_names)})
@@ -523,6 +524,7 @@ class MainWindow(QMainWindow):
                 ch = plot_channel['channels']
 
                 if pos == 'image':
+                    images += 1
                     if "boxstate" in plot_channel.keys():
                         # remove the key
                         plot_channel.pop("boxstate")
@@ -537,7 +539,13 @@ class MainWindow(QMainWindow):
 
                     image_view = ImageView()
                     image_view.setColorMap(cm)
-                    self.layout_widget.addWidget(image_view, stretch=1)
+
+                    if images == 1:
+                        self.image_grid_layout = QGridLayout()
+                        self.layout_widget.addLayout(self.image_grid_layout, stretch=1)
+                    
+                    col, row = divmod(images-1, 2)
+                    self.image_grid_layout.addWidget(image_view, row, col)
                     image_view.ui.histogram.hide()
                     image_view.ui.roiBtn.hide()
                     image_view.ui.menuBtn.hide()

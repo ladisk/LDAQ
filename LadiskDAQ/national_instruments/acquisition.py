@@ -103,7 +103,7 @@ class NIAcquisition(BaseAcquisition):
             if not hasattr(self.Task, 'task'):
                 self.Task.initiate()
 
-    def run_acquisition(self, run_time=None):        
+    def run_acquisition(self, run_time=None, run_in_background=False):        
 
         if self.NITask_used:
             BaseAcquisition.all_acquisitions_ready = False 
@@ -119,4 +119,4 @@ class NIAcquisition(BaseAcquisition):
             glob_vars = globals()
             glob_vars['taskHandle_acquisition'] = self.Task.taskHandle
 
-        super().run_acquisition(run_time)
+        super().run_acquisition(run_time, run_in_background=run_in_background)

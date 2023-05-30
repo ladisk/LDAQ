@@ -28,7 +28,7 @@ class FLIRThermalCamera(BaseAcquisition):
        that matches your python version and architecture (i.e. spinnaker_python-3.1.0.79-cp310-cp310-win_amd64.zip 
        for python 3.10 64-bit - this is also the version used for development of this class)
     """
-    def __init__(self, acquisition_name=None, IRtype='LINEAR_10MK'):
+    def __init__(self, acquisition_name=None, channel_name_IR_cam="temperature_field", IRtype='LINEAR_10MK'):
         """
         Args:
             acquisition_name (str, optional): Name of the class. Defaults to None.
@@ -44,7 +44,7 @@ class FLIRThermalCamera(BaseAcquisition):
         self.buffer_dtype = np.float16 # this is used when CustomPyTrigger instance is created
         self.virtual_channel_dict = {}
         
-        #self.image_shape = None # TODO: remove this
+        self.channel_name_IR_cam = channel_name_IR_cam
         
         self.channel_names_all = []
         self.channel_shapes = []
@@ -88,8 +88,8 @@ class FLIRThermalCamera(BaseAcquisition):
         if IRtype not in avaliable_types:
             raise ValueError(
                 f'IRtype must be one of the following: {avaliable_types}')
-        self.CHOSEN_IR_TYPE = getattr(IRFormatType, IRtype)
-        
+        self.CHOSEN_IR_TYPE = getattr(IRFormatType, IRtype)                 
+            
     def set_data_source(self):
         """
         Properly sets acquisition source before measurement is started.
@@ -98,27 +98,30 @@ class FLIRThermalCamera(BaseAcquisition):
         if hasattr(self, 'cam'):
             pass
         else:
+            # 1) from all existing channels, get their names and shapes:
             self.channel_names_all = []
             self.channel_shapes = []
+            
             # Temperature field camera:
             image_shape_temperature = self._init_thermal_camera()
-            self.channel_names_all.append('temperature_field')
+            self.channel_names_all.append(self.channel_name_IR_cam)
             self.channel_shapes.append(image_shape_temperature)
             
             # Regular camera:
             # TODO: add regular camera
             
-            # add virtual channels:
+            # 2) add virtual channels:
             for key in self.virtual_channel_dict.keys():
                 self.channel_names_all.append(key)
                 func, channel_used = self.virtual_channel_dict[key]
-                shape_used = self.channel_shapes[ channel_used ]
+                shape_used = self.channel_shapes[ channel_used ] # here this should supportm multiple channels
                 dummy_array = np.random.rand( *shape_used )
-                output = func(dummy_array)
-                
+                output = func(dummy_array) # this is just a test to get output shape
+                if type(output) != np.ndarray:
+                    raise ValueError('Virtual channel function must return numpy array of arbitrary shape and not int, float, tuple...')
                 self.channel_shapes.append( output.shape )
                
-            # calculate total number of channels: 
+            # 3) calculate total number of channels: 
             self.n_channels = len(self.channel_names_all)
             self.n_channels_trigger  = 0
             self.channel_pos = []

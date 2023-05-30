@@ -166,11 +166,12 @@ class BaseAcquisition:
     def __init__(self):
         """EDIT in child class"""
         self.buffer_dtype = np.float64 # default dtype of data in ring buffer
-        self.acquisition_name = "DefaultAcquisition"
-        self.channel_names = [] # list of channel names with shape (1, )
+        self.acquisition_name  = "DefaultAcquisition"
+ 
         self.channel_names_all = [] # list of all channel names 
+        self.channel_names= [] # list of channel names with shape (1, )
         self.channel_names_video = [] # list of channel names with shape (M, N)
-        self.channel_pos = [] # list of tuples with start and end index positions of the data in the flattened ring buffer corresponding to each channel
+        self.channel_pos    = [] # list of tuples with start and end index positions of the data in the flattened ring buffer corresponding to each channel
         self.channel_shapes = [] # list of tuples with shapes of each channel (self.channel_names_all)
         
         self.is_running = True
@@ -186,6 +187,12 @@ class BaseAcquisition:
         self.n_channels_trigger = 0
         self.sample_rate = 0
         
+    def __repr__(self):
+        print(f"Acquisition name: {self.acquisition_name}")
+        print(f"Number of channels: {self.n_channels}")
+        print(f"Signal channel names: {self.channel_names}")
+        print(f"Video channel names: {self.channel_names_video}")
+            
     def read_data(self):
         """EDIT in child class
         
@@ -290,7 +297,9 @@ class BaseAcquisition:
     
     def get_measurement_dict(self, N_points=None):
         """Reads data from pyTrigger ring buffer using self.get_data() method and returns a dictionary
-           {'data': data, 'time': time, 'channel_names': self.channel_names, 'sample_rate' : sample_rate}
+           {'data': data, 'time': time, 
+           'channel_names': self.channel_names, 
+           'sample_rate' : sample_rate}
 
         Args:
             N_points (None, int, str): Number fo points to get from pyTrigger ringbuffer. If type(N_points)==int then N_points
@@ -306,11 +315,14 @@ class BaseAcquisition:
         
         if len(self.channel_names_video) > 0:
             # get data only:
-            idx_data_channels = [self.channel_names_all.index(name) for name in self.channel_names]
-            pos_list = [np.arange(self.channel_pos[channel][0], self.channel_pos[channel][1]) for channel in idx_data_channels]
-            pos_list = np.concatenate(pos_list)
-            data_only = data[:, pos_list]
-            
+            idx_signal_channels = [self.channel_names_all.index(name) for name in self.channel_names]
+            pos_list = [np.arange(self.channel_pos[channel][0], self.channel_pos[channel][1]) for channel in idx_signal_channels]
+            if len(pos_list) > 0:
+                pos_list = np.concatenate(pos_list)
+                data_only = data[:, pos_list]
+            else:
+                data_only = np.array([]) # no data channels
+                
             # get video only:
             idx_video_channels = [self.channel_names_all.index(name) for name in self.channel_names_video]
             video_only = []

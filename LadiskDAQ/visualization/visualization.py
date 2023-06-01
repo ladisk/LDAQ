@@ -49,7 +49,7 @@ class Visualization:
         self.sequential_plot_updates = sequential_plot_updates
     
 
-    def add_lines(self, position, source, channels, function=None, nth="auto", refresh_rate=None):
+    def add_lines(self, position, source, channels, function=None, nth="auto", refresh_rate=None, t_span=None):
         """Build the layout dictionary.
 
         :param position: tuple, the position of the subplot. Example: ``(0, 0)``.
@@ -61,6 +61,8 @@ class Visualization:
         :param nth: int, the nth sample to be plotted. If ``nth`` is ``"auto"``, the nth sample is computed automatically.
         :param refresh_rate: int, the refresh rate of the subplot in milliseconds. If this argument is not specified, the
             refresh rate defined in the :class:`Visualization` is used.
+        :param t_span: int/float, the length of the time axis. If this option is not specified, it is computed from the ``xlim``.
+
 
         Channels
         ~~~~~~~~
@@ -170,6 +172,7 @@ class Visualization:
                 'nth': nth,
                 'since_refresh': 1e40,
                 'refresh_rate': plot_refresh_rate,
+                't_span': t_span,
             })
 
 
@@ -241,9 +244,16 @@ class Visualization:
 
 
     def check(self):
-        self.check_subplot_options()
+        self.positions = list(set([plot['pos'] for plot in [plot for plots in self.plots.values() for plot in plots]]))[::-1]
+        self.positions = [_ for _ in self.positions if _ != 'image']
 
-        self.check_added_lines()
+        # Make sure that all subplots have options defined.
+        for pos in self.positions:
+            if pos not in self.subplot_options.keys():
+                self.subplot_options[pos] = {}
+
+        self._check_t_span_and_xlim()
+        self._check_added_lines()
 
     
     def run(self, core):
@@ -266,7 +276,7 @@ class Visualization:
             self.app.exec_()
 
 
-    def check_added_lines(self):
+    def _check_added_lines(self):
         if self.plots is None:
             raise ValueError("No plots were added to the visualization. Use the `add_lines` method to add plots.")
 
@@ -279,31 +289,39 @@ class Visualization:
                 sample_rate = self.core.acquisitions[acq_index].sample_rate
                 for i, plot_channel in enumerate(plot_channels):
                     if plot_channel['nth'] == 'auto':
-                        pos = plot_channel['pos']
-                        t_span = self.subplot_options[pos]['t_span']
+                        t_span = plot_channel['t_span']
                         self.plots[source][i]['nth'] = compute_nth(self.max_points_to_refresh, t_span, n_lines, sample_rate)
 
 
-    def check_subplot_options(self):
-        self.positions = list(set([plot['pos'] for plot in [plot for plots in self.plots.values() for plot in plots]]))[::-1]
-        self.positions = [_ for _ in self.positions if _ != 'image']
-
-        # Make sure that all subplots have options defined.
-        for pos in self.positions:
-            if pos not in self.subplot_options.keys():
-                self.subplot_options[pos] = {"xlim": (0, 1), "axis_style": "linear"}
-
+    def _check_t_span_and_xlim(self):
+        """t_span can be defined in the add_lines (and is then present in the self.plots) or is defined in config_subplot (and is then present in
+        self.subplot_options). The xlim is defined in config_subplot and is present in self.subplot_options. 
+        
+        This method checks if the t_span is defined in self.plots, if not, the t_span is copied from self.subplot_options.
+        If t_span is not present in self.subplot_options, it is computed from xlim.
+        If the xlim is also not present, the xlim is set to (0, 1) and t_span in self.plots is computed from this xlim.
+        """
+        for source, plot_channels in self.plots.items():
+            for i, plot_channel in enumerate(plot_channels):
+                if 't_span' in plot_channel.keys(): # image plots don't have t_span
+                    if plot_channel['t_span'] is None: # if t_span is None, compute it from xlim or overwrite it with t_span from subplot_options
+                        if 't_span' in self.subplot_options[plot_channel['pos']]:
+                            plot_channel['t_span'] = self.subplot_options[plot_channel['pos']]['t_span']
+                        elif 't_span' not in self.subplot_options[plot_channel['pos']] and 'xlim' in self.subplot_options[plot_channel['pos']]:
+                            plot_channel['t_span'] = self.subplot_options[plot_channel['pos']]['xlim'][1] - self.subplot_options[plot_channel['pos']]['xlim'][0]
+                        else:
+                            plot_channel['t_span'] = 1
+        
+        # check if xlim is defined for all subplots, if not, compute it from t_span
         for pos, options in self.subplot_options.items():
-            # Check that all subplots have `t_span` and `xlim` defined.
-            if 'xlim' in options.keys() and 't_span' not in options.keys():
-                self.subplot_options[pos]['t_span'] = options['xlim'][1] - options['xlim'][0]
-            elif 't_span' in options.keys() and 'xlim' not in options.keys():
-                self.subplot_options[pos]['xlim'] = (0, options['t_span'])
-            elif 'xlim' not in options.keys() and 't_span' not in options.keys():
-                self.subplot_options[pos]['xlim'] = (0, 1)
-                self.subplot_options[pos]['t_span'] = 1
-            else:
-                pass
+            if 'xlim' not in options.keys():
+                # get max t_span from self.plots for this position
+                t_spans = [plot_channel['t_span'] for source, plot_channels in self.plots.items() for plot_channel in plot_channels if plot_channel['pos'] == pos and plot_channel['t_span'] is not None]
+                if t_spans:
+                    t_span_max = max(t_spans)
+                else:
+                    t_span_max = 1
+                self.subplot_options[pos]['xlim'] = (0, t_span_max)
 
 
     def create_ring_buffers(self):
@@ -312,7 +330,8 @@ class Visualization:
             acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
             if acq.channel_names:
                 n_channels = len(acq.channel_names)
-                rows = int(max([self.subplot_options[pos]['t_span'] * acq.sample_rate for pos in self.positions]))
+                # rows = int(max([self.subplot_options[pos]['t_span'] * acq.sample_rate for pos in self.positions]))
+                rows = int(max([_['t_span'] * acq.sample_rate for _ in self.plots[source]]))
                 self.ring_buffers[source] = RingBuffer2D(rows, n_channels)
             
             if acq.channel_names_video:
@@ -663,7 +682,7 @@ class MainWindow(QMainWindow):
 
     def update_line(self, new_data, plot_channel):
         # only plot data that are within xlim (applies only for normal plot, not ch vs. ch)
-        t_span_samples = int(self.vis.subplot_options[plot_channel['pos']]['t_span'] * self.vis.acquisition.sample_rate)
+        t_span_samples = int(plot_channel['t_span'] * self.vis.acquisition.sample_rate)
         
         nth = plot_channel['nth']
 

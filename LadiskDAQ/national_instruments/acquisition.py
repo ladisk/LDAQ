@@ -47,9 +47,10 @@ class NIAcquisition(BaseAcquisition):
         self.acquisition_name = self.task_name if acquisition_name is None else acquisition_name
 
         self.sample_rate = self.Task.sample_rate
-        self.channel_names = self.Task.channel_list
-        self.n_channels = self.Task.number_of_ch
-        self.n_channels_trigger = self.n_channels
+        self._channel_names_init = self.Task.channel_list
+        
+        #self.n_channels = self.Task.number_of_ch
+        #self.n_channels_trigger = self.n_channels
 
         if not self.NITask_used:
             glob_vars = globals()
@@ -60,9 +61,12 @@ class NIAcquisition(BaseAcquisition):
 
     def clear_task(self):
         """Clear a task."""
-        self.Task.clear_task(wait_until_done=False)
-        time.sleep(0.1)
-        del self.Task
+        if hasattr(self, "Task"):
+            self.Task.clear_task(wait_until_done=False)
+            time.sleep(0.1)
+            del self.Task
+        else:
+            pass
 
     def terminate_data_source(self):
         self.task_terminated = True
@@ -102,6 +106,8 @@ class NIAcquisition(BaseAcquisition):
         if self.NITask_used:
             if not hasattr(self.Task, 'task'):
                 self.Task.initiate()
+                
+        super().set_data_source()
 
     def run_acquisition(self, run_time=None, run_in_background=False):        
 

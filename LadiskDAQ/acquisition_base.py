@@ -148,50 +148,186 @@ class BaseAcquisition:
     - self.clear_buffer()
     - self.get_sample_rate() (optional)
     
-    Additionally, the __init__() method should override the following attributes:
-    - self.n_channels 
-    - self.n_channels_trigger (same as n_channels if source is not a camera)
-    - self.channel_names 
-    - self.sample_rate
-    - self.acquisition_name (optional)
-    
+    Additionally, the __init__() method should override or be able to set the following attributes:
+    self._channel_names_init         # list of original data channels names from source 
+    self._channel_names_video_init   # list of original video channels names from source
+    self._channel_shapes_video_init  # list of original video channels shapes from source
+    self.sample_rate = 0
+
     NOTE: the __init__() method should call self.set_trigger(1e20, 0, duration=1.0)
     at the end of __init__ method to set trigger eventhough not used.
 
     Returns:
         _type_: _description_
     """
-    all_acquisitions_ready = False # class property to indicate if all acquisitions are ready to start (not jsut this one)
+    all_acquisitions_ready = False # class property to indicate if all acquisitions are ready to start (not just this one)
     
     def __init__(self):
         """EDIT in child class"""
         self.buffer_dtype = np.float64 # default dtype of data in ring buffer
         self.acquisition_name  = "DefaultAcquisition"
- 
+        
+        # ----------------------------------------------------------------------------------------------
+        # child class should override these attributes:
+        self._channel_names_init        = [] # list of original channels names from source 
+        self._channel_names_video_init  = [] # list of original channels names from source
+        self._channel_shapes_video_init = [] # list of original video channels shapes from source
+        self.sample_rate = 0
+        # ----------------------------------------------------------------------------------------------	
+        
+        # these channel names variables are used to store channel names in the order they are added to the ring buffer
+        # these variables can be modified by acquisition class:
         self.channel_names_all = [] # list of all channel names 
-        self.channel_names= [] # list of channel names with shape (1, )
+        self.channel_names= []        # list of channel names with shape (1, )
         self.channel_names_video = [] # list of channel names with shape (M, N)
         self.channel_pos    = [] # list of tuples with start and end index positions of the data in the flattened ring buffer corresponding to each channel
         self.channel_shapes = [] # list of tuples with shapes of each channel (self.channel_names_all)
         
-        self.is_running = True
+        self.virtual_channel_dict = {} # dictionary of virtual channels where key is virtual channel name and values are
+                                       # tuples (function_to_use, list of indices from self.channel_names_all)
+        
+        # some flags required for proper operation of the class:
+        self.is_running = True    # is acquisition running
         self.is_standalone = True # if this is part of bigger system or used as standalone object
-        self.is_ready = False
-    
+        self.is_ready = False     # if acquisition is ready to start the acquisition
+        self.continuous_mode = False # if acquisition is in continuous mode
+        
         self.lock_acquisition = threading.Lock() # ensures acquisition class runs properly if used in multiple threads.
         
-        self.continuous_mode = False
         self.N_samples_to_acquire = None
-        # child class needs to have variables below:
         self.n_channels  = 0
         self.n_channels_trigger = 0
-        self.sample_rate = 0
         
     def __repr__(self):
-        print(f"Acquisition name: {self.acquisition_name}")
-        print(f"Number of channels: {self.n_channels}")
-        print(f"Signal channel names: {self.channel_names}")
-        print(f"Video channel names: {self.channel_names_video}")
+        def add_to_string(string_name, variable, string, padding):
+            spaces = ' ' * (padding - len(string_name))
+            string += f"{string_name}:{spaces} {variable}\n"
+            return string
+
+        string = ""
+        padding = 20
+        string = add_to_string("Acquisition name", self.acquisition_name, string, padding)
+        string = add_to_string("Number of channels", self.n_channels, string, padding)
+        string = add_to_string("Data channels", self.channel_names, string, padding)
+        string = add_to_string("Video channels", self.channel_names_video, string, padding)
+        string = add_to_string("Sample rate", f"{self.sample_rate} Hz", string, padding)
+        string = add_to_string("Continuous mode", self.continuous_mode, string, padding)
+        string = add_to_string("Standalone", self.is_standalone, string, padding)
+
+        return string
+    
+    def set_data_source(self):
+        """EDIT in child class
+        Properly sets acquisition source before measurement is started.
+        Few requirements for this method:
+         - Should call super().set_data_source() AT THE END of the method.
+         - Should be set up in a way that it is able to be called multiple times in a row without issues.   
+         - VIDEO source only: Should set self._channel_shapes_video_init list of tuples with shapes of each video channel 
+                              that will be recieved from acquisition source. This is required for proper operation of the class.  
+                              IMPORTANT: the order of the shapes should be the same as the order of the channels in 
+                              self._channel_names_video_init.
+        """
+        self._set_all_channels()
+    
+    def _set_all_channels(self):
+        """
+        Sets actual and virtual channels. This method is called at the end of set_data_source() method.
+        """
+        # 0) reset all channels:
+        self.channel_names_all = []
+        self.channel_shapes    = []
+        self.channel_names     = []
+        self.channel_names_video = []
+        self.channel_pos = []
+        
+        # 1) from channels recieved from acquisition source, get their names and shapes:
+        # For data channels:
+        self.channel_names.extend(self._channel_names_init)
+        self.channel_names_all.extend(self._channel_names_init)
+        for channel_name in self._channel_names_init:
+            self.channel_shapes.append( (1, ) )
+        
+        # For video channels:
+        self.channel_names_video.extend(self._channel_names_video_init)
+        self.channel_names_all.extend(self._channel_names_video_init)
+        for video_channel_shape in self._channel_shapes_video_init:
+            self.channel_shapes.append( video_channel_shape )
+        
+        # NOTE: never change that virtual channels are added after data and video channels!!!
+        # 2) add virtual channels:
+        for virt_ch_name in self.virtual_channel_dict.keys():
+            func, source_channel_indices = self.virtual_channel_dict[virt_ch_name ]
+            
+            shapes_used = [self.channel_shapes[ idx ] for idx in source_channel_indices] # here this should support multiple channels
+            
+            # test if function returns proper output:
+            dummy_arrays = [np.random.rand(3, *shape ) for  shape in shapes_used   ] # test arrays, 1st dim 3 just for testing
+            output = func(*dummy_arrays) # this is just a test to get output shape
+            if type(output) != np.ndarray:
+                raise ValueError('Virtual channel function must return numpy array of arbitrary shape and not int, float, tuple...')
+            
+            # data channel  -> output.shape = (3, 1)
+            # video channel -> output.shape = (3, M, K)
+            self.channel_names_all.append(virt_ch_name )
+            if len(output.shape[1:]) == 1 and output.shape[1] == 1: # signal channel
+                shape = (1, )
+                self.channel_shapes.append( shape )
+                self.channel_names.append(virt_ch_name )
+            elif len(output.shape[1:]) == 2: # video channel
+                shape = output.shape[1:]
+                self.channel_shapes.append( shape )
+                self.channel_names_video.append(virt_ch_name )
+            else:
+                shape = output.shape[1:]
+                raise ValueError(f'Output shape {shape} of virtual channel {virt_ch_name} is not supported.\n'
+                                 'Virtual channel function must return numpy array of shape (n_samples, M) and not (n_samples, ) or (n_samples, M, K) ...'
+                                 )
+            
+            
+        # 3) recalculate total number of channels: 
+        self.n_channels = len(self.channel_names_all)
+        self.n_channels_trigger  = 0
+        self.channel_pos = []
+        pos = 0
+        for shape in self.channel_shapes:
+            self.n_channels_trigger += np.prod(shape)
+            pos_next = pos+np.prod(shape)
+            self.channel_pos.append( (pos, pos_next) )
+            pos = pos_next
+                     
+        # create buffer for reading all the data in in flatten format:
+        self._temp_read_data = np.zeros(self.n_channels_trigger, dtype=self.buffer_dtype)
+    
+    def add_virtual_channel(self, virtual_channel_name, source_channels, function):
+        """
+        Add a virtual channel to the acquisition class.
+        
+        Args:
+            virtual_channel_name (str): Name of the channel that will be created
+            source_channel (list): list of name strings or indices of the channels in self.channel_names_all on which function will be applied
+            function (function): Function used on the channels. Takes array shape of the channel as input and has to return a numpy array
+                                 where the first dimension is the number of samples. If returned array has 2 dimensions, it is treated
+                                 as data source, if it has 3 dimensions, it is treated as video source.
+        """
+        if source_channels == int or source_channels == str:
+            source_channels = [source_channels]
+        self.terminate_data_source()
+        # list comprehension to get indices of the channels:
+        source_channels = [self.channel_names_all.index(ch) if type(ch) == str else ch for ch in source_channels]
+        self.virtual_channel_dict[virtual_channel_name] = (function, source_channels)
+        self.set_data_source()
+        self.terminate_data_source()
+        # TODO: check if only self._set_all_channels() is enough
+        
+    
+    def terminate_data_source(self):
+        """EDIT in child class
+        
+        Properly closes acquisition source after the measurement.
+        
+        Returns None.
+        """
+        pass
             
     def read_data(self):
         """EDIT in child class
@@ -201,24 +337,50 @@ class BaseAcquisition:
         pyTrigger ring buffer.
         
         Must return a 2D numpy array of shape (n_samples, n_columns).
-        """
-        pass
-
-    def terminate_data_source(self):
-        """EDIT in child class
         
-        Properly closes acquisition source after the measurement.
+        NOTE: if some of the channels are videos (2D array - so shape is (n_samples, n_pixels_width, n_pixels_height)), 
+              then data has to be reshaped to shape (n_samples, n_pixels_width*n_pixels_height). Then data from multiple
+              sources have to be concatenated into one array of shape (n_samples, n_cols), where cols is the combined number 
+              of pixel of all video sources and number of channels in data sources.
+              For an example where data source has 2 video sources with resolution 300x200 and 2 data channels, the final 
+              shape returned by this methods should be (n_samples, 300*200*2+2).
+        """
+        pass
+    
+    def _read_all_channels(self):
+        """
+        Uses acquired data and process them to create data for virtual channels.
         
-        Returns None.
         """
-        pass
-
-    def set_data_source(self):
-        """EDIT in child class
-        Properly sets acquisition source before measurement is started.
-        Should be set up in a way that it is able to be called multiple times in a row without issues.    
-        """
-        pass
+        # read data from source:
+        data = self.read_data() # shape (n_samples, n_cols) - flattened video channels (if video)
+        
+        # calculate data of virtual channels:
+        if len(self.virtual_channel_dict.keys()) > 0:
+            for virt_ch_name, (func, source_channel_indices) in self.virtual_channel_dict.items():
+                #shape_source_list =  [self.channel_shapes[ idx ] for idx in source_channel_indices]
+                data_source_list = [
+                    data[:, self.channel_pos[idx][0] : self.channel_pos[idx][1] ].reshape(-1, *self.channel_shapes[idx])
+                    for idx in source_channel_indices
+                ]
+                
+                data_virt_ch = func(*data_source_list)
+                if len(data_virt_ch.shape) == 1:
+                    data_virt_ch = data_virt_ch.reshape(-1, 1)
+                elif len(data_virt_ch.shape) == 2:
+                    pass
+                elif len(data_virt_ch.shape) == 3: # video channel!
+                    data_virt_ch = data_virt_ch.reshape(-1, np.prod(data_virt_ch.shape[1:])) # flatten virtual channels
+                else:
+                    raise ValueError('Virtual channel function must return numpy array with shape:\n' \
+                                    '(n_samples, 1) - signal channel OR (n_samples, n_pixels_width*n_pixels_height) - video channel')
+                    
+                data = np.concatenate((data, data_virt_ch), axis=1)
+            
+        else:
+            pass
+        
+        return data
     
     def get_sample_rate(self):
         """EDIT in child class
@@ -240,6 +402,7 @@ class BaseAcquisition:
         """
         self.read_data()
 
+    
     # The following methods should work without changing.
     def stop(self):
         """Stops acquisition run.
@@ -257,100 +420,12 @@ class BaseAcquisition:
         Additionally it also stops the measurement run and terminates acquisition source properly.
         """
         with self.lock_acquisition: # lock to secure variables
-            acquired_data = self.read_data()
+            acquired_data = self._read_all_channels()
             self.Trigger.add_data(acquired_data)
             
-        if self.Trigger.finished or not self.is_running:      
-        #if not self.is_running:       
+        if self.Trigger.finished or not self.is_running:   
             self.stop()
             self.terminate_data_source()
-
-    def get_data(self, N_points=None, data_to_return="data"):
-        """Reads and returns data from the pyTrigger buffer.
-        :param N_points (int, str, None): number of last N points to read from pyTrigger buffer. 
-                            if N_points="new", then only new points will be retrieved.
-                            if None all samples are returned.
-        Returns:
-            tuple: (time, data) - 1D time vector and 2D measured data, both np.ndarray
-        """        
-        if N_points is None:
-            data = self.Trigger.get_data()[-self.Trigger.N_acquired_samples_since_trigger:]
-            
-        elif N_points == "new":
-            with self.lock_acquisition:
-                data = self.Trigger.get_data_new()
-        else:
-            data = self.Trigger.get_data()[-N_points:]
-                
-        time = np.arange(data.shape[0])/self.sample_rate     
-        return time, data
-    
-    def get_data_PLOT(self, data_to_return="data"):
-        """Reads only new data from pyTrigger ring buffer and returns it.
-        NOTE: this method is used only for plotting purposes and should not be used for any other purpose.
-              also it does not return time vector, only data.
-        Returns:
-            array: 2D numpy array of shape (N_new_samples, n_channels)
-        """
-        with self.lock_acquisition:
-            return self.Trigger.get_data_new_PLOT()
-    
-    def get_measurement_dict(self, N_points=None):
-        """Reads data from pyTrigger ring buffer using self.get_data() method and returns a dictionary
-           {'data': data, 'time': time, 
-           'channel_names': self.channel_names, 
-           'sample_rate' : sample_rate}
-
-        Args:
-            N_points (None, int, str): Number fo points to get from pyTrigger ringbuffer. If type(N_points)==int then N_points
-                                       last samples are returned. If N_points=='new', only new points after trigger event are returned.
-                                       If None, all samples are returned. Defaults to None.
-
-        Returns:
-            dict: {'data': data, 'time': time, 'channel_names': self.channel_names, 'sample_rate' : sample_rate}
-        """
-        self.measurement_dict = {}
-        
-        time, data = self.get_data(N_points=N_points, data_to_return="flattened")
-        
-        if len(self.channel_names_video) > 0:
-            # get data only:
-            idx_signal_channels = [self.channel_names_all.index(name) for name in self.channel_names]
-            pos_list = [np.arange(self.channel_pos[channel][0], self.channel_pos[channel][1]) for channel in idx_signal_channels]
-            if len(pos_list) > 0:
-                pos_list = np.concatenate(pos_list)
-                data_only = data[:, pos_list]
-            else:
-                data_only = np.array([]) # no data channels
-                
-            # get video only:
-            idx_video_channels = [self.channel_names_all.index(name) for name in self.channel_names_video]
-            video_only = []
-            for channel in idx_video_channels:
-                shape = self.channel_shapes[channel]
-                pos = self.channel_pos[channel]
-                video_only.append( data[:, pos[0]:pos[1]].reshape( (data.shape[0], *shape) ) )
-            
-            # save video and data separately
-            self.measurement_dict['time'] = time
-            
-            self.measurement_dict['channel_names'] = self.channel_names
-            self.measurement_dict['data']  = data_only
-            
-            self.measurement_dict['channel_names_video'] = self.channel_names_video
-            self.measurement_dict['video'] = video_only
-            
-        else: # no video, flattened array is actually only data:
-            self.measurement_dict['time'] = time
-            self.measurement_dict['channel_names'] = self.channel_names
-            self.measurement_dict['data'] = data
-        
-        if hasattr(self, 'sample_rate'):
-            self.measurement_dict['sample_rate'] = self.sample_rate
-        else:
-            self.measurement_dict['sample_rate'] = None
-            
-        return self.measurement_dict
         
     def run_acquisition(self, run_time=None, run_in_background=False):
         """
@@ -440,7 +515,9 @@ class BaseAcquisition:
         
         self.Trigger.continuous_mode = self.continuous_mode
         if self.continuous_mode:
-            self.Trigger.N_samples_to_acquire = self.N_samples_to_acquire           
+            self.Trigger.N_samples_to_acquire = self.N_samples_to_acquire   
+            
+        self.N_samples_to_acquire = self.trigger_settings["duration_samples"]      
         
     def set_trigger(self, level, channel, duration=1, duration_unit='seconds', presamples=0, type='abs'):
         """Set parameters for triggering the measurement.
@@ -516,6 +593,135 @@ class BaseAcquisition:
         """Sets ALL acquisition sources (not only this one) to ready state. Should not be generally used.
         """
         BaseAcquisition.all_acquisitions_ready = True
+    
+    def get_data(self, N_points=None, data_to_return="data"):
+        """Reads and returns data from the pyTrigger buffer.
+        :param N_points (int, str, None): number of last N points to read from pyTrigger buffer. 
+                            if N_points="new", then only new points will be retrieved.
+                            if None all samples are returned.
+        Returns:
+            tuple: (time, data) - 1D time vector and 2D measured data, both np.ndarray
+            
+        TODO: update to work for video and data acquisition
+        """        
+        if N_points is None:
+            data = self.Trigger.get_data()[-self.Trigger.N_acquired_samples_since_trigger:]
+            
+        elif N_points == "new":
+            with self.lock_acquisition:
+                data = self.Trigger.get_data_new()
+        else:
+            data = self.Trigger.get_data()[-N_points:]
+                
+        time = np.arange(data.shape[0])/self.sample_rate     
+        
+        if data_to_return=="video":
+            channels = [self.channel_names_all.index(name) for name in self.channel_names_video]
+            
+            data_return = []
+            for channel in channels:
+                shape = self.channel_shapes[channel]
+                pos = self.channel_pos[channel]
+                data_return.append( data[:, pos[0]:pos[1]].reshape( (data.shape[0], *shape) ) )
+        elif data_to_return=="data":
+            channels = [self.channel_names_all.index(name) for name in self.channel_names]
+            pos_list = [np.arange(self.channel_pos[channel][0], self.channel_pos[channel][1]) for channel in channels]
+            pos_list = np.concatenate(pos_list)
+            
+            data_return = data[:, pos_list]
+        else: # return flattened buffer
+            data_return = data
+    
+        return time, data_return
+    
+    def get_data_PLOT(self, data_to_return="data"):
+        """Reads only new data from pyTrigger ring buffer and returns it.
+        NOTE: this method is used only for plotting purposes and should not be used for any other purpose.
+              also it does not return time vector, only data.
+        Returns:
+            array: 2D numpy array of shape (N_new_samples, n_channels)
+        
+        TODO: update to work for video and data acquisition
+        """
+        with self.lock_acquisition:
+            data = self.Trigger.get_data_new_PLOT()
+        
+        if data_to_return=="video":
+            channels = [self.channel_names_all.index(name) for name in self.channel_names_video]
+            
+            data_return = []
+            for channel in channels:
+                shape = self.channel_shapes[channel]
+                pos = self.channel_pos[channel]
+                data_return.append( data[:, pos[0]:pos[1]].reshape( (data.shape[0], *shape) ) )
+                
+        elif data_to_return=="data":
+            channels = [self.channel_names_all.index(name) for name in self.channel_names]
+            pos_list = [np.arange(self.channel_pos[channel][0], self.channel_pos[channel][1]) for channel in channels]
+            pos_list = np.concatenate(pos_list)
+            
+            data_return = data[:, pos_list]
+        else:
+            data_return = data
+        
+        return data_return
+    
+    def get_measurement_dict(self, N_points=None):
+        """Reads data from pyTrigger ring buffer using self.get_data() method and returns a dictionary
+           {'data': data, 'time': time, 
+           'channel_names': self.channel_names, 
+           'sample_rate' : sample_rate}
+
+        Args:
+            N_points (None, int, str): Number fo points to get from pyTrigger ringbuffer. If type(N_points)==int then N_points
+                                       last samples are returned. If N_points=='new', only new points after trigger event are returned.
+                                       If None, all samples are returned. Defaults to None.
+
+        Returns:
+            dict: {'data': data, 'time': time, 'channel_names': self.channel_names, 'sample_rate' : sample_rate}
+        """
+        self.measurement_dict = {}
+        
+        time, data = self.get_data(N_points=N_points, data_to_return="flattened")
+        
+        if len(self.channel_names_video) > 0:
+            # get data only:
+            idx_signal_channels = [self.channel_names_all.index(name) for name in self.channel_names]
+            pos_list = [np.arange(self.channel_pos[channel][0], self.channel_pos[channel][1]) for channel in idx_signal_channels]
+            if len(pos_list) > 0:
+                pos_list = np.concatenate(pos_list)
+                data_only = data[:, pos_list]
+            else:
+                data_only = np.array([]) # no data channels
+                
+            # get video only:
+            idx_video_channels = [self.channel_names_all.index(name) for name in self.channel_names_video]
+            video_only = []
+            for channel in idx_video_channels:
+                shape = self.channel_shapes[channel]
+                pos = self.channel_pos[channel]
+                video_only.append( data[:, pos[0]:pos[1]].reshape( (data.shape[0], *shape) ) )
+            
+            # save video and data separately
+            self.measurement_dict['time'] = time
+            
+            self.measurement_dict['channel_names'] = self.channel_names
+            self.measurement_dict['data']  = data_only
+            
+            self.measurement_dict['channel_names_video'] = self.channel_names_video
+            self.measurement_dict['video'] = video_only
+            
+        else: # no video, flattened array is actually only data:
+            self.measurement_dict['time'] = time
+            self.measurement_dict['channel_names'] = self.channel_names
+            self.measurement_dict['data'] = data
+        
+        if hasattr(self, 'sample_rate'):
+            self.measurement_dict['sample_rate'] = self.sample_rate
+        else:
+            self.measurement_dict['sample_rate'] = None
+            
+        return self.measurement_dict
     
     def save(self, name, root='', timestamp=True, comment=None):
         """Save acquired data.

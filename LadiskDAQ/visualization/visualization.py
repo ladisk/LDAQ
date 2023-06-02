@@ -637,6 +637,7 @@ class MainWindow(QMainWindow):
                         if plot_channel['pos'] == 'image':
                             if hasattr(self, 'new_images'):
                                 new_data = self.new_images[plot_channel['channels']]
+                                #print(new_data.shape)
                                 self.update_image(new_data, plot_channel)
                         else:
                             new_data = self.vis.ring_buffers[source].get_data()

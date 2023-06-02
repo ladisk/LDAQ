@@ -45,6 +45,8 @@ class SerialAcquisition(BaseAcquisition):
         else:
             self.acquisition_name = acquisition_name
 
+        self._channel_names_init  = channel_names # list of original channels names from source 
+        
         self.port = port
         self.baudrate = baudrate
         self.byte_sequence = byte_sequence
@@ -56,8 +58,6 @@ class SerialAcquisition(BaseAcquisition):
 
         self.unpack_string = b""
         self.expected_number_of_bytes = 0
-        self.n_channels = 0
-        self.channel_names = channel_names
     
         self.set_unpack_data_settings() # sets unpack_string, expected_number_of_bytes, n_channels
         self.set_channel_names()        # sets channel names if none were given to the class
@@ -95,6 +95,8 @@ class SerialAcquisition(BaseAcquisition):
         self.ser.reset_input_buffer() # clears previous data
         self.buffer = b"" # reset class buffer
         
+        super().set_data_source()
+        
     def terminate_data_source(self):
         self.buffer = b""
         time.sleep(0.01)
@@ -109,7 +111,7 @@ class SerialAcquisition(BaseAcquisition):
         # 2) split data into lines
         parsed_lines = self.buffer.split(self.end_bytes + self.start_bytes)
         if len(parsed_lines) == 1 or len(parsed_lines) == 0: # not enough data
-            return np.array([]).reshape(-1, self.n_channels)
+            return np.empty((0, self.n_channels))
         
         # 3) decode full lines, convert data to numpy array
         data = []
@@ -164,10 +166,10 @@ class SerialAcquisition(BaseAcquisition):
         """
         Sets default channel names if none were passed to the class.
         """
-        if self.channel_names is None:
+        if self._channel_names_init is None:
             self.channel_names = [f"channel {i+1}" for i in range(self.n_channels)]
         else:
-            if len(self.channel_names) != self.n_channels:
+            if len(self._channel_names_init) != self.n_channels:
                 self.channel_names = [f"channel {i+1}" for i in range(self.n_channels)]
             else:
                 self.channel_names = self.channel_names

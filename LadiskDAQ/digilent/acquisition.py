@@ -15,11 +15,10 @@ class WaveFormsAcquisition(BaseAcquisition):
         super().__init__()
 
         self.acquisition_name = 'AD2' if acquisition_name is None else acquisition_name
-        self.channel_names = channel_names if channel_names is not None else [f'CH{i}' for i in channels]
-        self.channel_idx = channels
+        self._channel_names_init = channel_names if channel_names is not None else [f'CH{i}' for i in channels]
         
-        self.n_channels  = len(channels)
-        self.n_channels_trigger = self.n_channels
+        
+        self.channel_idx = channels
         self.sample_rate = sample_rate
         self.device_number = device_number if device_number is not None else -1
         
@@ -38,9 +37,9 @@ class WaveFormsAcquisition(BaseAcquisition):
         self.fLost = 0
         self.fCorrupted = 0
         
-        #self.set_data_source()
         self.configure_channels() # configure channel range
         
+        self.set_data_source()
         self.set_trigger(1e20, 0, duration=1.0)
         
         
@@ -128,15 +127,8 @@ class WaveFormsAcquisition(BaseAcquisition):
         device_state = c_int()
         self.dwf.FDwfAnalogInStatus(self.hdwf, c_bool(True), byref(device_state)) 
         self.dwf.FDwfAnalogInConfigure(self.hdwf, c_int(0), c_int(1))
-
-        # Temporary solution for setting generation signal:
-        #print("Generating")
-        #self.dwf.FDwfAnalogOutNodeEnableSet(self.hdwf,   c_int(0), dwfc.AnalogOutNodeCarrier, c_bool(True))
-        #self.dwf.FDwfAnalogOutNodeFunctionSet(self.hdwf, c_int(0), dwfc.AnalogOutNodeCarrier, dwfc.funcSine)
-        #self.dwf.FDwfAnalogOutNodeFrequencySet(self.hdwf,c_int(0), dwfc.AnalogOutNodeCarrier, c_double(100))
-        #self.dwf.FDwfAnalogOutNodeAmplitudeSet(self.hdwf,c_int(0), dwfc.AnalogOutNodeCarrier, c_double(2))
-        #self.dwf.FDwfAnalogOutNodeOffsetSet(self.hdwf, c_int(0), dwfc.AnalogOutNodeCarrier, c_double(0))
-        #elf.dwf.FDwfAnalogOutConfigure(self.hdwf, c_int(0), c_bool(True))
+            
+        super().set_data_source()
      
     
     def terminate_data_source(self):

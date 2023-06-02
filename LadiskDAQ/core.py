@@ -492,7 +492,8 @@ class Core():
         max_file_size = 100 * 1024 * 1024  # 100 MB
 
         file_name_base, ext = os.path.splitext(file_name_base)
-        file_name = f"{file_name_base}_{file_index}{ext}"
+        file_index_str = str(file_index).zfill(4)
+        file_name = f"{file_name_base}_{file_index_str}{ext}"
         file_path = os.path.join(root, file_name)
 
         # Load existing data

@@ -13,28 +13,29 @@ import types
 import keyboard
 from pyTrigger import RingBuffer2D
 
+from typing import Optional, Tuple, Union, List, Callable
+
 from .visualization_helpers import compute_nth, check_subplot_options_validity, _fun_fft, _fun_frf_amp, _fun_frf_phase, _fun_coh
 
 INBUILT_FUNCTIONS = {'fft': _fun_fft, 'frf_amp': _fun_frf_amp, 'frf_phase': _fun_frf_phase, 'coh': _fun_coh}
     
     
 class Visualization:
-    def __init__(self, refresh_rate=100, max_points_to_refresh=1e4, sequential_plot_updates=True):
-        """Live visualization of the measured data.
+    def __init__(self, refresh_rate: int = 100, max_points_to_refresh: int = 10000, sequential_plot_updates: bool = True):
+        """Initialize a new `Visualization` object.
 
-        For more details, see [documentation](https://ladiskdaq.readthedocs.io/en/latest/visualization.html).
-        
-        :param refresh_rate: Refresh rate of the plot in ms.
-        :param max_points_to_refresh: Maximum number of points to refresh in the plot. Adjust this number to optimize performance.
-            This number is used to compute the ``nth`` value automatically.
-        :param sequential_plot_updates: If ``True``, the plot is updated sequentially (one in each iteration of the main loop).
-            If ``False``, all lines are updated in each iteration of the main loop.
+        :param refresh_rate: The refresh rate of the plot in milliseconds. Defaults to 100.
+        :type refresh_rate: int, optional
+        :param max_points_to_refresh: The maximum number of points to refresh in the plot. Adjust this number to optimize performance.
+            This number is used to compute the `nth` value automatically. Defaults to 10000.
+        :type max_points_to_refresh: int, optional
+        :param sequential_plot_updates: If `True`, the plot is updated sequentially (one line at a time).
+            If `False`, all lines are updated in each iteration of the main loop. Defaults to `True`.
+        :type sequential_plot_updates: bool, optional
 
-        .. note::
-
-            If ``sequential_plot_updates`` is ``True``, the lines are updated sequentially in each iteration of the main loop.
-            Potentially, the plot can show a phase shift between the lines. This is because when the first line is updated,
-            the data for the second line is already acquired. To avoid this, set ``sequential_plot_updates`` to ``False``.
+        This method initializes a new `Visualization` object with the specified options.
+        The `refresh_rate`, `max_points_to_refresh` and `sequential_plot_updates` options are stored in the corresponding
+        attributes of the `Visualization` object.
         """
         self.max_plot_time = 1
         self.show_legend = True
@@ -49,7 +50,9 @@ class Visualization:
         self.sequential_plot_updates = sequential_plot_updates
     
 
-    def add_lines(self, position, source, channels, function=None, nth="auto", refresh_rate=None, t_span=None):
+    def add_lines(self, position: Tuple[int, int], source: str, channels: Union[int, Tuple[int, int]],
+                  function: Union[callable, str, None] = None, nth: Union[int, str] = "auto",
+                  refresh_rate: Union[int, None] = None, t_span: Union[int, float, None] = None) -> None:
         """Build the layout dictionary.
 
         :param position: tuple, the position of the subplot. Example: ``(0, 0)``.
@@ -176,8 +179,27 @@ class Visualization:
             })
 
 
-    def add_image(self, source, channel, function=None, refresh_rate=100, colormap='CET-L17'):
-        """"""
+    def add_image(self, source: str, channel: str, function: Optional[Union[str, callable]] = None, refresh_rate: int = 100, colormap: str = 'CET-L17') -> None:
+        """Add an image plot to the visualization for the specified source and channel.
+
+        :param source: The name of the source to add the image plot to.
+        :param channel: The name of the channel to add the image plot to.
+        :param function: A function or string to apply to the image data before plotting. Defaults to None.
+        :param refresh_rate: The number of milliseconds between updates of the plot. Defaults to 100.
+        :param colormap: The colormap to use for the plot. Defaults to 'CET-L17'.
+
+        This method adds an image plot to the visualization for the specified `source` and `channel`.
+        The `function` argument can be used to apply a custom function to the image data before plotting.
+        If `function` is not specified or is not a callable function or a string, the identity function is used.
+        If `function` is a string, it is looked up in the `INBUILT_FUNCTIONS` dictionary.
+        The `refresh_rate` argument specifies the number of milliseconds between updates of the plot.
+        The `colormap` argument specifies the colormap to use for the plot.
+
+        If `source` is not already in `self.plots`, a new entry is created for it.
+        If `channel` is not already in the entry for `source` in `self.plots`, a new plot is created for it.
+
+        This method modifies the `plots` and `color_map` attributes of the `Visualization` object in-place.
+        """
         if type(channel) == int:
             raise ValueError("The channel argument must be string of the channel name.")
             
@@ -210,17 +232,21 @@ class Visualization:
         self.color_map = colormap
 
 
-    def config_subplot(self, position, xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1):
-        """Configure a subplot at position ``position``.
-        
-        :param position: tuple of two integers, the position of the subplot in the layout.
-        :param xlim: tuple of two floats, the limits of the x-axis. If not given, the limits are set to ``(0, 1)``.
-        :param ylim: tuple of two floats, the limits of the y-axis.
-        :param t_span: int/float, the length of the time axis. If this option is not specified, it is computed from the ``xlim``.
-        :param axis_style: string, the style of the axis. Can be "linear", "semilogx", "semilogy" or "loglog".
-        :param title: string, the title of the subplot.
-        :param rowspan: int, the number of rows the subplot spans. Default is 1.
-        :param colspan: int, the number of columns the subplot spans. Default is 1.
+    def config_subplot(self, position: Tuple[int, int], xlim: Optional[Tuple[float, float]] = None, ylim: Optional[Tuple[float, float]] = None, t_span: Optional[float] = None, axis_style: Optional[str] = 'linear', title: Optional[str] = None, rowspan: int = 1, colspan: int = 1) -> None:
+        """Configure a subplot at position `position`.
+
+        :param position: Tuple of two integers, the position of the subplot in the layout.
+        :param xlim: Tuple of two floats, the limits of the x-axis. If not given, the limits are set to `(0, 1)`.
+        :param ylim: Tuple of two floats, the limits of the y-axis.
+        :param t_span: Int/float, the length of the time axis. If this option is not specified, it is computed from the `xlim`.
+        :param axis_style: String, the style of the axis. Can be "linear", "semilogx", "semilogy" or "loglog".
+        :param title: String, the title of the subplot.
+        :param rowspan: Int, the number of rows the subplot spans. Default is 1.
+        :param colspan: Int, the number of columns the subplot spans. Default is 1.
+
+        This method configures a subplot at position `position` with the specified options.
+        The `xlim`, `ylim`, `t_span`, `axis_style`, `title`, `rowspan` and `colspan` options are stored in the `subplot_options`
+        dictionary of the `Visualization` object.
         """
         self.subplot_options[position] = {}
 
@@ -294,12 +320,13 @@ class Visualization:
 
 
     def _check_t_span_and_xlim(self):
-        """t_span can be defined in the add_lines (and is then present in the self.plots) or is defined in config_subplot (and is then present in
-        self.subplot_options). The xlim is defined in config_subplot and is present in self.subplot_options. 
-        
-        This method checks if the t_span is defined in self.plots, if not, the t_span is copied from self.subplot_options.
-        If t_span is not present in self.subplot_options, it is computed from xlim.
-        If the xlim is also not present, the xlim is set to (0, 1) and t_span in self.plots is computed from this xlim.
+        """Check and set the `t_span` and `xlim` options for all plots in `self.plots`.
+
+        If `t_span` is not defined for a plot, it is copied from the corresponding `subplot_options`.
+        If `t_span` is not defined in `subplot_options`, it is computed from the `xlim` option.
+        If `xlim` is not defined in `subplot_options`, it is set to `(0, 1)` and `t_span` is computed from it.
+
+        This method modifies the `t_span` and `xlim` options in-place for all plots in `self.plots`.
         """
         for source, plot_channels in self.plots.items():
             for i, plot_channel in enumerate(plot_channels):
@@ -325,6 +352,15 @@ class Visualization:
 
 
     def create_ring_buffers(self):
+        """Create and initialize the ring buffers for all plots in `self.plots`.
+
+        For each source in `self.plots`, this method creates a `RingBuffer2D` object with the appropriate number of rows
+        and channels, based on the `t_span` and `sample_rate` options in `self.plots` and the corresponding acquisition.
+        If the acquisition has video channels, this method also initializes a list of random images for each video channel.
+        If a source does not have any channels, a `RingBuffer2D` object with one row and one channel is created.
+
+        This method modifies the `ring_buffers` and `new_images` attributes of the `Visualization` object in-place.
+        """
         self.ring_buffers = {}
         for source in self.plots.keys():
             acq = self.core.acquisitions[self.core.acquisition_names.index(source)]

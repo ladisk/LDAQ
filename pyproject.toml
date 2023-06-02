@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "LDAQ"
+version = "0.0.1"
+license = "MIT"
+description = ""
+readme = "README.rst"
+requires-python = ">=3.10"
+
+dependencies = [
+    "numpy>=1.11.0",
+    "scipy>=1.2.0",
+    "matplotlib>=3.0.0",
+    "tqdm>=4.25.0",
+    "pyqtgraph",
+    "PyQt5>=5.15.6",
+    "beautifultable>=1.1.0",
+    "keyboard",
+    "pyTrigger",
+    "PyDAQmx",
+    "sphinx-copybutton",
+    "pyserial",
+    "nidaqmx",
+    "openpyxl",
+    "pandas",
+    "urllib3<2.0",
+]
+
+classifiers = [
+    'Development Status :: 5 - Production/Stable',
+    'Intended Audience :: Developers',
+    'Topic :: Scientific/Engineering',
+    'Programming Language :: Python :: 3.10',
+    "License :: OSI Approved :: MIT License",
+]
+
+[project.optional-dependencies]
+dev = [
+    "sphinx",
+    "twine",
+    "wheel",
+    "pytest",
+    "sphinx-rtd-theme",
+]
+
+[project.urls]
+homepage = "https://github.com/ladisk/LadiskDAQ"
+documentation = "https://ladiskdaq.readthedocs.io/en/latest/"
+source = "https://github.com/ladisk/LadiskDAQ"

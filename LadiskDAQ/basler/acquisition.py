@@ -6,7 +6,7 @@ from ..acquisition_base import BaseAcquisition
 try:    
     from pypylon import pylon
 except:
-    print("pypylon library not found. Please install using pip install pypylon")
+    pass
 
 
 
@@ -24,6 +24,12 @@ class BaslerCamera(BaseAcquisition):
     """
     def __init__(self, acquisition_name=None, sample_rate=60, offset=(0, 0), size=(4112, 3008),
                  subsample=1, pixel_format="Mono12", exposure_time_ms=4.0):
+        
+        try:
+            pylon # check if pylon is imported
+        except:
+            raise Exception("Pypylon library not found. Please install it before using this class.")
+
         super().__init__()
 
         self.acquisition_name = 'BaslerCamera' if acquisition_name is None else acquisition_name

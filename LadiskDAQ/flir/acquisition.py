@@ -4,9 +4,9 @@ from ctypes import *
 from ..acquisition_base import BaseAcquisition
 
 try:
-    import PySpin 
+    import PySpin
 except:
-    print("PySpin library not found.")
+    pass
 
 
 class IRFormatType:
@@ -39,6 +39,11 @@ class FLIRThermalCamera(BaseAcquisition):
                                                     (this requires calibration coefficients, currently some
                                                      calibration values are read from the camera)         
         """
+        try:
+            PySpin # check if PySpin is imported
+        except:
+            raise Exception("PySpin is not installed. Please install it from the link provided in the class documentation.")
+
         super().__init__()
         self.acquisition_name = 'FLIR' if acquisition_name is None else acquisition_name
         self.buffer_dtype = np.float16 # this is used when CustomPyTrigger instance is created

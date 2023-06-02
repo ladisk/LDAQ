@@ -280,6 +280,7 @@ class Visualization:
 
         self._check_t_span_and_xlim()
         self._check_added_lines()
+        self._check_channels()
 
     
     def run(self, core):
@@ -300,6 +301,32 @@ class Visualization:
             self.main_window = MainWindow(self, self.core, self.app)
             self.main_window.show()
             self.app.exec_()
+
+
+    def _check_channels(self):
+        """Convert between channel names and channel indices.
+        
+        If the `pos` is 'image', check that the `channel` is a string or an intiger. If it is an intiger, convert it to a string.
+        If the `pos` is not 'image', check that the `channel` is a string or an intiger. If it is a string, convert it to an intiger.
+        """
+        for source, plot_channels in self.plots.items():
+            acq_index = self.core.acquisition_names.index(source)
+            for i, plot_channel in enumerate(plot_channels):
+                if plot_channel['pos'] == 'image':
+                    if type(plot_channel['channels']) == str:
+                        pass
+                    elif type(plot_channel['channels']) == int:
+                        pass
+                    else:
+                        raise ValueError("The `channel` must be a string (`channel_name`) or intiger (`channel_index`).")
+                else:
+                    if type(plot_channel['channels']) == str:
+                        channel = plot_channel['channels']
+                        self.plots[source][i]['channels'] = self.core.acquisitions[acq_index].channel_names.index(channel)
+                    elif type(plot_channel['channels']) == int:
+                        pass
+                    else:
+                        raise ValueError("The `channel` must be a string (`channel_name`) or intiger (`channel_index`).")
 
 
     def _check_added_lines(self):

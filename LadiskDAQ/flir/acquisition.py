@@ -106,9 +106,11 @@ class FLIRThermalCamera(BaseAcquisition):
             
             # Temperature field camera:
             image_shape_temperature = self._init_thermal_camera()
-            self.channel_names_video = self._channel_names_video_init
-            self.channel_names_all.append(self._channel_names_video_init[0])
-            self.channel_shapes.append(image_shape_temperature)
+            #self.channel_names_video = self._channel_names_video_init
+            #self.channel_names_all.append(self._channel_names_video_init[0])
+            #self.channel_shapes.append(image_shape_temperature)
+            
+            self._channel_shapes_video_init = [image_shape_temperature]
             
             # Regular camera:
             # TODO: add regular camera

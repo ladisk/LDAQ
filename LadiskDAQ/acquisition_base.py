@@ -315,9 +315,11 @@ class BaseAcquisition:
         # list comprehension to get indices of the channels:
         source_channels = [self.channel_names_all.index(ch) if type(ch) == str else ch for ch in source_channels]
         self.virtual_channel_dict[virtual_channel_name] = (function, source_channels)
+        
         self.set_data_source()
         self.terminate_data_source()
-        # TODO: check if only self._set_all_channels() is enough
+        # TODO: check if only self._set_all_channels() is enough - it is not, because some sources set 
+        #       self.channel_names_video_init and self.channel_shapes_video_init in set_data_source() method
         
     
     def terminate_data_source(self):
@@ -567,8 +569,9 @@ class BaseAcquisition:
         self._set_trigger_instance()
         
     def activate_trigger(self, all_sources=True):
-        """Sets trigger off. Useful if the acquisition class is trigered by another process.
-            This trigger can also trigger other acquisition sources by setting property class
+        """
+        Sets trigger off. Useful if the acquisition class is trigered by another process.
+        This trigger can also trigger other acquisition sources by setting property class
         """
         if all_sources:
             CustomPyTrigger.triggered_global = True
@@ -576,13 +579,15 @@ class BaseAcquisition:
             self.Trigger.triggered = True
 
     def reset_trigger(self):
-        """Resets trigger.
+        """
+        Resets trigger.
         """
         CustomPyTrigger.triggered_global = False
         self.Trigger.triggered = False
         
     def is_triggered(self):
-        """Checks if acquisition class has been triggered during measurement.
+        """
+        Checks if acquisition class has been triggered during measurement.
 
         Returns:
             bool: True/False if triggered
@@ -594,6 +599,32 @@ class BaseAcquisition:
         """
         BaseAcquisition.all_acquisitions_ready = True
     
+    def _reshape_data(self, flattened_data, data_to_return):
+        if data_to_return=="video":
+            channels = [self.channel_names_all.index(name) for name in self.channel_names_video]
+            if len(channels)==0:
+                raise ValueError(f"No video channels are defined in {self.acquisition_name}.")
+            
+            data_return = []
+            for channel in channels:
+                shape = self.channel_shapes[channel]
+                pos = self.channel_pos[channel]
+                data_return.append( flattened_data[:, pos[0]:pos[1]].reshape( (flattened_data.shape[0], *shape) ) )
+                
+        elif data_to_return=="data":
+            channels = [self.channel_names_all.index(name) for name in self.channel_names]
+            if len(channels)==0:
+                raise ValueError(f"No data channels are defined in {self.acquisition_name}.")
+            
+            pos_list = [np.arange(self.channel_pos[channel][0], self.channel_pos[channel][1]) for channel in channels]
+            pos_list = np.concatenate(pos_list)
+            
+            data_return = flattened_data[:, pos_list]
+        else: # return flattened buffer
+            data_return = flattened_data
+        
+        return data_return
+            
     def get_data(self, N_points=None, data_to_return="data"):
         """Reads and returns data from the pyTrigger buffer.
         :param N_points (int, str, None): number of last N points to read from pyTrigger buffer. 
@@ -601,8 +632,6 @@ class BaseAcquisition:
                             if None all samples are returned.
         Returns:
             tuple: (time, data) - 1D time vector and 2D measured data, both np.ndarray
-            
-        TODO: update to work for video and data acquisition
         """        
         if N_points is None:
             data = self.Trigger.get_data()[-self.Trigger.N_acquired_samples_since_trigger:]
@@ -614,23 +643,7 @@ class BaseAcquisition:
             data = self.Trigger.get_data()[-N_points:]
                 
         time = np.arange(data.shape[0])/self.sample_rate     
-        
-        if data_to_return=="video":
-            channels = [self.channel_names_all.index(name) for name in self.channel_names_video]
-            
-            data_return = []
-            for channel in channels:
-                shape = self.channel_shapes[channel]
-                pos = self.channel_pos[channel]
-                data_return.append( data[:, pos[0]:pos[1]].reshape( (data.shape[0], *shape) ) )
-        elif data_to_return=="data":
-            channels = [self.channel_names_all.index(name) for name in self.channel_names]
-            pos_list = [np.arange(self.channel_pos[channel][0], self.channel_pos[channel][1]) for channel in channels]
-            pos_list = np.concatenate(pos_list)
-            
-            data_return = data[:, pos_list]
-        else: # return flattened buffer
-            data_return = data
+        data_return = self._reshape_data(data, data_to_return)
     
         return time, data_return
     
@@ -640,29 +653,11 @@ class BaseAcquisition:
               also it does not return time vector, only data.
         Returns:
             array: 2D numpy array of shape (N_new_samples, n_channels)
-        
-        TODO: update to work for video and data acquisition
         """
         with self.lock_acquisition:
             data = self.Trigger.get_data_new_PLOT()
         
-        if data_to_return=="video":
-            channels = [self.channel_names_all.index(name) for name in self.channel_names_video]
-            
-            data_return = []
-            for channel in channels:
-                shape = self.channel_shapes[channel]
-                pos = self.channel_pos[channel]
-                data_return.append( data[:, pos[0]:pos[1]].reshape( (data.shape[0], *shape) ) )
-                
-        elif data_to_return=="data":
-            channels = [self.channel_names_all.index(name) for name in self.channel_names]
-            pos_list = [np.arange(self.channel_pos[channel][0], self.channel_pos[channel][1]) for channel in channels]
-            pos_list = np.concatenate(pos_list)
-            
-            data_return = data[:, pos_list]
-        else:
-            data_return = data
+        data_return = self._reshape_data(data, data_to_return)
         
         return data_return
     

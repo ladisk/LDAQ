@@ -46,7 +46,7 @@ class Core():
         TODO: maybe there is a way to sync all acquisition sources.
         Maybe this function can be application specific.
         For example, maybe functional generator is attached to all sources at the same time
-        and time shifts are calcualted.
+        and time shifts are calculated.
         """
         pass
     

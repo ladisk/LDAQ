@@ -394,7 +394,7 @@ class Visualization:
             if acq.channel_names:
                 n_channels = len(acq.channel_names)
                 # rows = int(max([self.subplot_options[pos]['t_span'] * acq.sample_rate for pos in self.positions]))
-                rows = int(max([_['t_span'] * acq.sample_rate for _ in self.plots[source]]))
+                rows = int(max([_['t_span'] * acq.sample_rate for _ in self.plots[source] if _['pos'] != 'image']))
                 self.ring_buffers[source] = RingBuffer2D(rows, n_channels)
             
             if acq.channel_names_video:

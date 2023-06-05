@@ -4,7 +4,7 @@ Basic usage
 ===========
 
 Create the acquisition object
---------------------------
+-----------------------------
 
 The first step to starting the measurement is to create an acquisition object. Depending on your measurement hardware,
 you can select the appropriate acquisition class. 
@@ -22,7 +22,7 @@ The ``acquisition_name`` argument is important when using multiple acquisition o
 live `visualization <https://ladiskdaq.readthedocs.io/en/latest/visualization.html>`_.
 
 Create the ``Core`` object
------------------------------------------
+--------------------------
 
 The ``acq`` object can now be added to the ``LadiskDAQ.Core`` class:
 
@@ -78,7 +78,7 @@ The measurement can now be started by calling the ``run`` method:
     ldaq.run()
 
 Save the measurement
----------------------
+--------------------
 
 After the measurement is completed, the data can be saved by calling:
 
@@ -102,7 +102,9 @@ What else can I do with LDAQ?
 -----------------------------
 
 - Add generation to the ``LadiskDAQ.Core`` object. (see `generation <https://ladiskdaq.readthedocs.io/en/latest/generation.html>`_)
-- Add visualization to the ``LadiskDAQ.Core`` object. (see `visualization <https://ladiskdaq.readthedocs.io/en/latest/visualization.html>`_)
-- Apply functions to measured data in real-time visualization. (see `visualization <https://ladiskdaq.readthedocs.io/en/latest/visualization.html#the-function-option>`_)
+- Add visualization to the ``LadiskDAQ.Core`` object. (see visualization_)
+- Apply functions to measured data in real-time visualization. (see visualization_)
 - Add multiple acquisition and signal generation objects to ``LadiskDAQ.Core``. (see `multiple sources <https://ladiskdaq.readthedocs.io/en/latest/multiple_sources.html>`_)
 - Define a NI Task in your program and use it with LDAQ. (see `NI Task <https://ladiskdaq.readthedocs.io/en/latest/ni_task.html>`_)
+
+.. _visualization: https://ladiskdaq.readthedocs.io/en/latest/visualization.html

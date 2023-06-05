@@ -338,7 +338,7 @@ class BaseAcquisition:
         This method is called within self.acquire() method which properly handles acquiring data and saves it into 
         pyTrigger ring buffer.
         
-        Must return a 2D numpy array of shape (n_samples, n_columns).
+        Must ALWAYS return a 2D numpy array of shape (n_samples, n_columns).
         
         NOTE: if some of the channels are videos (2D array - so shape is (n_samples, n_pixels_width, n_pixels_height)), 
               then data has to be reshaped to shape (n_samples, n_pixels_width*n_pixels_height). Then data from multiple
@@ -352,7 +352,6 @@ class BaseAcquisition:
     def _read_all_channels(self):
         """
         Uses acquired data and process them to create data for virtual channels.
-        
         """
         # read data from source:
         data = self.read_data() # shape (n_samples, n_cols) - flattened video channels (if video)
@@ -378,10 +377,7 @@ class BaseAcquisition:
                                     '(n_samples, 1) - signal channel OR (n_samples, n_pixels_width*n_pixels_height) - video channel')
                     
                 data = np.concatenate((data, data_virt_ch), axis=1)
-            
-        else:
-            pass
-        
+
         return data
     
     def get_sample_rate(self):
@@ -411,7 +407,7 @@ class BaseAcquisition:
         """
         self.is_running = False
         
-        # what for the thread to finish if it exists:
+        # wait for the thread to finish if it exists:
         if hasattr(self, "background_thread") and threading.current_thread() == threading.main_thread():
             if self.background_thread.is_alive():
                 self.background_thread.join()
@@ -504,14 +500,36 @@ class BaseAcquisition:
             self.N_samples_to_acquire = int(measurement_duration*self.sample_rate)
                    
     def _set_trigger_instance(self):
-        """Creates PyTrigger instance.
         """
+        Creates PyTrigger instance and sets its parameters.
+        """
+        
+        if len(self.channel_names) == 0: # this source has no data channels
+            buffer_channel = 0 # set arbitrary channel 
+            level = 1e20 # set a level that will not be triggered            
+            # TODO: currently this is a little hacky, but it works. In the future, this should be changed
+        else:  
+            channel = self.trigger_settings['channel']
+            # convert to index from self.channel_names_all:
+            try:
+                if type(channel) == str:
+                    channel = self.channel_names_all.index(channel) if type(channel)==str else channel
+                elif type(channel) == int:
+                    channel = self.channel_names_all.index(self.channel_names[channel]) 
+                else:
+                    raise ValueError("Channel must be either string or integer")
+            except:
+                raise IndexError("Channel name not found in the list of available channels (self.channel_names)")
+            
+            buffer_channel = self.channel_pos[channel][0] # 1st index is the data channel position in the ring buffer
+            level = self.trigger_settings['level']
+        
         self.Trigger = CustomPyTrigger( #pyTrigger
             rows=self.trigger_settings['duration_samples'], 
             channels=self.n_channels_trigger,
             trigger_type=self.trigger_settings['type'],
-            trigger_channel=self.trigger_settings['channel'], 
-            trigger_level=self.trigger_settings['level'],
+            trigger_channel=buffer_channel, 
+            trigger_level=level,
             presamples=self.trigger_settings['presamples'],
             dtype=self.buffer_dtype)
         
@@ -522,14 +540,25 @@ class BaseAcquisition:
         self.N_samples_to_acquire = self.trigger_settings["duration_samples"]      
         
     def set_trigger(self, level, channel, duration=1, duration_unit='seconds', presamples=0, type='abs'):
-        """Set parameters for triggering the measurement.
+        """Set parameters for triggering the measurement. 
         
-        :param level: trigger level
-        :param channel: trigger channel
-        :param duration: durtion of the acquisition after trigger (in seconds or samples)
-        :param duration_unit: 'seconds' or 'samples'
-        :param presamples: number of presampels to save
-        :param type: trigger type: up, down or abs"""
+        NOTE: only one trigger channel is supported at the moment. Additionally trigger can only be set
+        on 'data' channels. If trigger is needed on 'video' channels, a 'data' virtual channel has to be created
+        using 'add_virtual_channel()' method, and then trigger can be set on this virtual channel.
+        
+        Args:
+            level (float): trigger level
+            channel (int, str): trigger channel (int or str). If str, it must be one of the channel names. If int, 
+                                index from self.channel_names ('data' channels) has to be provided (NOTE: see the difference between
+                                self.channel_names and self.channel_names_all).
+            duration (float, int, optional): duration of the acquisition after trigger (in seconds or samples). Defaults to 1.
+            duration_unit (str, optional): 'seconds' or 'samples'. Defaults to 'seconds'.
+            presamples (int, optional): number of presamples to save. Defaults to 0.
+            type (str, optional): trigger type: up, down or abs. Defaults to 'abs'.
+            
+        Returns:
+            None
+        """
 
         if duration_unit == 'seconds':
             duration_samples = int(self.sample_rate*duration)
@@ -553,7 +582,7 @@ class BaseAcquisition:
         
     def update_trigger_parameters(self, **kwargs):
         """
-        Updates trigger settings. See 'set_trigger' method for possible parameters.
+        Updates trigger settings. See 'set_trigger()' method for possible parameters.
         """  
         for setting, value in kwargs.items():
             self.trigger_settings[setting] = value

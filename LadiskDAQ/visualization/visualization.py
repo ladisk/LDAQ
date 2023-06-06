@@ -204,9 +204,6 @@ class Visualization:
 
         This method modifies the `plots` and `color_map` attributes of the `Visualization` object in-place.
         """
-        if type(channel) == int:
-            raise ValueError("The channel argument must be string of the channel name.")
-            
         self.add_image_widget = True
 
         if self.plots is None:

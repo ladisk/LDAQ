@@ -4,7 +4,7 @@ Multiple sources
 In the :class:`LadiskDAQ.Core`, multiple sources can be added.
 
 Multiple acquisition sources
----------------------------
+----------------------------
 
 To add multiple acquisition sources, the sources are defined separetely.
 

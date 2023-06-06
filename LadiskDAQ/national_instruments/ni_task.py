@@ -4,6 +4,8 @@ from nidaqmx import Scale
 import numpy as np
 import pandas as pd
 
+from typing import Optional
+
 UNITS = {
     'mV/g': constants.AccelSensitivityUnits.MILLIVOLTS_PER_G,
     'mV/m/s**2': constants.AccelSensitivityUnits.MILLIVOLTS_PER_G, # TODO: check this
@@ -15,18 +17,22 @@ UNITS = {
 }
 
 class NITaskOutput:
-    def __init__(self, task_name, sample_rate, samples_per_channel=None):
+    from typing import Optional
+
+    def __init__(self, task_name: str, sample_rate: float, samples_per_channel: Optional[int] = None) -> None:
         """Create a new NI task for analog output.
-        
-        :param task_name: name of the task
-        :param sample_rate: sample rate in Hz
+
+        Args:
+            task_name: The name of the task.
+            sample_rate: The sample rate in Hz.
+            samples_per_channel: The number of samples per channel. Defaults to 5 times the sample rate.
         """
         self.task_name = task_name        
-        self.sample_rate = float(sample_rate)
+        self.sample_rate = sample_rate
         self.channels = {}
 
         if samples_per_channel is None:
-            self.samples_per_channel = 5*int(sample_rate)
+            self.samples_per_channel = 5 * int(sample_rate)
         else:
             self.samples_per_channel = int(samples_per_channel)
 
@@ -36,15 +42,17 @@ class NITaskOutput:
 
         if task_name in self.system.tasks.task_names:
             raise Exception(f"Task {task_name} already exists.")
+
         
-    def add_channel(self, channel_name, device_ind, channel_ind, min_val=-10., max_val=10.):
+    def add_channel(self, channel_name: str, device_ind: int, channel_ind: int, min_val: float = -10., max_val: float = 10.) -> None:
         """Add a channel to the task.
-        
-        :param channel_name: name of the channel.
-        :param device_ind: index of the device. To see all devices, see ``self.device_list`` attribute.
-        :param channel_ind: index of the channel on the device.
-        :param min_val: minimum value of the channel.
-        :param max_val: maximum value of the channel.
+
+        Args:
+            channel_name: Name of the channel.
+            device_ind: Index of the device. To see all devices, see ``self.device_list`` attribute.
+            channel_ind: Index of the channel on the device.
+            min_val: Minimum value of the channel. Defaults to -10.
+            max_val: Maximum value of the channel. Defaults to 10.
         """
         self.channels[channel_name] = {
             'device_ind': device_ind,
@@ -90,10 +98,11 @@ class NITaskOutput:
         # set regeneration mode
         self.task._out_stream.regen_mode = constants.RegenerationMode.ALLOW_REGENERATION
 
-    def initiate(self, start_task=True):
+    def initiate(self, start_task: bool = True) -> None:
         """Initiate the task.
 
-        :param start_task: start the task after initiating it.
+        Args:
+            start_task: Whether to start the task after initiating it. Defaults to True.
         """
     
         self._create_task()
@@ -104,7 +113,7 @@ class NITaskOutput:
 
         if float(self.task._timing.samp_clk_rate) != float(self.sample_rate):
             raise Exception(f'Warning! Sample rate {self.sample_rate} Hz is not available for this device. Next available sample rate is {self.task._timing.samp_clk_rate} Hz.')
-
+        
     def generate(self, signal, clear_task=False):
         self.task.write(signal, auto_start=True)
 
@@ -121,19 +130,18 @@ class NITaskOutput:
 
 
 class NITask:
-    def __init__(self, task_name, sample_rate, settings_file=None):
+    def __init__(self, task_name: str, sample_rate: float, settings_file: Optional[str] = None) -> None:
         """Create a new NI task.
         
-        :param task_name: name of the task
-        :param sample_rate: sample rate in Hz
-        :param settings_file: path to xlsx settings file.
-
-        The settings file must contain the following columns:
-        - serial_nr: serial number of the sensor
-        - sensitivity: sensitivity of the sensor
-        - sensitivity_units: units of the sensitivity
-        - units: units of the sensor
-        Other columns are ignored.
+        Args:
+            task_name: Name of the task.
+            sample_rate: Sample rate in Hz.
+            settings_file: Path to xlsx settings file. The settings file must contain the following columns:
+                - serial_nr: serial number of the sensor
+                - sensitivity: sensitivity of the sensor
+                - sensitivity_units: units of the sensitivity
+                - units: units of the sensor
+                Other columns are ignored.
         """
         self.task_name = task_name
 
@@ -170,10 +178,11 @@ class NITask:
         else:
             raise Exception('Settings filename must be a string.')
 
-    def initiate(self, start_task=True):
+    def initiate(self, start_task: bool = True) -> None:
         """Initiate the task.
 
-        :param start_task: start the task after initiating it.
+        Args:
+            start_task: start the task after initiating it.
         """
         if self.task_name in self.system.tasks.task_names:
             self._delete_task()
@@ -190,28 +199,29 @@ class NITask:
         if start_task:
             self.task.start()
 
-    def add_channel(self, channel_name, device_ind, channel_ind, sensitivity=None, sensitivity_units=None, units=None, serial_nr=None, scale=None, min_val=None, max_val=None):
+    def add_channel(self, channel_name: str, device_ind: int, channel_ind: int, sensitivity: Optional[float] = None, sensitivity_units: Optional[str] = None, units: Optional[str] = None, serial_nr: Optional[str] = None, scale: Optional[float] = None, min_val: Optional[float] = None, max_val: Optional[float] = None) -> None:
         """Add a channel to the task. The channel is not actually added to the task until the task is initiated.
 
-        :param channel_name: name of the channel.
-        :param device_ind: index of the device. To see all devices, see ``self.device_list`` attribute.
-        :param channel_ind: index of the channel on the device.
-        :param sensitivity: sensitivity of the sensor.
-        :param sensitivity_units: units of the sensitivity.
-        :param units: output units.
-        :param serial_nr: serial number of the sensor. If specified, the sensitivity, sensitivity_units and units are read from the settings file.
-        :param scale: scale the signal. If specified, the sensitivity, sensitivity_units are ignored. The prescaled units are assumed to be Volts, the
-            scaled units are assumed to be ``units``. The scale can be float or a tuple. If float, this is the slope of the linear scale and y-interception is
-            at 0. If tuple, the first element is the slope and the second element is the y-interception.
-        :param min_val: minimum value of the signal. If ``None``, the default value is used.
-        :param max_val: maximum value of the signal. If ``None``, the default value is used.
+        Args:
+            channel_name: name of the channel.
+            device_ind: index of the device. To see all devices, see ``self.device_list`` attribute.
+            channel_ind: index of the channel on the device.
+            sensitivity: sensitivity of the sensor.
+            sensitivity_units: units of the sensitivity.
+            units: output units.
+            serial_nr: serial number of the sensor. If specified, the sensitivity, sensitivity_units and units are read from the settings file.
+            scale: scale the signal. If specified, the sensitivity, sensitivity_units are ignored. The prescaled units are assumed to be Volts, the
+                scaled units are assumed to be ``units``. The scale can be float or a tuple. If float, this is the slope of the linear scale and y-interception is
+                at 0. If tuple, the first element is the slope and the second element is the y-interception.
+            min_val: minimum value of the signal. If ``None``, the default value is used.
+            max_val: maximum value of the signal. If ``None``, the default value is used.
         """
         if scale is None and sensitivity_units not in UNITS:
             raise Exception(f"Sensitivity units {sensitivity_units} not in {UNITS.keys()}.")
         
         if scale is None and units not in UNITS:
             raise Exception(f"Units {units} not in {UNITS.keys()}.")
-
+        
         if channel_name in self.channels:
             raise Exception(f"Channel name {channel_name} already exists.")
 
@@ -347,17 +357,6 @@ class NITask:
 
     def acquire(self, wait_4_all_samples=False):
         """Acquires the data from the task.
-
-        Attributes:
-        time_out: maximal waiting time for the measured data to be available
-        wait_4_all_samples: return when all samples are acquired
-        acquire_sleep: sleep time in seconds between acquisitions in continuous mode
-
-        Returns:
-            Nothing.
-
-        Raises:
-            Nothing.
         """
         self.data = None
 
@@ -376,18 +375,19 @@ class NITask:
         task_ind = self.system.tasks.task_names.index(self.task_name)
         tasks[task_ind].delete()
 
-    def save(self, clear_task=True):
+    def save(self, clear_task: bool = True) -> None:
         """Save the task to the system (NI MAX).
 
         If the task is not initiated yet, it will be initiated.
-        
-        :param clear_task: clear the task after saving.
+
+        Args:
+            clear_task: Whether to clear the task after saving. Defaults to True.
         """
         if not hasattr(self, 'Task'):
             self.initiate(start_task=False)
 
         self.task.save(self.task_name, overwrite_existing_task=True)
-        
+
         if clear_task:
             self.clear_task()
 

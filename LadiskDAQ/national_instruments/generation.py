@@ -3,17 +3,21 @@ import numpy as np
 import time
 import copy
 
+from typing import Optional, Union
+
 from .daqtask import DAQTask
 from .ni_task import NITaskOutput
 
 from ..generation_base import BaseGeneration
 
 class NIGeneration(BaseGeneration):
-    def __init__(self, task_name, signal, generation_name=None):
+    def __init__(self, task_name: Union[str, 'NITaskOutput'], signal: np.ndarray, generation_name: Optional[str] = None) -> None:
         """NI Generator class.
-        
-        :param task_name: Name of the task.
-        :param signal: Signal to be generated. Shape is ``(n_samples, n_channels)`` or ``(n_samples,)``.
+
+        Args:
+            task_name: Name of the task or an instance of NITaskOutput.
+            signal: Signal to be generated. Shape is ``(n_samples, n_channels)`` or ``(n_samples,)``.
+            generation_name: Name of the generation. Defaults to the task name.
         """
         super().__init__()
         self.task_name = task_name

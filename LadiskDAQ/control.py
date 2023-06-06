@@ -1,8 +1,12 @@
-"""Work in progress.
+"""
+This is still work in progress.
 """
 import time
 
 class BaseControl:
+    """
+    Base class for all control classes. TODO: this is still work in progress and is not yet tested.
+    """
     def __init__(self, acquisition_names, generation_names, control_name=None):
         self.acquisition_names = acquisition_names
         self.generattion_names = generation_names

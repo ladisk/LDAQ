@@ -15,11 +15,13 @@ class Core():
     def __init__(self, acquisitions, generations=None, controls=None, visualization=None):
         """
         Initializes the Core instance by initializing its acquisition, generation, control and visualization sources. 
+        
+        Args:
+            acquisitions (list): list of acquisition sources. If None, initializes as empty list.
+            generations (list): list of generation sources. If None, initializes as empty list.
+            controls (list): list of control sources. If None, initializes as empty list.
+            visualization: visualization source. If None, initializes as empty.
 
-        :param acquisitions:  list of acquisition sources. If None, initializes as empty list.
-        :param generations:   list of generation sources. If None, initializes as empty list.
-        :param controls:      list of control sources. If None, initializes as empty list.
-        :param visualization: visualization source. If None, initializes as empty.
         """
         acquisitions = [] if acquisitions is None else acquisitions
         generations  = [] if generations is None else generations
@@ -43,32 +45,32 @@ class Core():
         
     def synchronize_acquisitions(self):
         """
-        TODO: maybe there is a way to sync all acquisition sources.
-        Maybe this function can be application specific.
-        For example, maybe functional generator is attached to all sources at the same time
-        and time shifts are calculated.
+        TODO: Currently no serious synchronization is done. This method is a placeholder for future synchronization.
         """
         pass
     
-    def run(self, measurement_duration=None, autoclose=True, autostart=False, run_name="Run", save_interval=None, root='', verbose=2):
+    def run(self, measurement_duration=None, autoclose=True, autostart=False, save_interval=None, run_name="Run", root='', verbose=2):
         """
         Runs the measurement with acquisition and generation sources that have already been set. This entails setting configuration
         and making acquiring and generation threads for each source, as well as starting and stopping them when needed. If visualization
         has been defined, it will run in a separate thread.
-
-        :param measurement_duration: (float) measurement duration in seconds, from trigger event of any of the sources. 
-                                            If None, the measurement runs forever until manually stopped. Alternatively, if
-                                            measurement duration is specified with set_trigger() method and the measurement_duration is 
-                                            None, measurement will take place for duration specified in set_trigger(). Default is None.
-        :param autoclose: (bool) whether the sources should close automatically or not. Default is True.
-        :param autostart: (bool): whether the measurement should start automatically or not. If True, start as soon as all the 
-                                            acquisition sources are ready. Defaults to False.
-        :param run_name: (str) name of the run. This name is used for periodic saving. Default is "Run".
-        :param save_interval: (float) data is saved every 'save_periodically' seconds. Defaults to None,
-                                    meaning data is not saved. The time stamp on measured data will equal to
-                                    beginning of the measurement. Acquisition ringbuffers are set to be 1.5x the save interval.
-        :param root: (str) root directory where measurements are saved. Default is empty string.
-        :param verbose: (int) 0 (print nothing), 1 (print status) or 2 (print status and hotkey legend). Default is 2.
+        
+        Args:
+            measurement_duration (float): measurement duration in seconds, from trigger event of any of the sources.
+                                            If None, the measurement runs for the duration specified with set_trigger()
+                                            method and the measurement_duration is None, measurement will take place for
+                                            duration specified in set_trigger(). Default is None.
+            autoclose (bool): whether the visualization should close automatically or not. Default is True.
+            autostart (bool): whether the measurement should start automatically or not. If True, start as soon as all the
+                              acquisition sources are ready. This is not recommended when measuring with different
+                              acquisition sources, as the delay between the sources is generally increased.  Defaults to False. 
+            save_interval (float): data is saved every 'save_periodically' seconds. Defaults to None, meaning data is not saved.
+            run_name (str): name of the run. This name is used to save measurements when periodic saving is turned on. Default is "Run".
+            root (str): root directory where measurements are saved. Default is empty string.
+            verbose (int): 0 (print nothing), 1 (print status) or 2 (print status and hotkey legend). Default is 2.
+            
+        Returns:
+            None   
         """
         if not hasattr(self, 'measurement_duration'):
             self.measurement_duration = measurement_duration
@@ -93,7 +95,7 @@ class Core():
             self.verbose = 0
         
         if self.verbose in [1, 2]:
-            print('\tWaiting for trigger...', end='')
+            print('\nWaiting for trigger...', end='')
 
         ####################
         # Thread setting:  #
@@ -129,11 +131,12 @@ class Core():
             thread_generation  = threading.Thread(target= self._stop_event_handling(generation.run_generation) )
             self.thread_list.append(thread_generation)
 
+        # If control is present, create control thread
         for control in self.controls:
             thread_control = threading.Thread(target= self._stop_event_handling(control.run_control) )
             self.thread_list.append(thread_control)
              
-        # check events:
+        # check events that can stop the acquisition:
         thread_check_events = threading.Thread(target= self._stop_event_handling( self._check_events) )
         self.thread_list.append(thread_check_events)
         
@@ -143,7 +146,6 @@ class Core():
             thread_periodic_saving = threading.Thread(target= self._stop_event_handling(self._save_measurement_periodically) )
             self.thread_list.append(thread_periodic_saving)
             
-        self.run_start_global = time.time()
         # start all threads:
         for thread in self.thread_list:
             thread.start()
@@ -153,7 +155,6 @@ class Core():
         #       self.stop_event.set() is called in _stop_event_handling() wrapper function
         if self.visualization is not None:
             self._stop_event_handling( self.visualization.run )(self)
-            #self.visualization.run(self)
         else:
             # Main Loop if no visualization:
             while self.is_running_global:
@@ -189,7 +190,7 @@ class Core():
     
     def _check_events(self):
         """
-        The function _check_events checks for different events required to perform measurements. 
+        Checks for different events required to perform measurements. 
         It checks whether all acquisition and generation sources are running or not; if any of them are not running, 
         then it terminates the measurement. It also checks if any acquisition sources are triggered or if any additional 
         check functions added with add_check_events() method return True. If either of these conditions returns True, 
@@ -245,43 +246,48 @@ class Core():
             
     def add_check_events(self, *args):
         """
-        Takes functions that takes only "self" argument and returns True/False. If any of the provided functions
-        is True, the acquisition will be stopped. Each time this function is called, the previous additional
-        check functions are erased.
+        Takes functions as input arguments that take only "self" argument and returns True/False. If any of the provided functions
+        is True, the acquisition will be stopped. This can be used to add additional functionalities to the measurement, such as
+        stopping the measurement if a certain condition is met.
+        
+        Each time this function is called, the previous additional check functions are erased. 
+        
+        Example:
+            >>> def check_temperature(self):
+            >>>     acq = self.acquisitions[0] # take 1st acquisition source
+            >>>     temperature = acq.get_measurement_dict()['data'][:, 0] # take 1st channel
+            >>>     # stop the measurement if temperature is above 50 degrees:
+            >>>     if temperature > 50:
+            >>>         return True
+            >>>     else:
+            >>>         return False
         """
         self.additional_check_functions = []
         for fun in args:
             self.additional_check_functions.append(fun)   
                 
     def set_trigger(self, source, channel, level, duration, duration_unit='seconds', presamples=0, trigger_type='abs'):
-        """
-        Sets trigger to one of the acquisition sources. 
-
+        """    
+        Set parameters for triggering the measurement. 
+    
         Args:
-            trigger_source (int, str): Index (position in the 'acquisitions' list) or name of the acquisition source as a 
+            source (int, str): Index (position in the 'self.acquisitions' list) or name of the acquisition source as a 
                                         string ('acquisition.acquisition_name') for which trigger is to be set. 
+            channel (int, str): trigger channel (int or str). If str, it must be one of the channel names. If int, 
+                                index from self.channel_names ('data' channels) has to be provided (NOTE: see the difference between
+                                self.channel_names and self.channel_names_all).
+            level (float): trigger level
+            duration (float, int, optional): duration of the acquisition after trigger (in seconds or samples). Defaults to 1.
+            duration_unit (str, optional): 'seconds' or 'samples'. Defaults to 'seconds'.
+            presamples (int, optional): number of presamples to save. Defaults to 0.
+            type (str, optional): trigger type: up, down or abs. Defaults to 'abs'.
+            
+        Returns:
+            None
 
-            trigger_channel (int): Channel number used for trigger.
-
-            trigger_level (float): Trigger_level in Volts.
-
-            duration (int): Duration of trigger source in terms of duration_unit defined (in seconds or samples).
-
-            duration_unit (str): Unit of duration of trigger source. Can be 'seconds' or 'samples'. 
-
-            presamples (int): Number of samples acquired before trigger.
-
-            trigger_type (str): Type of the trigger. Can be 'abs' or 'edge'.
-
-        Returns: 
-            None. 
-
-        Raises: 
-            KeyError: Invalid duration unit specified. Only 'seconds' and 'samples' are possible. 
-
-        Other requirements: 
-            Expect delay between different acquisition sources due to unsynchronized sources. 
-
+        NOTE: only one trigger channel is supported at the moment. Additionally trigger can only be set
+        on 'data' channels. If trigger is needed on 'video' channels, a 'data' virtual channel has to be created
+        using 'add_virtual_channel()' method, and then trigger can be set on this virtual channel.
         """
         duration_unit = duration_unit.lower()
         trigger_type  = trigger_type.lower()
@@ -380,7 +386,7 @@ class Core():
         Returns only NEW acquired data from all sources.
         
         NOTE: This function is used for plotting purposes only.
-        Other functions should use 'get_measurement_dict(N_seconds="new")' instead.
+        'get_measurement_dict(N_seconds="new")' should be used instead.
         """
         new_data_dict = {}
         for idx, acq in enumerate(self.acquisitions):
@@ -393,10 +399,17 @@ class Core():
 
         Args:
             N_seconds (float, str, optional): last number of seconds of the measurement. 
-                        if "new" then only new data is returned. Defaults to None.
+                        if "new" then only new data is returned. Defaults to None. When 
+                        Core() class is run with run() method and periodic saving, N_seconds="new"
+                        should not be used as it will cause data loss.
 
         Returns:
-            dict: Measurement dictionary
+            dict: Measurement dictionary. 1st level keys are acquisition names and its values are acquisitions dictionaries.
+                  Those have the following structure:
+                  {'time': 1D array, 
+                    'channel_names': self.channel_names, 'data': 2D array (n_samples, n_data_channels),
+                    'channel_names_video': self.channel_names_video, 'video': list of 3D arrays (n_samples, height, width),
+                    'sample_rate': self.sample_rate}
             """        
         self.measurement_dict = {}
         for idx, name in enumerate(self.acquisition_names):
@@ -405,7 +418,7 @@ class Core():
             elif type(N_seconds)==float or type(N_seconds)==int:
                 N_points = int( N_seconds * self.acquisitions[idx].sample_rate ) 
             elif N_seconds=="new":
-                N_points = N_seconds
+                N_points = N_seconds # "new" is stored in N_points to be passed to get_data() method
             else:
                 raise KeyError("Wrong argument type passed to N_seconds.")
                 
@@ -414,12 +427,17 @@ class Core():
         return self.measurement_dict    
     
     def save_measurement(self, name=None, root=None, timestamp=True, comment=None):
-        """Save acquired data from all sources into one dictionary saved as pickle.
+        """Save acquired data from all sources into one dictionary saved as pickle. See get_measurement_dict() method for the 
+           structure of the dictionary.
         
-        :param name: filename, if None filename defaults to run name specified in run() method.
-        :param root: directory to save to
-        :param timestamp: include timestamp before 'filename'
-        :param comment: comment on the saved file
+        Args:
+            name (str, optional): filename, if None filename defaults to run name specified in run() method. Defaults to None.
+            root (str, optional): directory to save to. Defaults to None.
+            timestamp (bool, optional): include timestamp before 'filename'. Defaults to True.
+            comment (str, optional): comment on the saved file. Defaults to None.
+            
+        Returns:
+            str: path to the saved file
         """
         if name is None:
             name = self.run_name
@@ -488,8 +506,18 @@ class Core():
             self._open_and_save(file_name, root, file_index)
 
     def _open_and_save(self, file_name_base, root, file_index):
-        """Open existing file and save new data."""
-        max_file_size = 100 * 1024 * 1024  # 100 MB
+        """
+        Open existing file and save new data.
+        
+        Args:
+            file_name_base (str): file name without index and extension
+            root (str): directory to save to
+            file_index (int): index of the file
+            
+        Returns:
+            int: updated file index
+        """
+        max_file_size = 200 * 1024 * 1024  # 200 MB - maximum file size
 
         file_name_base, ext = os.path.splitext(file_name_base)
         file_index_str = str(file_index).zfill(4)
@@ -550,7 +578,6 @@ class Core():
         # Save updated data
         with open(file_path, 'wb') as f:
             pickle.dump(data, f, protocol=-1)
-            #print("saved.")
 
         return file_index
 

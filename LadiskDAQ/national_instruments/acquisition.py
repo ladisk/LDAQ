@@ -7,7 +7,7 @@ from PyDAQmx.Task import Task
 from nidaqmx._lib import lib_importer
 from .daqtask import DAQTask
 
-from typing import Optional, Union
+import typing
 
 from ctypes import *
 
@@ -18,10 +18,9 @@ from ..acquisition_base import BaseAcquisition
 class NIAcquisition(BaseAcquisition):
     """National Instruments Acquisition class."""
 
-    def __init__(self, task_name: Union[str, 'NITask'], acquisition_name: Optional[str] = None) -> None:
+    def __init__(self, task_name: typing.Union[str, object], acquisition_name: typing.Optional[str] = None) -> None:
         """Initialize the acquisition task.
 
-        :param task_name: Name of the task from NI Max
         Args:
             task_name (str, class object): Name of the task from NI Max or class object created with NITask() class using nidaqmx library.
             acquisition_name (str, optional): Name of the acquisition. Defaults to None, in which case the task name is used.

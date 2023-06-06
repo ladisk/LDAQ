@@ -21,9 +21,10 @@ class NIAcquisition(BaseAcquisition):
     def __init__(self, task_name: Union[str, 'NITask'], acquisition_name: Optional[str] = None) -> None:
         """Initialize the acquisition task.
 
+        :param task_name: Name of the task from NI Max
         Args:
-            task_name: Name of the task from NI MAX or an instance of NITask.
-            acquisition_name: Name of the acquisition. Defaults to the task name.
+            task_name (str, class object): Name of the task from NI Max or class object created with NITask() class using nidaqmx library.
+            acquisition_name (str, optional): Name of the acquisition. Defaults to None, in which case the task name is used.
         """
         super().__init__()
 
@@ -52,9 +53,6 @@ class NIAcquisition(BaseAcquisition):
 
         self.sample_rate = self.Task.sample_rate
         self._channel_names_init = self.Task.channel_list
-        
-        #self.n_channels = self.Task.number_of_ch
-        #self.n_channels_trigger = self.n_channels
 
         if not self.NITask_used:
             glob_vars = globals()
@@ -73,17 +71,30 @@ class NIAcquisition(BaseAcquisition):
             pass
 
     def terminate_data_source(self):
+        """Properly closes the data source.
+        """
         self.task_terminated = True
         self.clear_task()
         
     def read_data(self):
+        """Reads data from device buffer and returns it.
+
+        Returns:
+            np.ndarray: numpy array with shape (n_samples, n_channels)
+        """
         self.Task.acquire(wait_4_all_samples=False)
         return self.Task.data.T
     
     def clear_buffer(self):
+        """
+        Clears the buffer of the device.
+        """
         self.Task.acquire_base()
     
     def set_data_source(self):
+        """Sets the acquisition device to properly start the acquisition. This function is called before the acquisition is started.
+           It is used to properly initialize the device and set the data source channels and virtual channels.
+        """
         if self.task_terminated:
             if self.NITask_used:
                 channels_base = copy.deepcopy(self.task_base.channels)
@@ -114,7 +125,16 @@ class NIAcquisition(BaseAcquisition):
         super().set_data_source()
 
     def run_acquisition(self, run_time=None, run_in_background=False):        
+        """
+        Runs acquisition. This is the method one should call to start the acquisition.
 
+        Args:
+            run_time (float): number of seconds for which the acquisition will run.
+            run_in_background (bool): if True, acquisition will run in a separate thread.
+
+        Returns:
+            None
+        """
         if self.NITask_used:
             BaseAcquisition.all_acquisitions_ready = False 
             self.is_ready = False

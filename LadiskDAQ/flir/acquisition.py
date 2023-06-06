@@ -32,6 +32,7 @@ class FLIRThermalCamera(BaseAcquisition):
         """
         Args:
             acquisition_name (str, optional): Name of the class. Defaults to None.
+            channel_name_IR_cam (str, optional): Name of the temperature field channel. Defaults to "temperature_field".
             IRtype (str, optional): format type of camera mode. Defaults to 'LINEAR_10MK'. Possible modes include:
                                     - LINEAR_10MK: 10mK temperature resolution
                                     - LINEAR_100MK: 100mK temperature resolution
@@ -47,18 +48,9 @@ class FLIRThermalCamera(BaseAcquisition):
         super().__init__()
         self.acquisition_name = 'FLIR' if acquisition_name is None else acquisition_name
         self.buffer_dtype = np.float16 # this is used when CustomPyTrigger instance is created
-        #self.virtual_channel_dict = {}
-        
-        #self.channel_name_IR_cam = channel_name_IR_cam
+     
         self._channel_names_video_init = [channel_name_IR_cam]
         self._channel_shapes_video_init = [] # is set in set_data_source()
-        
-        #self.channel_names_all = []
-        #self.channel_shapes = []
-        #self.channel_pos = [] # data position in the buffer (pyTrigger ring buffer)
-        
-        #self.channel_names = []
-        #self.channel_names_video = []
         
         self.set_IRtype(IRtype) 
         self.camera_acq_started = False
@@ -73,7 +65,7 @@ class FLIRThermalCamera(BaseAcquisition):
         # TODO:
         # - set sample rate (either subsample and only acquire every n-th frame or set camera fps)
         # - adjust picture resolution
-        # - add new camera source
+        # - add regular camera source
     
         
     def set_IRtype(self, IRtype):
@@ -82,12 +74,10 @@ class FLIRThermalCamera(BaseAcquisition):
         Sets the IR type to either:
             - LINEAR_10MK: 10mK temperature resolution
             - LINEAR_100MK: 100mK temperature resolution
-            - RADIOMETRIC: capture radiometric data and manually convert to temperature
+            - RADIOMETRIC: capture radiometric data and manually convert to temperature (currently not recommended)
 
-        Parameters
-        ----------
-        IRtype : str
-            IR type to be used by the camera (either LINEAR_10MK, LINEAR_100MK or RADIOMETRIC)
+        Args:
+            IRtype (str): IR type to be used by the camera (either LINEAR_10MK, LINEAR_100MK or RADIOMETRIC)
         '''
         avaliable_types = [
             i for i in IRFormatType.__dict__.keys() if i[:1] != '_'
@@ -105,60 +95,10 @@ class FLIRThermalCamera(BaseAcquisition):
         if hasattr(self, 'cam'):
             pass
         else:
-            # 1) from all existing channels, get their names and shapes:
-            #self.channel_names_all = []
-            #self.channel_shapes = []
-            
-            # Temperature field camera:
             image_shape_temperature = self._init_thermal_camera()
-            #self.channel_names_video = self._channel_names_video_init
-            #self.channel_names_all.append(self._channel_names_video_init[0])
-            #self.channel_shapes.append(image_shape_temperature)
-            
             self._channel_shapes_video_init = [image_shape_temperature]
             
-            # Regular camera:
-            # TODO: add regular camera
-            
-            # # 2) add virtual channels:
-            # for key in self.virtual_channel_dict.keys():
-            #     self.channel_names_all.append(key)
-            #     func, channel_used = self.virtual_channel_dict[key]
-            #     shape_used = self.channel_shapes[ channel_used ] # here this should supportm multiple channels
-            #     dummy_array = np.random.rand( *shape_used )
-            #     output = func(dummy_array) # this is just a test to get output shape
-            #     if type(output) != np.ndarray:
-            #         raise ValueError('Virtual channel function must return numpy array of arbitrary shape and not int, float, tuple...')
-            #     self.channel_shapes.append( output.shape )
-               
-            # # 3) calculate total number of channels: 
-            # self.n_channels = len(self.channel_names_all)
-            # self.n_channels_trigger  = 0
-            # self.channel_pos = []
-            # pos = 0
-            # for shape in self.channel_shapes:
-            #     self.n_channels_trigger += np.prod(shape)
-    
-            #     pos_next = pos+np.prod(shape)
-            #     self.channel_pos.append( (pos, pos_next) )
-            #     pos = pos_next
-                
-            # # TODO: this is temporary:
-            # self.channel_names = [self.channel_names_all[i] for i in range(self.n_channels) if self.channel_shapes[i] == (1,)]
-            # self.channel_names_video = [self.channel_names_all[i] for i in range(self.n_channels) if self.channel_shapes[i] != (1,)]
-                        
-            # # create buffer for reading all the data in in flatten format:
-            # self._temp_read_data = np.zeros(self.n_channels_trigger, dtype=self.buffer_dtype)
-            
         if not self.camera_acq_started:
-            #  Begin acquiring images
-            #
-            #  *** NOTES ***
-            #  What happens when the camera begins acquiring images depends on the
-            #  acquisition mode. Single frame captures only a single image, multi
-            #  frame catures a set number of images, and continuous captures a
-            #  continuous stream of images.
-            #
             self.cam.BeginAcquisition()
             self.camera_acq_started = True
             
@@ -172,31 +112,13 @@ class FLIRThermalCamera(BaseAcquisition):
         
         Must return a 2D numpy array of shape (n_samples, n_columns).
         """
-        # TODO: add reading of multiple samples
+        # TODO: add reading of multiple samples with one call
         
         # read thermal camera data:
         shape = self.channel_shapes[ 0 ] # NOTE: channel 0 is always thermal camera
         data_thermal_camera = self._read_data_thermal_camera() 
-        if not data_thermal_camera.shape[0] > 0: # add regular camera condition
+        if not data_thermal_camera.shape[0] > 0: 
             return np.empty((0, shape[0]*shape[1]))
-        
-        #i1, i2 = self.channel_pos[0]
-        #self._temp_read_data[i1:i2] = data_thermal_camera.flatten() # save as flatten
-        # read regular camera data:
-        # TODO: add regular camera
-        
-        # read/calculate virtual channels:
-        # for key in self.virtual_channel_dict.keys():
-        #     func, use_on_channel_idx = self.virtual_channel_dict[key]
-        #     #if use_on_channel_idx == 0: # use on thermal camera:
-        #     #    data_virt_ch = func(data_thermal_camera)
-        #         #i1, i2 = self.channel_pos[ self.channel_names_all.index(key) ]
-        #         #self._temp_read_data[i1:i2] = data_virt_ch.flatten() # save as flatten
-                
-        #     data_used_ch = self._temp_read_data[ self.channel_pos[use_on_channel_idx][0] : self.channel_pos[use_on_channel_idx][1] ].reshape(self.channel_shapes[use_on_channel_idx])
-        #     data_virt_ch = func(data_used_ch)    
-        #     i1, i2 = self.channel_pos[ self.channel_names_all.index(key) ]
-        #     self._temp_read_data[i1:i2] = data_virt_ch.flatten() # save as flatten
         
         return data_thermal_camera.reshape(-1, shape[0]*shape[1]) # NOTE: change this when regular camera is added
             
@@ -211,8 +133,6 @@ class FLIRThermalCamera(BaseAcquisition):
             self.cam.EndAcquisition()
             self.camera_acq_started = False
             
-        #self._exit_thermal_camera()
-   
     def get_sample_rate(self):
         """
         Returns sample rate of acquisition class.
@@ -230,62 +150,6 @@ class FLIRThermalCamera(BaseAcquisition):
         Returns None.
         """
         self.read_data()
-        
-    # def get_data(self, N_points=None, data_to_return="video"):
-    #     """
-    #     Overwrites the get_data method of the parent class.
-    #     Additionally reshapes the data into a 3D array of shape (n_samples, height, width).
-        
-    #     data_to_return : "video", "data" or "flattened"
-    #     """
-        
-    #     time, data = super().get_data(N_points=N_points)
-        
-    #     if data_to_return=="video":
-    #         channels = [self.channel_names_all.index(name) for name in self.channel_names_video]
-            
-    #         data_return = []
-    #         for channel in channels:
-    #             shape = self.channel_shapes[channel]
-    #             pos = self.channel_pos[channel]
-    #             data_return.append( data[:, pos[0]:pos[1]].reshape( (data.shape[0], *shape) ) )
-    #     elif data_to_return=="data":
-    #         channels = [self.channel_names_all.index(name) for name in self.channel_names]
-    #         pos_list = [np.arange(self.channel_pos[channel][0], self.channel_pos[channel][1]) for channel in channels]
-    #         pos_list = np.concatenate(pos_list)
-            
-    #         data_return = data[:, pos_list]
-    #     else: # return flattened buffer
-    #         data_return = data
-    
-    #     return time, data_return
-    
-    # def get_data_PLOT(self, data_to_return="data"): # this function is actually called only for line plots
-    #     """
-    #     Overwrites the get_data method of the parent class.
-        
-    #     data_to_return : "video", "data" or "flattened"
-    #     """
-    #     data = super().get_data_PLOT()
-        
-    #     if data_to_return=="video":
-    #         channels = [self.channel_names_all.index(name) for name in self.channel_names_video]
-            
-    #         data_return = []
-    #         for channel in channels:
-    #             shape = self.channel_shapes[channel]
-    #             pos = self.channel_pos[channel]
-    #             data_return.append( data[:, pos[0]:pos[1]].reshape( (data.shape[0], *shape) ) )
-    #     elif data_to_return=="data":
-    #         channels = [self.channel_names_all.index(name) for name in self.channel_names]
-    #         pos_list = [np.arange(self.channel_pos[channel][0], self.channel_pos[channel][1]) for channel in channels]
-    #         pos_list = np.concatenate(pos_list)
-            
-    #         data_return = data[:, pos_list]
-    #     else:
-    #         data_return = data
-        
-    #     return data_return
     
     def _read_data_thermal_camera(self):
         """Reads and retrieves data from the thermal camera.
@@ -327,10 +191,10 @@ class FLIRThermalCamera(BaseAcquisition):
         return image_temp
         
     def _init_thermal_camera(self):
-        ###########################
-        #  Thermal Camera Setup   #
-        ###########################
+        """Initializes the thermal camera.
         
+        NOTE: majority of code here was adapted from FLIR's example code.
+        """    
         # Retrieve singleton reference to system object
         self.system = PySpin.System.GetInstance()
         # Get current library version
@@ -516,21 +380,4 @@ class FLIRThermalCamera(BaseAcquisition):
         self.cam_list.Clear()
         # Release system instance
         self.system.ReleaseInstance()
-        
-    # def add_virtual_channel(self, virtual_channel_name, channel, function):
-    #     """
-    #     Add a virtual channel to the camera class.
-        
-    #     Args:
-    #         virtual_channel_name (str): Name of the channel that will be created
-    #         channel (str): Name or index of the channel on which function will be applied
-    #         function (function): Function used on the image. Takes array shape of the channel as input and has to return a np.array([value]).
-    #     """
-    #     self.terminate_data_source()
-    #     self._exit_thermal_camera()
-    #     if type(channel) == str:
-    #         channel = self.channel_names_all.index(channel)
-    #     self.virtual_channel_dict[virtual_channel_name] = (function, channel)
-    #     self.set_data_source()
-    
-    
+     

@@ -22,9 +22,22 @@ class BaslerCamera(BaseAcquisition):
     2) Install python library with pip install pypylon
     
     """
-    def __init__(self, acquisition_name=None, sample_rate=60, channel_name_camera="Camera", offset=(0, 0), size=(4112, 3008),
+    def __init__(self, acquisition_name=None, sample_rate=10, channel_name_camera="Camera", offset=(0, 0), size=(3000, 2000),
                  subsample=1, pixel_format="Mono12", exposure_time_ms=4.0):
-        
+        """Initializes acquisition class for Basler camera.
+
+        Args:
+            acquisition_name (str, optional):    acquisition name. Defaults to None in which case 'BaslerCamera' is default name.
+            sample_rate (int, optional):         camera sample rate. Can be set up to 60 fps. Defaults to 10.
+            channel_name_camera (str, optional): name of the default video channel. Defaults to "Camera".
+            offset (tuple, optional):            Pixel offset (X, Y). Defaults to (0, 0).
+            size (tuple, optional):              Image size from the offset (width, height). Defaults to (3000, 2000).
+            subsample (int, optional):           Adjust resolution of basler camera by subsampling retrieved image. Defaults to 1.
+                                                 TODO: this is a software subsampling, not hardware subsampling, in the future this
+                                                 should be set in the camera itself.
+            pixel_format (str, optional):        Format of each. Defaults to "Mono12".
+            exposure_time_ms (float, optional):  exposure time in milliseconds. Defaults to 4.0.
+        """
         try:
             pylon # check if pylon is imported
         except:
@@ -47,16 +60,8 @@ class BaslerCamera(BaseAcquisition):
         self.buffer_dtype = np.uint16    # TODO: adjust this according to pixel_format
         self.camera_acq_started = False  # flag, where True means that camera is acquiring data
         
-        self.set_data_source(start_grabbing=False) # to read self.image_shape
-        
-        # there will always be only 1 channel and it will always display temperature
-        #self.n_channels_trigger  = self.image_shape[0]*self.image_shape[1]
-        #self.channel_names_video = [self._channel_names_init]
-        #self.channel_names_all = self.channel_names_video 
-        #self.n_channels = len(self.channel_names)
-        
-        # channel in set trigger is actually pixel in flatten array:
-        self.set_trigger(1e20, 0, duration=1.0)
+        self.set_data_source(start_grabbing=False) # initialize camera, get channel shapes
+        self.set_trigger(1e20, 0, duration=1.0)    
        
     def set_data_source(self, start_grabbing=True):
         """
@@ -71,9 +76,9 @@ class BaslerCamera(BaseAcquisition):
         else:
             self.camera = pylon.InstantCamera( pylon.TlFactory.GetInstance().CreateFirstDevice() )
             self.camera.Open()
-            print("Using device:", self.camera.GetDeviceInfo().GetModelName())
+            #print("Using device:", self.camera.GetDeviceInfo().GetModelName())
 
-            self.camera.PixelFormat.SetValue(self.pixel_format)  # set pixel depth to 16 bits
+            self.camera.PixelFormat.SetValue(self.pixel_format)         # set pixel depth 
             self.camera.ExposureTime.SetValue(self.exposure_time*1000)  # set exposure time 
             self.camera.Width.SetValue(self.size[0])      # set the width
             self.camera.Height.SetValue(self.size[1])     # set the height
@@ -83,16 +88,17 @@ class BaslerCamera(BaseAcquisition):
             # Get the node map
             nodemap = self.camera.GetNodeMap()
 
-            # Set the acquisition frame rate to 60 fps
+            # Set the acquisition frame rate to self.sample_rate
             self.camera.AcquisitionFrameRateEnable.SetValue(True)
             self.camera.AcquisitionFrameRate.SetValue(self.sample_rate)
+            self.sample_rate = self.camera.AcquisitionFrameRate.GetValue() # get actual sample rate
             self.camera.MaxNumBuffer = 15
                     
             # Get the image size
             width = self.camera.Width.GetValue()
             height = self.camera.Height.GetValue()
             
-            # save image shape
+            # save video channel shape
             image_shape = ( (np.arange(height)[::self.subsample]).shape[0], (np.arange(width)[::self.subsample]).shape[0])
             self._channel_shapes_video_init.append(image_shape)
                
@@ -101,10 +107,7 @@ class BaslerCamera(BaseAcquisition):
                 self.camera.StartGrabbing(pylon.GrabStrategy_OneByOne)
             self.camera_acq_started = True
               
-        #if self.camera_acq_started and start_grabbing:
-        #    self.camera.StartGrabbing(pylon.GrabStrategy_OneByOne)
-            
-        super().set_data_source()
+        super().set_data_source() # call parent method to set all channel names and shapes
 
     def read_data(self):
         """
@@ -114,9 +117,9 @@ class BaslerCamera(BaseAcquisition):
         
         Must return a 2D numpy array of shape (n_samples, n_columns).
         """
-        # TODO: do this for each source camera when multiple will be supported:
-        
+        # TODO: do this for each source camera when multiple camers will be supported:
         # TODO: allow for retrieving multiple images at once
+        
         # get camera shape:
         shape = self.channel_shapes[ self.channel_names_all.index(self.channel_names_video[0]) ] # 1st video channel
         N_pixels = shape[0]*shape[1]
@@ -170,23 +173,7 @@ class BaslerCamera(BaseAcquisition):
         
         Returns None.
         """
-        self.read_data()
+        self.read_data() # TODO: maybe camera has some built-in function to clear its buffer?
         
-    # def get_data(self, N_points=None, data_to_return="video"):
-    #     """
-    #     Overwrites the get_data method of the parent class.
-    #     Additionally reshapes the data into a 3D array of shape (n_samples, height, width).
-    #     """
-    #     time, data = super().get_data(N_points=N_points, data_to_return=data_to_return)
-    #     data = data.reshape(data.shape[0], self.image_shape[0], self.image_shape[1])
-    #     return time, data
-    
-    # def get_data_PLOT(self, data_to_return="video"):
-    #     """
-    #     Overwrites the get_data method of the parent class.
-    #     Additionally reshapes the data into a 3D array of shape (n_samples, height, width).
-    #     """
-    #     data = super().get_data_PLOT(data_to_return=data_to_return)
-    #     data = data.reshape(data.shape[0], self.image_shape[0], self.image_shape[1])
-    #     return data
+  
     

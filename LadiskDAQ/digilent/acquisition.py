@@ -10,13 +10,32 @@ from ..acquisition_base import BaseAcquisition
 
 
 class WaveFormsAcquisition(BaseAcquisition):
-    def __init__(self, channels=[0, 1], sample_rate=10000, 
-                 channel_names=None, acquisition_name=None, device_number=None):
+    """
+    This is a class for acquiring data from Digilent Analog Discovery 2, using WaveForms SDK.
+    
+    To use this class, you need to install WaveForms found on this link:
+    https://digilent.com/shop/software/digilent-waveforms/
+    
+    Installation instructions:
+    1) Download WaveForms from the link listed above
+    2) Install WaveForms
+    """
+    def __init__(self, acquisition_name=None, channels=[0, 1], sample_rate=10000, 
+                 channel_names=None, device_number=None):
+        """Initiates WaveForms acquisition class.
+
+        Args:
+            acquisition_name (str, optional): name of the acquisition. Defaults to None, in which case 'AD2' is used.
+            channels (list, optional): list of channels used in acquisition. Defaults to [0, 1], in which case both available channels of Analog Discovery 2 will be used.
+            sample_rate (int, optional): sample rate used for acquisition. Defaults to 10000.
+            channel_names (list, optional): List of strings of channel names. Defaults to None, in which case channel names will be named 'CH0' and 'CH1'.
+            device_number (int, optional): device number to which this class should connect to (in case there are multiple Waveforms devices). 
+                                           Defaults to None, in which case the first available device will be used.
+        """
         super().__init__()
 
         self.acquisition_name = 'AD2' if acquisition_name is None else acquisition_name
         self._channel_names_init = channel_names if channel_names is not None else [f'CH{i}' for i in channels]
-        
         
         self.channel_idx = channels
         self.sample_rate = sample_rate
@@ -46,10 +65,11 @@ class WaveFormsAcquisition(BaseAcquisition):
     def configure_channels(self, input_range=None):
         """Specify min and max value range for each channel.
         Args:
-        input_range (dict): dictionary with channel index as key and tuple of min and max values as value. channel indices
-                            have to be the same as self.channel_idx (or channels input parameters in init)
-                            For example: {0:(-10, 10), 1:(-5, 5)} 
-                            -> channel 0 has range -10 to 10 V and channel 1 has range -5 to 5 V.
+            input_range (dict): dictionary with channel index as key and tuple of min and max values as value. channel indices
+                                have to be the same as self.channel_idx (or channels input parameters in init)
+                                For example: {0:(-10, 10), 1:(-5, 5)} 
+                                -> channel 0 has range -10 to 10 V and channel 1 has range -5 to 5 V.
+                                By default, all channels have range -10 to 10 V.
                             
         """
         if input_range is None:
@@ -137,10 +157,8 @@ class WaveFormsAcquisition(BaseAcquisition):
         
         Returns None.
         """
-        #self.dwf.FDwfAnalogOutReset(self.hdwf, c_int(0))
         self.dwf.FDwfDeviceCloseAll()
         self.hdwf = c_int(0)
-        pass
 
     
     def get_sample_rate(self):

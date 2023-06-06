@@ -11,13 +11,13 @@ from .ni_task import NITaskOutput
 from ..generation_base import BaseGeneration
 
 class NIGeneration(BaseGeneration):
-    def __init__(self, task_name: Union[str, 'NITaskOutput'], signal: np.ndarray, generation_name: Optional[str] = None) -> None:
-        """NI Generator class.
-
+    def __init__(self, task_name, signal, generation_name=None):
+        """NI Generation class used for generating signals.
+        
         Args:
-            task_name: Name of the task or an instance of NITaskOutput.
-            signal: Signal to be generated. Shape is ``(n_samples, n_channels)`` or ``(n_samples,)``.
-            generation_name: Name of the generation. Defaults to the task name.
+            task_name (str, class object): Name of the task from NI Max or class object created with NITaskOutput() class using nidaqmx library.
+            signal (numpy.ndarray): Signal to be generated. Shape is ``(n_samples, n_channels)`` or ``(n_samples,)``.
+            generation_name (str, optional): Name of the generation class. Defaults to None, in which case the task name is used.
         """
         super().__init__()
         self.task_name = task_name
@@ -27,8 +27,8 @@ class NIGeneration(BaseGeneration):
             self.signal = self.signal.T
 
         self.task_terminated = True
-
         self.task_base = task_name
+        
         if isinstance(task_name, str):
             self.NITask_used = False
         elif isinstance(task_name, NITaskOutput):
@@ -40,6 +40,11 @@ class NIGeneration(BaseGeneration):
         self.generation_name = task_name if generation_name is None else generation_name
 
     def set_data_source(self, initiate=True):
+        """Sets the data source for the generation.
+
+        Args:
+            initiate (bool, optional): intitiate NI task. Defaults to True.
+        """
         if self.task_terminated:
             if self.NITask_used:
                 channels_base = copy.deepcopy(self.task_base.channels)
@@ -57,13 +62,19 @@ class NIGeneration(BaseGeneration):
                 self.Task.initiate()
         
     def terminate_data_source(self):
+        """Terminates the data source for the generation.
+        """
         self.task_terminated = True
         self.clear_task()
     
     def generate(self):
+        """Generates the signal.
+        """
         self.Task.generate(self.signal, clear_task=False)
 
     def clear_task(self):
+        """Clears NI output task.
+        """
         if hasattr(self, 'Task'):
             self.Task.clear_task(wait_until_done=False)
 
@@ -81,7 +92,9 @@ class NIGeneration(BaseGeneration):
             
             del self.Task
 
-    def run_generation(self, run_time=None):
+    def run_generation(self):
+        """Runs the signal generation.
+        """
         self.is_running = True
         
         self.set_data_source()

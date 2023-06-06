@@ -1,4 +1,5 @@
 """
+   Source: https://digilent.com/shop/software/digilent-waveforms/
    DWFConstants (definitions file for DWF library)
    Author:  Digilent, Inc.
    Revision:  2019-10-15
@@ -6,7 +7,6 @@
    Must install:                       
        Python 2.7 or 3
 """
-
 
 from ctypes import *
 

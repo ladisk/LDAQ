@@ -10,6 +10,13 @@ import pickle
 def load_measurement(name: str, directory: str = ''):
     """
     Loads a measurement from a pickle file.
+    
+    Args:
+        name (str): name of the measurement file
+        directory (str): directory where the measurement file is located
+        
+    Returns:
+        measurement (dict): dictionary containing the measurement
     """
     file_path = os.path.join(directory, name)
     with open(file_path, 'rb') as f:
@@ -17,8 +24,15 @@ def load_measurement(name: str, directory: str = ''):
     
 def load_measurement_multiple_files(directory: str = '', contains: str = ''):
     """
-    Loads all measurements with name mathcing the string and combines them into one measurement
+    Loads all measurements with name matching the string and combines them into one measurement
     dictionary.
+    
+    Args:
+        directory (str): directory where the measurement files are located
+        contains (str): string that the measurement files should contain in their name
+        
+    Returns:
+        measurement (dict): dictionary containing concatenated measurement datra from multiple files.
     """
     files = os.listdir(directory)
     files = [file for file in files if contains in file]

@@ -13,9 +13,12 @@ def check_subplot_options_validity(subplot_options, layout):
     """
     Check if the plot layout is valid with the given rowspan and colspan.
 
-    :param subplot_options: Options for each subplot (xlim, ylim, axis_style, etc.)
-    :param layout: layout of the QT application. It specifies which channels are plotted on each subplot.
-    :return: True if the layout is valid, False otherwise.
+    Args:
+        subplot_options (dict): Options for each subplot (xlim, ylim, axis_style, etc.).
+        layout (list): The layout of the QT application. It specifies which channels are plotted on each subplot.
+
+    Returns:
+        bool: True if the layout is valid, False otherwise.
     """
     max_row = max([channels['pos'][0] for acq_name, acq_layout in layout.items() for channels in acq_layout if isinstance(channels['pos'], tuple)])
     max_col = max([channels['pos'][1] for acq_name, acq_layout in layout.items() for channels in acq_layout if isinstance(channels['pos'], tuple)])

@@ -24,18 +24,13 @@ class Visualization:
     def __init__(self, refresh_rate: int = 100, max_points_to_refresh: int = 10000, sequential_plot_updates: bool = True):
         """Initialize a new `Visualization` object.
 
-        :param refresh_rate: The refresh rate of the plot in milliseconds. Defaults to 100.
-        :type refresh_rate: int, optional
-        :param max_points_to_refresh: The maximum number of points to refresh in the plot. Adjust this number to optimize performance.
-            This number is used to compute the `nth` value automatically. Defaults to 10000.
-        :type max_points_to_refresh: int, optional
-        :param sequential_plot_updates: If `True`, the plot is updated sequentially (one line at a time).
-            If `False`, all lines are updated in each iteration of the main loop. Defaults to `True`.
-        :type sequential_plot_updates: bool, optional
+        Args:
+            refresh_rate (int, optional): The refresh rate of the plot in milliseconds. Defaults to 100.
+            max_points_to_refresh (int, optional): The maximum number of points to refresh in the plot. Adjust this number to optimize performance.
+                This number is used to compute the `nth` value automatically. Defaults to 10000.
+            sequential_plot_updates (bool, optional): If `True`, the plot is updated sequentially (one line at a time).
+                If `False`, all lines are updated in each iteration of the main loop. Defaults to `True`.
 
-        This method initializes a new `Visualization` object with the specified options.
-        The `refresh_rate`, `max_points_to_refresh` and `sequential_plot_updates` options are stored in the corresponding
-        attributes of the `Visualization` object.
         """
         self.max_plot_time = 1
         self.show_legend = True
@@ -55,16 +50,19 @@ class Visualization:
                   refresh_rate: Union[int, None] = None, t_span: Union[int, float, None] = None) -> None:
         """Build the layout dictionary.
 
-        :param position: tuple, the position of the subplot. Example: ``(0, 0)``.
-        :param source: string, the source of the data. Name that was given to the ``Acquisition`` object.
-        :param channels: list of integers, the channels from the ``source`` to be plotted. Can also be a list of tuples
-            of integers to plot channel vs. channel. Example: ``[(0, 1), (2, 3)]``.
-        :param function: function, the function to be applied to the data before plotting. If ``channels`` is a list of tuples,
-            the function is applied to each tuple separately.
-        :param nth: int, the nth sample to be plotted. If ``nth`` is ``"auto"``, the nth sample is computed automatically.
-        :param refresh_rate: int, the refresh rate of the subplot in milliseconds. If this argument is not specified, the
-            refresh rate defined in the :class:`Visualization` is used.
-        :param t_span: int/float, the length of the time axis. If this option is not specified, it is computed from the ``xlim``.
+        Args:
+            position (tuple): The position of the subplot. Example: ``(0, 0)``.
+            source (str): The source of the data. Name that was given to the ``Acquisition`` object.
+            channels (list): The channels from the ``source`` to be plotted. Can also be a list of tuples of integers to plot channel vs. channel.
+                Example: ``[(0, 1), (2, 3)]``.
+            function (function, optional): The function to be applied to the data before plotting. If ``channels`` is a list of tuples,
+                the function is applied to each tuple separately. Defaults to ``None``.
+            nth (int/str, optional): The nth sample to be plotted. If ``nth`` is ``"auto"``, the nth sample is computed automatically.
+                Defaults to ``"auto"``.
+            refresh_rate (int, optional): The refresh rate of the subplot in milliseconds. If this argument is not specified, the
+                refresh rate defined in the :class:`Visualization` is used. Defaults to ``None``.
+            t_span (int/float, optional): The length of the time axis. If this option is not specified, it is computed from the ``xlim``.
+                Defaults to ``None``.
 
 
         Channels
@@ -102,8 +100,9 @@ class Visualization:
 
         >>> def function(self, channel_data):
                 '''
-                :param self: instance of the acquisition object (has to be there so the function is called properly)
-                :param channel_data: channel data
+                Args:
+                    self: instance of the acquisition object (has to be there so the function is called properly)
+                    channel_data (dict): A dictionary containing the channel data.
                 '''
                 return channel_data**2
 
@@ -123,9 +122,12 @@ class Visualization:
 
         >>> def function(self, channel_data):
                 '''
-                :param self: instance of the acquisition object (has to be there so the function is called properly)
-                :param channel_data: 2D channel data array of size (N, 2)
-                :return: 2D array np.array([x, y]).T that will be plotted on the subplot.
+                Args:
+                    self: instance of the acquisition object (has to be there so the function is called properly)
+                    channel_data (np.ndarray): A 2D channel data array of size (N, 2).
+
+                Returns:
+                    np.ndarray: A 2D array np.array([x, y]).T that will be plotted on the subplot.
                 '''
                 ch0, ch1 = channel_data.T
                 x =  np.arange(len(ch1)) / self.acquisition.sample_rate # time array
@@ -182,11 +184,13 @@ class Visualization:
     def add_image(self, source: str, channel: str, function: Optional[Union[str, callable]] = None, refresh_rate: int = 100, colormap: str = 'CET-L17') -> None:
         """Add an image plot to the visualization for the specified source and channel.
 
-        :param source: The name of the source to add the image plot to.
-        :param channel: The name of the channel to add the image plot to.
-        :param function: A function or string to apply to the image data before plotting. Defaults to None.
-        :param refresh_rate: The number of milliseconds between updates of the plot. Defaults to 100.
-        :param colormap: The colormap to use for the plot. Defaults to 'CET-L17'.
+        Args:
+            source (str): The name of the source to add the image plot to.
+            channel (str): The name of the channel to add the image plot to.
+            function (function/str, optional): A function or string to apply to the image data before plotting. Defaults to None.
+            refresh_rate (int, optional): The number of milliseconds between updates of the plot. Defaults to 100.
+            colormap (str, optional): The colormap to use for the plot. Defaults to 'CET-L17'.
+
 
         This method adds an image plot to the visualization for the specified `source` and `channel`.
         The `function` argument can be used to apply a custom function to the image data before plotting.
@@ -235,14 +239,17 @@ class Visualization:
     def config_subplot(self, position: Tuple[int, int], xlim: Optional[Tuple[float, float]] = None, ylim: Optional[Tuple[float, float]] = None, t_span: Optional[float] = None, axis_style: Optional[str] = 'linear', title: Optional[str] = None, rowspan: int = 1, colspan: int = 1) -> None:
         """Configure a subplot at position `position`.
 
-        :param position: Tuple of two integers, the position of the subplot in the layout.
-        :param xlim: Tuple of two floats, the limits of the x-axis. If not given, the limits are set to `(0, 1)`.
-        :param ylim: Tuple of two floats, the limits of the y-axis.
-        :param t_span: Int/float, the length of the time axis. If this option is not specified, it is computed from the `xlim`.
-        :param axis_style: String, the style of the axis. Can be "linear", "semilogx", "semilogy" or "loglog".
-        :param title: String, the title of the subplot.
-        :param rowspan: Int, the number of rows the subplot spans. Default is 1.
-        :param colspan: Int, the number of columns the subplot spans. Default is 1.
+        Args:
+            position (tuple): Tuple of two integers, the position of the subplot in the layout.
+            xlim (tuple, optional): Tuple of two floats, the limits of the x-axis. If not given, the limits are set to `(0, 1)`.
+            ylim (tuple, optional): Tuple of two floats, the limits of the y-axis. Defaults to None.
+            t_span (int/float, optional): The length of the time axis. If this option is not specified, it is computed from the `xlim`.
+                Defaults to None.
+            axis_style (str, optional): The style of the axis. Can be "linear", "semilogx", "semilogy" or "loglog". Defaults to "linear".
+            title (str, optional): The title of the subplot. Defaults to None.
+            rowspan (int, optional): The number of rows the subplot spans. Defaults to 1.
+            colspan (int, optional): The number of columns the subplot spans. Defaults to 1.
+
 
         This method configures a subplot at position `position` with the specified options.
         The `xlim`, `ylim`, `t_span`, `axis_style`, `title`, `rowspan` and `colspan` options are stored in the `subplot_options`

@@ -17,8 +17,6 @@ UNITS = {
 }
 
 class NITaskOutput:
-    from typing import Optional
-
     def __init__(self, task_name: str, sample_rate: float, samples_per_channel: Optional[int] = None) -> None:
         """Create a new NI task for analog output.
 

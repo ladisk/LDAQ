@@ -45,7 +45,7 @@ class Visualization:
         self.sequential_plot_updates = sequential_plot_updates
     
 
-    def add_lines(self, position: Tuple[int, int], source: str, channels: Union[int, Tuple[int, int]],
+    def add_lines(self, position: Tuple[int, int], source: str, channels: Union[int, str, tuple, list],
                   function: Union[callable, str, None] = None, nth: Union[int, str] = "auto",
                   refresh_rate: Union[int, None] = None, t_span: Union[int, float, None] = None) -> None:
         """Build the layout dictionary.
@@ -53,9 +53,9 @@ class Visualization:
         Args:
             position (tuple): The position of the subplot. Example: ``(0, 0)``.
             source (str): The source of the data. Name that was given to the ``Acquisition`` object.
-            channels (list): The channels from the ``source`` to be plotted. Can also be a list of tuples of integers to plot channel vs. channel.
-                Example: ``[(0, 1), (2, 3)]``.
-            function (function, optional): The function to be applied to the data before plotting. If ``channels`` is a list of tuples,
+            channels (int/str/tuple/list): The channels from the ``source`` to be plotted. Can also be a list of tuples of integers to plot channel vs. channel.
+                Example: ``[(0, 1), (2, 3)]``. For more details, see example below and documentation.
+            function (function/str, optional): The function to be applied to the data before plotting. If ``channels`` is a list of tuples,
                 the function is applied to each tuple separately. Defaults to ``None``.
             nth (int/str, optional): The nth sample to be plotted. If ``nth`` is ``"auto"``, the nth sample is computed automatically.
                 Defaults to ``"auto"``.
@@ -181,12 +181,12 @@ class Visualization:
             })
 
 
-    def add_image(self, source: str, channel: str, function: Optional[Union[str, callable]] = None, refresh_rate: int = 100, colormap: str = 'CET-L17') -> None:
+    def add_image(self, source: str, channel: Union[str, int], function: Optional[Union[str, callable]] = None, refresh_rate: int = 100, colormap: str = 'CET-L17') -> None:
         """Add an image plot to the visualization for the specified source and channel.
 
         Args:
             source (str): The name of the source to add the image plot to.
-            channel (str): The name of the channel to add the image plot to.
+            channel (str/int): The name of the channel to add the image plot to.
             function (function/str, optional): A function or string to apply to the image data before plotting. Defaults to None.
             refresh_rate (int, optional): The number of milliseconds between updates of the plot. Defaults to 100.
             colormap (str, optional): The colormap to use for the plot. Defaults to 'CET-L17'.
@@ -204,9 +204,6 @@ class Visualization:
 
         This method modifies the `plots` and `color_map` attributes of the `Visualization` object in-place.
         """
-        if type(channel) == int:
-            raise ValueError("The channel argument must be string of the channel name.")
-            
         self.add_image_widget = True
 
         if self.plots is None:

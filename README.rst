@@ -30,7 +30,7 @@ The ``acq`` object can now be added to the ``LadiskDAQ.Core`` class, which handl
 
 .. note::
 
-    To add live visualization of the measurement, the visualization object can be added to the ``LadiskDAQ.Core`` object:
+    To add live visualization of the measurement, the visualization ``LadiskDAQ.Visualization`` object can be added to the ``LadiskDAQ.Core`` object:
 
     .. code-block:: python
 
@@ -106,5 +106,6 @@ What else can I do with LDAQ?
 - Add multiple acquisition and signal generation objects to ``LadiskDAQ.Core``. (see `multiple sources <https://ladiskdaq.readthedocs.io/en/latest/multiple_sources.html>`_)
 - Define a NI Task in your program and use it with LDAQ. (see `NI Task <https://ladiskdaq.readthedocs.io/en/latest/ni_task.html>`_)
 - Create your own acquisition class by overriding just few methods. LadiskDAQ support signal as well as video acquisition sources. (see `custom acquisition <https://ladiskdaq.readthedocs.io/en/latest/custom_acquisition.html>`_)
+- Currently the package supports a limited set of devices from National Instruments, Digilent, FLIR, Basler and devices using serial communication. (see `supported devices <https://ladiskdaq.readthedocs.io/en/latest/supported_devices.html>`_)
 
 .. _visualization: https://ladiskdaq.readthedocs.io/en/latest/visualization.html

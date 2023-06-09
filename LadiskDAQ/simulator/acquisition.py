@@ -7,7 +7,7 @@ class SimulatedAcquisition(BaseAcquisition):
     """
     Simulated acquisition class that can be used when no source is present.
     """
-    def __init__(self, ):
+    def __init__(self):
         """
         
         """
@@ -20,18 +20,21 @@ class SimulatedAcquisition(BaseAcquisition):
         
         self.set_trigger(1e20, 0, duration=1.0)
         
-    def set_simulated_data(self, data):
-        """sets simulated data to be returned by read_data() method.
+    def set_simulated_data(self, data, channel_names=None):
+        """sets simulated data to be returned by read_data() method. 
+        This should also update self._channel_names_init list.
 
         Args:
             data (np.ndarray): numpy array with shape (n_samples, n_channels)
         """
          
-    def set_simulated_video(self, video):
+    def set_simulated_video(self, video, channel_names_video=None):
         """sets simulated video to be returned by read_data() method.
+        This should also update self._channel_names_video_init and self._channel_shapes_video_init lists.
 
         Args:
-            data (np.ndarray): numpy array with shape (n_samples, n_channels)
+            data (list): list of numpy arrays with shape (n_samples, width, height), where each elements
+                         in list corresponds to one video channel.
         """
         
     def set_data_source(self):

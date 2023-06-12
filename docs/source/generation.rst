@@ -9,7 +9,7 @@ and is passed to the :class:`LadiskDAQ.NIGenerator` class. The ``output_task_nam
 
 .. code-block:: python
 
-    gen = LadiskDAQ.NIGenerator(output_task_name, signal)
+    gen = LadiskDAQ.national_instruments.NIGeneration(output_task_name, signal)
 
 The ``gen`` object can then be added to the :class:`LadiskDAQ.Core` class:
 

@@ -12,9 +12,9 @@ The following is an example, where two sources are defined, one for a NI DAQ and
 
 .. code-block:: python
 
-    acq1 = LadiskDAQ.NIAcquisition('VirtualTask', acquisition_name="NI_task")
+    acq1 = LadiskDAQ.national_instruments.NIAcquisition('VirtualTask', acquisition_name="NI_task")
 
-    acq2 = LadiskDAQ.SerialAcquisition(port="COM6", baudrate=250000, timeout=5,
+    acq2 = LadiskDAQ.serial_communication.SerialAcquisition(port="COM6", baudrate=250000, timeout=5,
                                   byte_sequence=(("int16", 1), ("int16", 1)),
                                   start_bytes=b"\xfa\xfb",
                                   end_bytes=b"\n",

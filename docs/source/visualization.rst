@@ -138,7 +138,7 @@ To configure the subplots, the ``config_subplot`` method is used:
 
 .. code-block:: python
 
-    vis.config_subplots(position=(2, 2), xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1)
+    vis.config_subplot(position=(2, 2), xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1)
 
 The valid arguments are:
 

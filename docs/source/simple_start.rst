@@ -7,12 +7,12 @@ Create the acquisition object
 The first step to starting the measurement is to create an acquisition object. Depending on your measurement hardware,
 you can select the appropriate acquisition class. 
 
-In this example, we use the :class:`LadiskDAQ.NIAcquisition` class, which is
+In this example, we use the :class:`LadiskDAQ.national_instruments.NIAcquisition` class, which is
 a wrapper for the National Instruments DAQmx driver. The class accepts the name of the input task as an argument:
 
 .. code-block:: python
 
-    acq = LadiskDAQ.NIAcquisition(input_task_name, acquisition_name='DataSource')
+    acq = LadiskDAQ.national_instruments.NIAcquisition(input_task_name, acquisition_name='DataSource')
 
 If the  ``acquisition_name`` argument is not specified, the name of the acquisition object will be set to the value of ``input_task_name``.
 

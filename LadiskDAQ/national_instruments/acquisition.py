@@ -42,8 +42,10 @@ class NIAcquisition(BaseAcquisition):
         self.task_base = task_name
         if isinstance(task_name, str):
             self.NITask_used = False
+            self.task_name = task_name
         elif isinstance(task_name, NITask):
             self.NITask_used = True
+            self.task_name = self.task_base.task_name
         else:
             raise TypeError("task_name has to be a string or NITask object.")
 

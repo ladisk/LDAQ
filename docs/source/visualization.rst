@@ -43,6 +43,8 @@ The arguments are:
 - ``nth``: the number of data points to be plotted. If ``nth`` is set to 10, every 10th data point will be plotted. This is useful when the data is acquired at a high sample rate and the plot is updated at a low refresh rate.
   By default, ``nth`` is set to ``'auto'``. In this case, the number of data points to be plotted is determined automatically.
 - ``refresh_rate``: the refresh rate of the subplot. If ``None``, the refresh rate is set to the refresh rate set in the ``Visualization`` object.
+- ``t_span``: the time span of the data to be plotted. If ``None``, the time span is computed based on the ``xlim``. The ``t_span`` defines the length of the data passed to a function.
+  This is the same argument that can be given in the ``config_subplot`` method, but if it is defined here, this is the one that is taken into account.
 
 
 .. _channels_argument:

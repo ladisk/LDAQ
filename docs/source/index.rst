@@ -12,10 +12,7 @@ The source-code for this package is available on `GitHub <https://github.com/lad
 
 The package enables data **acquisition** from multiple sources, signal **generation** on multiple ouputs, and costumizable **live data visualization**.
 
-Examples of the acquisition/generation code for commonly used sources are presented in the showcase notebooks:
-
-- `National Instruments <https://github.com/ladisk/LadiskDAQ/blob/master/Showcase%20-%20National%20Instruments.ipynb>`_
-- `Serial communication <https://github.com/ladisk/LadiskDAQ/blob/master/Showcase%20-%20Serial.ipynb>`_
+Examples of the acquisition/generation code for commonly used sources are presented in the examples notebooks.
 
 .. note::
    

@@ -49,11 +49,13 @@ class NIAcquisition(BaseAcquisition):
         else:
             raise TypeError("task_name has to be a string or NITask object.")
 
-        self.set_data_source()
+        self.set_data_source() # the data source must be set to red the number of channels and sample rate
         self.acquisition_name = self.task_name if acquisition_name is None else acquisition_name
 
         self.sample_rate = self.Task.sample_rate
         self._channel_names_init = self.Task.channel_list
+
+        self.terminate_data_source() # clear the data source, will be set up later
 
         if not self.NITask_used:
             glob_vars = globals()

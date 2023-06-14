@@ -57,9 +57,9 @@ class NIAcquisition(BaseAcquisition):
 
         self.terminate_data_source() # clear the data source, will be set up later
 
-        if not self.NITask_used:
-            glob_vars = globals()
-            glob_vars['taskHandle_acquisition'] = self.Task.taskHandle
+        # if not self.NITask_used:
+        #     glob_vars = globals()
+        #     glob_vars['taskHandle_acquisition'] = self.Task.taskHandle
 
         # set default trigger, so the signal will not be trigered:
         self.set_trigger(1e20, 0, duration=1.0)
@@ -148,8 +148,8 @@ class NIAcquisition(BaseAcquisition):
             else:
                 self.update_trigger_parameters(duration=run_time, duration_unit='seconds')
             
-            self.set_data_source()
-            glob_vars = globals()
-            glob_vars['taskHandle_acquisition'] = self.Task.taskHandle
+        self.set_data_source()
+        glob_vars = globals()
+        glob_vars['taskHandle_acquisition'] = self.Task.taskHandle
 
         super().run_acquisition(run_time, run_in_background=run_in_background)

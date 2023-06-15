@@ -11,3 +11,4 @@ from .digilent import *
 from .flir import *
 from .national_instruments import *
 from .serial_communication import *
+from .simulator import *

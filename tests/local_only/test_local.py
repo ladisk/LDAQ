@@ -3,15 +3,15 @@ import sys
 sys.path.insert(0, os.path.realpath('../../'))
 import time
 
-import LadiskDAQ
+import LDAQ
 
 
 def test_NITask_basic():
-    task = LadiskDAQ.national_instruments.NITask('Task', 25600)
+    task = LDAQ.national_instruments.NITask('Task', 25600)
     task.add_channel('ch1', 0, 0, units='V', scale=1.)
     task.add_channel('ch2', 0, 1, units='V', scale=1.)
 
-    acq = LadiskDAQ.national_instruments.NIAcquisition(task, 'NI_acq')
+    acq = LDAQ.national_instruments.NIAcquisition(task, 'NI_acq')
     time.sleep(5)
 
     acq.run_acquisition(1)
@@ -28,13 +28,13 @@ def test_NITask_basic():
 
 
 def test_NITask_core():
-    task = LadiskDAQ.national_instruments.NITask('Task', 25600)
+    task = LDAQ.national_instruments.NITask('Task', 25600)
     task.add_channel('ch1', 0, 0, units='V', scale=1.)
     task.add_channel('ch2', 0, 1, units='V', scale=1.)
 
-    acq = LadiskDAQ.national_instruments.NIAcquisition(task, 'NI_acq')
+    acq = LDAQ.national_instruments.NIAcquisition(task, 'NI_acq')
 
-    ldaq = LadiskDAQ.Core(acq)
+    ldaq = LDAQ.Core(acq)
     ldaq.run(1, autostart=True)
 
     data = ldaq.get_measurement_dict()
@@ -51,7 +51,7 @@ def test_NITask_core():
 
 
 def test_NIMAX_basic():
-    acq = LadiskDAQ.national_instruments.NIAcquisition("VirtualTask", 'NI_acq')
+    acq = LDAQ.national_instruments.NIAcquisition("VirtualTask", 'NI_acq')
     time.sleep(5)
     acq.run_acquisition(1)
 
@@ -65,9 +65,9 @@ def test_NIMAX_basic():
 
 
 def test_NIMAX_core():
-    acq = LadiskDAQ.national_instruments.NIAcquisition("VirtualTask", 'NI_acq')
+    acq = LDAQ.national_instruments.NIAcquisition("VirtualTask", 'NI_acq')
 
-    ldaq = LadiskDAQ.Core(acq)
+    ldaq = LDAQ.Core(acq)
     ldaq.run(1, autostart=True)
 
     data = ldaq.get_measurement_dict()

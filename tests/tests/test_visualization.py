@@ -3,11 +3,11 @@ import sys
 sys.path.insert(0, os.path.realpath('../../'))
 import time
 
-import LadiskDAQ
+import LDAQ
 
 
 def test_Visualization_basic():
-    vis = LadiskDAQ.Visualization()
+    vis = LDAQ.Visualization()
     vis.add_lines((0, 0), source='NI_acq', channels=['ch1', 'ch2'])
     vis.add_lines((0, 1), source='NI_acq', channels=['ch1', 1])
 
@@ -27,7 +27,7 @@ def test_Visualization_basic():
 
 
 def test_Visualization_basic_2():
-    vis = LadiskDAQ.Visualization()
+    vis = LDAQ.Visualization()
     vis.add_lines((0, 0), source='NI_acq', channels=['ch1', 'ch2'])
     vis.add_lines((0, 1), source='NI_acq', channels=['ch1', 1])
 

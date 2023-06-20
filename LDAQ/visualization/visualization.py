@@ -85,7 +85,7 @@ class Visualization:
         >>> vis.add_lines(position=(0, 0), source='DataSource', channels=[(0, 1), (2, 3)])
 
         The ``function`` argument
-        ~~~~~~~~~~~~~~~~~~~~~~~~
+        ~~~~~~~~~~~~~~~~~~~~~~~~~
 
         The data can be processed on-the-fly by a specified function.
 

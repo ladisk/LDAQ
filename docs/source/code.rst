@@ -3,29 +3,29 @@ Code documentation
 
 Core
 -----
-.. autoclass:: LadiskDAQ.core.Core
+.. autoclass:: LDAQ.core.Core
     :members:
 
 Acquisition
 -----------
-.. autoclass:: LadiskDAQ.acquisition.NIAcquisition
+.. autoclass:: LDAQ.national_instruments.NIAcquisition
     :members:
 
-.. autoclass:: LadiskDAQ.acquisition.SerialAcquisition
+.. autoclass:: LDAQ.serial_communication.SerialAcquisition
     :members:
 
 Generation
 ----------
-.. autoclass:: LadiskDAQ.generation.NIGenerator
+.. autoclass:: LDAQ.national_instruments.NIGeneration
     :members:
 
 Visualization
 -------------
-.. autoclass:: LadiskDAQ.visualization.Visualization
+.. autoclass:: LDAQ.Visualization
     :members:
 
 NITask
 ------
 
-.. autoclass:: LadiskDAQ.ni_task.NITask
+.. autoclass:: LDAQ.national_instruments.NITask
     :members:

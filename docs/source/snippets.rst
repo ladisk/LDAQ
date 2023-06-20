@@ -4,27 +4,27 @@ Code snippets
 Use theese code snippets to lightning-fast start your experimental work.
 
 National Instruments
--------------------
+--------------------
 
 Snippets to use with the National Instruments DAQmx driver.
 
 Acquisition only
-~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~
 
 Only the acquisition is used. The data is saved to a file. The visualization is not included.
 
 .. code-block:: python
 
-    import LadiskDAQ
+    import LDAQ
 
     # Define the task name, specified in NI MAX
     input_task_name = 'TaskName'
 
     # Create the acquisition object
-    acq = LadiskDAQ.national_instruments.NIAcquisition(input_task_name, acquisition_name=input_task_name)
+    acq = LDAQ.national_instruments.NIAcquisition(input_task_name, acquisition_name=input_task_name)
 
     # Create the Core object
-    ldaq = LadiskDAQ.Core(acq)
+    ldaq = LDAQ.Core(acq)
 
     # Set the trigger on the input task
     ldaq.set_trigger(
@@ -51,18 +51,18 @@ Adjust the ``layout`` and ``subplot_options`` to your needs. See `visualization 
 
 .. code-block:: python
 
-    import LadiskDAQ
+    import LDAQ
 
     # Define the task name, specified in NI MAX
     input_task_name = 'TaskName'
 
     # Create the acquisition object
-    acq = LadiskDAQ.national_instruments.NIAcquisition(input_task_name, acquisition_name=input_task_name)
+    acq = LDAQ.national_instruments.NIAcquisition(input_task_name, acquisition_name=input_task_name)
 
     # Live visualization
 
     # Create the Visualization object
-    vis = LadiskDAQ.Visualization()
+    vis = LDAQ.Visualization()
 
     # Add lines
     vis.add_lines((0, 0), source=input_task_name, channels=0)
@@ -74,7 +74,7 @@ Adjust the ``layout`` and ``subplot_options`` to your needs. See `visualization 
 
 
     # Create the Core object
-    ldaq = LadiskDAQ.Core(acq, visualization=vis)
+    ldaq = LDAQ.Core(acq, visualization=vis)
 
     # Set the trigger on the input task
     ldaq.set_trigger(
@@ -97,11 +97,11 @@ Acquisition, generation and visualization
 
 A single acquisition source and a single generation source are used. The data is visualized in real time. The data is not saved to a file.
 
-To use multiple acquisition and generation sources, define them separately and pass them to the :class:`LadiskDAQ.Core` in a list (see the `multiple sources <multiple_sources.html>`_ section).
+To use multiple acquisition and generation sources, define them separately and pass them to the :class:`LDAQ.Core` in a list (see the `multiple sources <multiple_sources.html>`_ section).
 
 .. code-block:: python
 
-    import LadiskDAQ
+    import LDAQ
     import pyExSi
 
     # Define the task name, specified in NI MAX
@@ -109,7 +109,7 @@ To use multiple acquisition and generation sources, define them separately and p
     output_task_name = 'OutputTaskName'
 
     # Create the acquisition object
-    acq = LadiskDAQ.national_instruments.NIAcquisition(input_task_name, acquisition_name=input_task_name)
+    acq = LDAQ.national_instruments.NIAcquisition(input_task_name, acquisition_name=input_task_name)
 
     # Create the generation object
     # The excitation signal
@@ -117,12 +117,12 @@ To use multiple acquisition and generation sources, define them separately and p
     signal = np.sin(time_array*2*np.pi*10)
     
     # The generation object
-    gen = LadiskDAQ.national_instruments.NIGeneration(output_task_name, signal)
+    gen = LDAQ.national_instruments.NIGeneration(output_task_name, signal)
 
     # Live visualization
 
     # Create the Visualization object
-    vis = LadiskDAQ.Visualization()
+    vis = LDAQ.Visualization()
 
     # Add lines
     vis.add_lines((0, 0), source=input_task_name, channels=0)
@@ -134,7 +134,7 @@ To use multiple acquisition and generation sources, define them separately and p
 
 
     # Create the Core object
-    ldaq = LadiskDAQ.Core(acq, gen, visualization=vis)
+    ldaq = LDAQ.Core(acq, gen, visualization=vis)
 
     # Set the trigger on the input task
     ldaq.set_trigger(

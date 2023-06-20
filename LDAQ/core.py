@@ -410,7 +410,7 @@ class Core():
                     'channel_names': self.channel_names, 'data': 2D array (n_samples, n_data_channels),
                     'channel_names_video': self.channel_names_video, 'video': list of 3D arrays (n_samples, height, width),
                     'sample_rate': self.sample_rate}
-            """        
+        """        
         self.measurement_dict = {}
         for idx, name in enumerate(self.acquisition_names):
             if N_seconds is None:

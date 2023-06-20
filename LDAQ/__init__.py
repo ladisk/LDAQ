@@ -6,9 +6,9 @@ __version__ = "0.0.1"
 from .utils import *
 from .core import Core
 from .visualization import *
-from .basler import *
-from .digilent import *
-from .flir import *
-from .national_instruments import *
-from .serial_communication import *
-from .simulator import *
+from . import basler
+from . import digilent
+from . import flir
+from . import national_instruments
+from . import serial_communication
+from . import simulator

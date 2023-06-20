@@ -1,20 +1,20 @@
 Live visualization
 ==================
 
-Live visualization of the measurments is possible by adding the :class:`LadiskDAQ.Visualization` object to the
-:class:`LadiskDAQ.Core` class:
+Live visualization of the measurments is possible by adding the :class:`LDAQ.Visualization` object to the
+:class:`LDAQ.Core` class:
 
 .. code-block:: python
 
-    ldaq = LadiskDAQ.Core(acq, visualization=vis)
+    ldaq = LDAQ.Core(acq, visualization=vis)
 
 
 - ``acq`` is defined as presented in the `first example <simple_start.html>`_. 
-- ``vis`` is an instance of :class:`LadiskDAQ.Visualization` and is initiated as follows:
+- ``vis`` is an instance of :class:`LDAQ.Visualization` and is initiated as follows:
 
 .. code-block:: python
 
-    vis = LadiskDAQ.Visualization(refresh_rate=100, max_points_to_refresh=1e4, sequential_plot_updates=True)
+    vis = LDAQ.Visualization(refresh_rate=100, max_points_to_refresh=1e4, sequential_plot_updates=True)
 
 - ``refresh_rate``: defines the refresh rate of the live plot in milliseconds. ``refresh_rate`` can also be defined for each 
   line/image separetely (see :ref:`add_lines <add_lines>` for more details).
@@ -75,7 +75,7 @@ Multiple channel vs. channel plots can be added to the same subplot:
 
 .. _function_argument:
 The ``function`` argument
-~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The data can be processed on-the-fly by a specified function.
 

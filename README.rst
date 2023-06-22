@@ -9,12 +9,12 @@ Create the acquisition object
 The first step to starting the measurement is to create an acquisition object. Depending on your measurement hardware,
 you can select the appropriate acquisition class. 
 
-In this example, we use the ``LDAQ.national_instrument.NIAcquisition`` class, which is
+In this example, we use the ``LDAQ.national_instruments.NIAcquisition`` class, which is
 a wrapper for the National Instruments DAQmx driver. The class accepts the name of the input task (created in NI MAX) as an argument:
 
 .. code-block:: python
 
-    acq = LDAQ.national_instrument.NIAcquisition(input_task_name, acquisition_name='NI_data_source')
+    acq = LDAQ.national_instruments.NIAcquisition(input_task_name, acquisition_name='NI_data_source')
 
 The ``acquisition_name`` argument is important when using multiple acquisition objects in the same measurement, and when specifying the layout of the
 live `visualization <https://ldaq.readthedocs.io/en/latest/visualization.html>`_.

@@ -60,7 +60,7 @@ class SimulatedAcquisition(BaseAcquisition):
         This should also update self._channel_names_video_init and self._channel_shapes_video_init lists.
 
         Args:
-            fun (function): function that returns numpy array with shape (n_samples, width, height)
+            fun (function): function that takes time array as first argument and returns numpy array with shape (n_samples, width, height)
             channel_name_video (str, optional): name of the video channel. Defaults to None, in which case the name "video" is used.
             sample_rate (int, optional): sample rate of the simulated data. Defaults to None, in which case the sample rate of 30 Hz is used.
             args (tuple, optional): arguments for the function. Defaults to ().
@@ -96,8 +96,6 @@ class SimulatedAcquisition(BaseAcquisition):
         self.time_add = 0
 
         super().set_data_source()
-
-        self.set_trigger(1e20, 0, duration=1.0)
         
     def terminate_data_source(self):
         """
@@ -131,7 +129,7 @@ class SimulatedAcquisition(BaseAcquisition):
         """
         Clears serial buffer.
         """
-        self.read_data()
+        pass
             
     def get_sample_rate(self):
         """Returns acquisition sample rate.

@@ -1,4 +1,5 @@
 import pyqtgraph as pg
+from pyqtgraph import ImageView, ImageItem
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QPushButton, QHBoxLayout, QDesktopWidget, QProgressBar, QLabel
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QIcon
@@ -12,255 +13,57 @@ import types
 import keyboard
 from pyTrigger import RingBuffer2D
 
+from typing import Optional, Tuple, Union, List, Callable
+
 from .visualization_helpers import compute_nth, check_subplot_options_validity, _fun_fft, _fun_frf_amp, _fun_frf_phase, _fun_coh
 
 INBUILT_FUNCTIONS = {'fft': _fun_fft, 'frf_amp': _fun_frf_amp, 'frf_phase': _fun_frf_phase, 'coh': _fun_coh}
     
     
 class Visualization:
-    def __init__(self, refresh_rate=100):
-        """Live visualization of the measured data.
+    def __init__(self, refresh_rate: int = 100, max_points_to_refresh: int = 10000, sequential_plot_updates: bool = True):
+        """Initialize a new `Visualization` object.
 
-        For more details, see [documentation](https://ladiskdaq.readthedocs.io/en/latest/visualization.html).
-        
-        :param layout: Dictionary containing the source names and subplot layout with channel definitions.
-            See examples below.
-        :param subplot_options: Dictionary containing the options for each of the subplots (xlim, ylim, axis_style, etc.).
-        :param nth: Number of points to skip when plotting. If 'auto', the number of points to skip is automatically determined
-            in a way to make ``max_points_to_refresh = 1e4``. ``max_points_to_refresh`` is the attribute of the Visualization class and
-            can be changed by the user.
-        :param refresh_rate: Refresh rate of the plot in ms.
+        Args:
+            refresh_rate (int, optional): The refresh rate of the plot in milliseconds. Defaults to 100.
+            max_points_to_refresh (int, optional): The maximum number of points to refresh in the plot. Adjust this number to optimize performance.
+                This number is used to compute the `nth` value automatically. Defaults to 10000.
+            sequential_plot_updates (bool, optional): If `True`, the plot is updated sequentially (one line at a time).
+                If `False`, all lines are updated in each iteration of the main loop. Defaults to `True`.
 
-        The ``layout``
-        --------------
-
-        The layout of the live plot is set by the ``layout`` argument. An example of the ``layout`` argument is:
-
-        >>> layout = {
-                'DataSource': {
-                    (0, 0): [0, 1],
-                    (1, 0): [2, 3],
-                }
-            }
-
-        This is a layout for a single acquisition source with name "DataSource". 
-        When multiple sources are used, the name of the source is used as the key in the ``layout`` dictionary. 
-        The value at each acquisition source is a dictionary where each key is a tuple of two integers. 
-        The first integer is the row number and the second integer is the column number of the subplots.
-
-        For the given example, the plot will have two subplots, each in one row.
-
-        For each subplot, the data is then specified. 
-        If the value is a list of integers, each integer corresponds to the index in the acquired data.
-        For example, for the subplot defined with:
-
-        >>> (0, 0): [0, 1]
-
-        data with indices 0 and 1 will be plotted in the subplot at location (0, 0).
-
-        Plotting from multiple sources
-        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-        When plotting from multiple sources, the layout is defined:
-
-        >>> layout = {
-                'DataSource1': {
-                    (0, 0): [0, 1],
-                    (1, 0): [2, 3],
-                },
-                'DataSource2': {
-                    (0, 0): [0],
-                    (0, 1): [1]
-                    (1, 1): [2, 3],
-                }
-            }
-
-        Notice the different names of the sources. Each name corresponds to the name of the acquisition source, defined in the acquisition class.
-
-        It is important to note that the subplot locations are the same for all acquisition sources, but the indices of the data are different. 
-
-        For example, the subplot at location ``(0, 0)``
-        will containt the plots from source "DataSource1" with indices 0 and 1, and the plots from source "DataSource2" with indices 0.
-
-        Channel vs. channel plot
-        ~~~~~~~~~~~~~~~~~~~~~~~~
-
-        When plotting from multiple sources, it is possible to plot the data from one channel of one source against the data from one channel of another source.
-        Example:
-
-        >>> layout = {
-                'DataSource': {
-                    (0, 0): [0, 1],
-                    (1, 0): [(2, 3)],
-                }
-            }
-
-        In subplot at location (1, 0), the data from channel 3 will be plotted as a function of the data from channel 2.
-        The first index of the ``tuple`` is considered the x-axis and the second index is considered the y-axis.
-
-        The ``function`` option
-        ~~~~~~~~~~~~~~~~~~~~~~~
-
-        The data can be processed on-the-fly by a specified function.
-        The functmion is added to the ``layout`` dictionary as follows:
-
-        >>> layout = {
-                'DataSource': {
-                    (0, 0): [0, 1],
-                    (1, 0): [2, 3, function],
-                }
-            }
-
-        The ``function`` can be specified by the user. To use the built-in functions, a string is passed to the ``function`` argument. 
-        An example of a built-in function is "fft" which computes the [Fast Fourier Transform](https://numpy.org/doc/stable/reference/generated/numpy.fft.rfft.html)
-        of the data with indices 2 and 3.
-
-        To build a custom function, the function must be defined as follows:
-
-        >>> def function(self, channel_data):
-                '''
-                :param self: instance of the acquisition object (has to be there so the function is called properly)
-                :param channel_data: channel data
-                '''
-                return channel_data**2
-
-        The ``self`` argument in the custom function referes to the instance of the acquisition object. 
-        This connection can be used to access the properties of the acquisition object, e.g. sample rate.
-        The ``channel_data`` argument is a list of numpy arrays, where each array corresponds to the data from one channel. 
-        The data is acquired in the order specified in the ``layout`` dictionary.
-
-        For the layout example above, the custom function is called for each channel separetely, the ``channel_data`` is a one-dimensional numpy array. 
-        To add mutiple channels to the ``channel_data`` argument,
-        the ``layout`` dictionary is modified as follows:
-
-        >>> layout = {
-                'DataSource': {
-                    (0, 0): [0, 1],
-                    (1, 0): [(2, 3), function],
-                }
-            }
-
-        The ``function`` is now passed the ``channel_data`` with shape (N, 2) where N is the number of samples.
-        The function can also return a 2D numpy array with shape (N, 2) where the first column is the x-axis and the second column is the y-axis.
-        An example of such a function is:
-
-        >>> def function(self, channel_data):
-                '''
-                :param self: instance of the acquisition object (has to be there so the function is called properly)
-                :param channel_data: 2D channel data array of size (N, 2)
-                :return: 2D array np.array([x, y]).T that will be plotted on the subplot.
-                '''
-                ch0, ch1 = channel_data.T
-                x =  np.arange(len(ch1)) / self.acquisition.sample_rate # time array
-                y = ch1**2 + ch0 - 10
-                return np.array([x, y]).T
-
-        The ``subplot_options``
-        -----------------------
-
-        The properties of each subplot, defined in ``layout`` can be specified with the ``subplot_options`` argument. The ``subplot_options`` argument is a dictionary where the keys are the positions of the subplots.
-
-        Example:
-
-        >>> subplot_options = {
-                (0, 0): {
-                    'xlim': (0, 2),
-                    'ylim': (-5, 5),
-                    'axis_style': 'linear',
-                    'title': 'My title 1'
-                },
-                (0, 1): {
-                    'xlim': (0, 25),
-                    'ylim': (1e-5, 1e3),
-                    'axis_style': 'semilogy',
-                    'title': 'My title 2'
-                },
-                (1, 0): {
-                    'xlim': (-5, 5),
-                    'ylim': (-5, 5),
-                    'axis_style': 'linear',
-                    'title': 'My title 3'
-                },
-                (1, 1): {
-                    'xlim': (0, 2),
-                    'axis_style': 'linear',
-                    'title': 'My title 4'
-                }
-            }
-
-        Currently, the following options are available:
-
-        - ``xlim``: tuple of two floats, the limits of the x-axis.
-        - ``ylim``: tuple of two floats, the limits of the y-axis.
-        - ``t_span``: int/float, the length of the time axis. If this option is not specified, it is computed from the ``xlim``.
-        - ``axis_style``: string, the style of the axis. Can be "linear", "semilogx", "semilogy" or "loglog".
-        - ``title``: string, the title of the subplot.
-        - ``rowspan``: int, the number of rows the subplot spans. Default is 1.
-        - ``colspan``: int, the number of columns the subplot spans. Default is 1.
-        - ``refresh_rate``: int, the refresh rate of the subplot in milliseconds. 
-        If this option is not specified, the refresh rate defined in the :class:`Visualization` is used.
-        - ``nth``: int, same as the ``nth`` argument in :class:`Visualization`. 
-        If this option is not specified, the ``nth`` argument defined in the :class:`Visualization` is used.
-
-        .. note:: 
-            When plotting a simple time signal, the ``t_span`` and ``xlim`` have the same effect. 
-            
-            However, when plotting channel vs. channel, the ``t_span`` specifies the time range of the data and the ``xlim`` specifies the range of the x-axis (spatial).
-
-            When plotting a function, the ``t_span`` determines the time range of the data that is passed to the function. 
-            Last ``t_span`` seconds of data are passed to the function.
-
-
-        .. note::
-            The ``xlim`` defines the samples that are plotted on the x-axis, not only a narrowed view of the data. 
-            With this, the same data can be viewed with different zoom levels in an effcient way.
-
-        An example of ``subplot_options`` with ``colspan``:
-
-        >>> subplot_options = {
-                (0, 0): {
-                    'xlim': (0, 2),
-                    'ylim': (-5, 5),
-                    'axis_style': 'linear',
-                    'title': 'My title 1',
-                    'colspan': 2,
-                },
-                (1, 0): {
-                    'xlim': (-5, 5),
-                    'ylim': (-5, 5),
-                    'axis_style': 'linear',
-                    'title': 'My title 3'
-                },
-                (1, 1): {
-                    'xlim': (0, 2),
-                    'axis_style': 'linear',
-                    'title': 'My title 4',
-                    'rowspan': 2
-                },
-            }
-
-        Note that the subplot at location (0, 1) must be omitted, since it is spanned by the subplot at location (0, 0).
-        The subplot at location (0, 1) must also be omitted in the ``layout``.
         """
         self.max_plot_time = 1
         self.show_legend = True
         self.refresh_rate = refresh_rate
         self.plots = None
         self.subplot_options = {}
+        self.add_line_widget = False
+        self.add_image_widget = False
         
         self.update_refresh_rate = 10 # [ms] interval of calling the plot_update function
-        self.max_points_to_refresh = 1e4
+        self.max_points_to_refresh = max_points_to_refresh
+        self.sequential_plot_updates = sequential_plot_updates
     
 
-    def add_lines(self, position, source, channels, function=None, nth="auto"):
+    def add_lines(self, position: Tuple[int, int], source: str, channels: Union[int, str, tuple, list],
+                  function: Union[callable, str, None] = None, nth: Union[int, str] = "auto",
+                  refresh_rate: Union[int, None] = None, t_span: Union[int, float, None] = None) -> None:
         """Build the layout dictionary.
 
-        :param position: tuple, the position of the subplot. Example: ``(0, 0)``.
-        :param source: string, the source of the data. Name that was given to the ``Acquisition`` object.
-        :param channels: list of integers, the channels from the ``source`` to be plotted. Can also be a list of tuples
-            of integers to plot channel vs. channel. Example: ``[(0, 1), (2, 3)]``.
-        :param function: function, the function to be applied to the data before plotting. If ``channels`` is a list of tuples,
-            the function is applied to each tuple separately.
+        Args:
+            position (tuple): The position of the subplot. Example: ``(0, 0)``.
+            source (str): The source of the data. Name that was given to the ``Acquisition`` object.
+            channels (int/str/tuple/list): The channels from the ``source`` to be plotted. Can also be a list of tuples of integers to plot channel vs. channel.
+                Example: ``[(0, 1), (2, 3)]``. For more details, see example below and documentation.
+            function (function/str, optional): The function to be applied to the data before plotting. If ``channels`` is a list of tuples,
+                the function is applied to each tuple separately. Defaults to ``None``.
+            nth (int/str, optional): The nth sample to be plotted. If ``nth`` is ``"auto"``, the nth sample is computed automatically.
+                Defaults to ``"auto"``.
+            refresh_rate (int, optional): The refresh rate of the subplot in milliseconds. If this argument is not specified, the
+                refresh rate defined in the :class:`Visualization` is used. Defaults to ``None``.
+            t_span (int/float, optional): The length of the time axis. If this option is not specified, it is computed from the ``xlim``.
+                Defaults to ``None``.
+
 
         Channels
         ~~~~~~~~
@@ -282,7 +85,7 @@ class Visualization:
         >>> vis.add_lines(position=(0, 0), source='DataSource', channels=[(0, 1), (2, 3)])
 
         The ``function`` argument
-        ~~~~~~~~~~~~~~~~~~~~~~~~
+        ~~~~~~~~~~~~~~~~~~~~~~~~~
 
         The data can be processed on-the-fly by a specified function.
 
@@ -297,8 +100,9 @@ class Visualization:
 
         >>> def function(self, channel_data):
                 '''
-                :param self: instance of the acquisition object (has to be there so the function is called properly)
-                :param channel_data: channel data
+                Args:
+                    self: instance of the acquisition object (has to be there so the function is called properly)
+                    channel_data (dict): A dictionary containing the channel data.
                 '''
                 return channel_data**2
 
@@ -318,9 +122,12 @@ class Visualization:
 
         >>> def function(self, channel_data):
                 '''
-                :param self: instance of the acquisition object (has to be there so the function is called properly)
-                :param channel_data: 2D channel data array of size (N, 2)
-                :return: 2D array np.array([x, y]).T that will be plotted on the subplot.
+                Args:
+                    self: instance of the acquisition object (has to be there so the function is called properly)
+                    channel_data (np.ndarray): A 2D channel data array of size (N, 2).
+
+                Returns:
+                    np.ndarray: A 2D array np.array([x, y]).T that will be plotted on the subplot.
                 '''
                 ch0, ch1 = channel_data.T
                 x =  np.arange(len(ch1)) / self.acquisition.sample_rate # time array
@@ -328,6 +135,8 @@ class Visualization:
                 return np.array([x, y]).T
 
         """
+        self.add_line_widget = True
+
         if not isinstance(source, str):
             raise ValueError("The source must be a string.")
         if not isinstance(position, tuple):
@@ -354,6 +163,11 @@ class Visualization:
             apply_function = INBUILT_FUNCTIONS[function]
         else:
             apply_function = lambda x, y: y
+
+        if refresh_rate:
+            plot_refresh_rate = self.update_refresh_rate*(refresh_rate//self.update_refresh_rate)
+        else:
+            plot_refresh_rate = self.update_refresh_rate*(self.refresh_rate//self.update_refresh_rate)
         
         for channel in channels:
             self.plots[source].append({
@@ -362,22 +176,81 @@ class Visualization:
                 'apply_function': apply_function,
                 'nth': nth,
                 'since_refresh': 1e40,
+                'refresh_rate': plot_refresh_rate,
+                't_span': t_span,
             })
 
 
-    def config_subplot(self, position, xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1, refresh_rate=None):
-        """Configure a subplot at position ``position``.
+    def add_image(self, source: str, channel: Union[str, int], function: Optional[Union[str, callable]] = None, refresh_rate: int = 100, colormap: str = 'CET-L17') -> None:
+        """Add an image plot to the visualization for the specified source and channel.
+
+        Args:
+            source (str): The name of the source to add the image plot to.
+            channel (str/int): The name of the channel to add the image plot to.
+            function (function/str, optional): A function or string to apply to the image data before plotting. Defaults to None.
+            refresh_rate (int, optional): The number of milliseconds between updates of the plot. Defaults to 100.
+            colormap (str, optional): The colormap to use for the plot. Defaults to 'CET-L17'.
+
+
+        This method adds an image plot to the visualization for the specified `source` and `channel`.
+        The `function` argument can be used to apply a custom function to the image data before plotting.
+        If `function` is not specified or is not a callable function or a string, the identity function is used.
+        If `function` is a string, it is looked up in the `INBUILT_FUNCTIONS` dictionary.
+        The `refresh_rate` argument specifies the number of milliseconds between updates of the plot.
+        The `colormap` argument specifies the colormap to use for the plot.
+
+        If `source` is not already in `self.plots`, a new entry is created for it.
+        If `channel` is not already in the entry for `source` in `self.plots`, a new plot is created for it.
+
+        This method modifies the `plots` and `color_map` attributes of the `Visualization` object in-place.
+        """
+        self.add_image_widget = True
+
+        if self.plots is None:
+            self.plots = {}
         
-        :param position: tuple of two integers, the position of the subplot in the layout.
-        :param xlim: tuple of two floats, the limits of the x-axis. If not given, the limits are set to ``(0, 1)``.
-        :param ylim: tuple of two floats, the limits of the y-axis.
-        :param t_span: int/float, the length of the time axis. If this option is not specified, it is computed from the ``xlim``.
-        :param axis_style: string, the style of the axis. Can be "linear", "semilogx", "semilogy" or "loglog".
-        :param title: string, the title of the subplot.
-        :param rowspan: int, the number of rows the subplot spans. Default is 1.
-        :param colspan: int, the number of columns the subplot spans. Default is 1.
-        :param refresh_rate: int, the refresh rate of the subplot in milliseconds.
-            If this option is not specified, the refresh rate defined in the :class:`Visualization` is used.
+        if source not in self.plots.keys():
+            self.plots[source] = []
+
+        if isinstance(function, types.FunctionType):
+            apply_function = function
+        elif function in INBUILT_FUNCTIONS.keys():
+            apply_function = INBUILT_FUNCTIONS[function]
+        else:
+            apply_function = lambda x, y: y
+        
+
+        self.plots[source].append({
+            'pos': 'image',
+            'channels': channel,
+            'apply_function': apply_function,
+            'nth': 1,
+            'since_refresh': 1e40,
+            'refresh_rate': refresh_rate,
+            'color_map': colormap,
+        })
+
+        self.color_map = colormap
+
+
+    def config_subplot(self, position: Tuple[int, int], xlim: Optional[Tuple[float, float]] = None, ylim: Optional[Tuple[float, float]] = None, t_span: Optional[float] = None, axis_style: Optional[str] = 'linear', title: Optional[str] = None, rowspan: int = 1, colspan: int = 1) -> None:
+        """Configure a subplot at position `position`.
+
+        Args:
+            position (tuple): Tuple of two integers, the position of the subplot in the layout.
+            xlim (tuple, optional): Tuple of two floats, the limits of the x-axis. If not given, the limits are set to `(0, 1)`.
+            ylim (tuple, optional): Tuple of two floats, the limits of the y-axis. Defaults to None.
+            t_span (int/float, optional): The length of the time axis. If this option is not specified, it is computed from the `xlim`.
+                Defaults to None.
+            axis_style (str, optional): The style of the axis. Can be "linear", "semilogx", "semilogy" or "loglog". Defaults to "linear".
+            title (str, optional): The title of the subplot. Defaults to None.
+            rowspan (int, optional): The number of rows the subplot spans. Defaults to 1.
+            colspan (int, optional): The number of columns the subplot spans. Defaults to 1.
+
+
+        This method configures a subplot at position `position` with the specified options.
+        The `xlim`, `ylim`, `t_span`, `axis_style`, `title`, `rowspan` and `colspan` options are stored in the `subplot_options`
+        dictionary of the `Visualization` object.
         """
         self.subplot_options[position] = {}
 
@@ -395,17 +268,23 @@ class Visualization:
             self.subplot_options[position]['rowspan'] = rowspan
         if colspan is not None:
             self.subplot_options[position]['colspan'] = colspan
-        if refresh_rate is not None:
-            self.subplot_options[position]['refresh_rate'] = refresh_rate
 
         if not check_subplot_options_validity(self.subplot_options, self.plots):
             raise ValueError("Invalid subplot options. Check the `rowspan` and `colspan` values.")
 
 
     def check(self):
-        self.check_subplot_options()
+        self.positions = list(set([plot['pos'] for plot in [plot for plots in self.plots.values() for plot in plots]]))[::-1]
+        self.positions = [_ for _ in self.positions if _ != 'image']
 
-        self.check_added_lines()
+        # Make sure that all subplots have options defined.
+        for pos in self.positions:
+            if pos not in self.subplot_options.keys():
+                self.subplot_options[pos] = {}
+
+        self._check_t_span_and_xlim()
+        self._check_added_lines()
+        self._check_channels()
 
     
     def run(self, core):
@@ -428,7 +307,33 @@ class Visualization:
             self.app.exec_()
 
 
-    def check_added_lines(self):
+    def _check_channels(self):
+        """Convert between channel names and channel indices.
+        
+        If the `pos` is 'image', check that the `channel` is a string or an intiger. If it is an intiger, convert it to a string.
+        If the `pos` is not 'image', check that the `channel` is a string or an intiger. If it is a string, convert it to an intiger.
+        """
+        for source, plot_channels in self.plots.items():
+            acq_index = self.core.acquisition_names.index(source)
+            for i, plot_channel in enumerate(plot_channels):
+                if plot_channel['pos'] == 'image':
+                    if type(plot_channel['channels']) == str:
+                        pass
+                    elif type(plot_channel['channels']) == int:
+                        pass
+                    else:
+                        raise ValueError("The `channel` must be a string (`channel_name`) or intiger (`channel_index`).")
+                else:
+                    if type(plot_channel['channels']) == str:
+                        channel = plot_channel['channels']
+                        self.plots[source][i]['channels'] = self.core.acquisitions[acq_index].channel_names.index(channel)
+                    elif type(plot_channel['channels']) == int:
+                        pass
+                    else:
+                        raise ValueError("The `channel` must be a string (`channel_name`) or intiger (`channel_index`).")
+
+
+    def _check_added_lines(self):
         if self.plots is None:
             raise ValueError("No plots were added to the visualization. Use the `add_lines` method to add plots.")
 
@@ -441,44 +346,67 @@ class Visualization:
                 sample_rate = self.core.acquisitions[acq_index].sample_rate
                 for i, plot_channel in enumerate(plot_channels):
                     if plot_channel['nth'] == 'auto':
-                        pos = plot_channel['pos']
-                        t_span = self.subplot_options[pos]['t_span']
+                        t_span = plot_channel['t_span']
                         self.plots[source][i]['nth'] = compute_nth(self.max_points_to_refresh, t_span, n_lines, sample_rate)
 
 
-    def check_subplot_options(self):
-        self.positions = list(set([plot['pos'] for plot in [plot for plots in self.plots.values() for plot in plots]]))[::-1]
+    def _check_t_span_and_xlim(self):
+        """Check and set the `t_span` and `xlim` options for all plots in `self.plots`.
 
-        # Make sure that all subplots have options defined.
-        for pos in self.positions:
-            if pos not in self.subplot_options.keys():
-                self.subplot_options[pos] = {"xlim": (0, 1), "axis_style": "linear"}
+        If `t_span` is not defined for a plot, it is copied from the corresponding `subplot_options`.
+        If `t_span` is not defined in `subplot_options`, it is computed from the `xlim` option.
+        If `xlim` is not defined in `subplot_options`, it is set to `(0, 1)` and `t_span` is computed from it.
 
+        This method modifies the `t_span` and `xlim` options in-place for all plots in `self.plots`.
+        """
+        for source, plot_channels in self.plots.items():
+            for i, plot_channel in enumerate(plot_channels):
+                if 't_span' in plot_channel.keys(): # image plots don't have t_span
+                    if plot_channel['t_span'] is None: # if t_span is None, compute it from xlim or overwrite it with t_span from subplot_options
+                        if 't_span' in self.subplot_options[plot_channel['pos']]:
+                            plot_channel['t_span'] = self.subplot_options[plot_channel['pos']]['t_span']
+                        elif 't_span' not in self.subplot_options[plot_channel['pos']] and 'xlim' in self.subplot_options[plot_channel['pos']]:
+                            plot_channel['t_span'] = self.subplot_options[plot_channel['pos']]['xlim'][1] - self.subplot_options[plot_channel['pos']]['xlim'][0]
+                        else:
+                            plot_channel['t_span'] = 1
+        
+        # check if xlim is defined for all subplots, if not, compute it from t_span
         for pos, options in self.subplot_options.items():
-            # Check that all subplots have `t_span` and `xlim` defined.
-            if 'xlim' in options.keys() and 't_span' not in options.keys():
-                self.subplot_options[pos]['t_span'] = options['xlim'][1] - options['xlim'][0]
-            elif 't_span' in options.keys() and 'xlim' not in options.keys():
-                self.subplot_options[pos]['xlim'] = (0, options['t_span'])
-            elif 'xlim' not in options.keys() and 't_span' not in options.keys():
-                self.subplot_options[pos]['xlim'] = (0, 1)
-                self.subplot_options[pos]['t_span'] = 1
-            else:
-                pass
-
-            # Define the refresh rate for each subplot.
-            if 'refresh_rate' in options.keys():
-                self.subplot_options[pos]['subplot_refresh_rate'] = self.update_refresh_rate*(options['refresh_rate']//self.update_refresh_rate)
-            else:
-                self.subplot_options[pos]['subplot_refresh_rate'] = self.update_refresh_rate*(self.refresh_rate//self.update_refresh_rate)
+            if 'xlim' not in options.keys():
+                # get max t_span from self.plots for this position
+                t_spans = [plot_channel['t_span'] for source, plot_channels in self.plots.items() for plot_channel in plot_channels if plot_channel['pos'] == pos and plot_channel['t_span'] is not None]
+                if t_spans:
+                    t_span_max = max(t_spans)
+                else:
+                    t_span_max = 1
+                self.subplot_options[pos]['xlim'] = (0, t_span_max)
 
 
     def create_ring_buffers(self):
+        """Create and initialize the ring buffers for all plots in `self.plots`.
+
+        For each source in `self.plots`, this method creates a `RingBuffer2D` object with the appropriate number of rows
+        and channels, based on the `t_span` and `sample_rate` options in `self.plots` and the corresponding acquisition.
+        If the acquisition has video channels, this method also initializes a list of random images for each video channel.
+        If a source does not have any channels, a `RingBuffer2D` object with one row and one channel is created.
+
+        This method modifies the `ring_buffers` and `new_images` attributes of the `Visualization` object in-place.
+        """
         self.ring_buffers = {}
         for source in self.plots.keys():
             acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
-            rows = int(max([self.subplot_options[pos]['t_span'] * acq.sample_rate for pos in self.positions]))
-            self.ring_buffers[source] = RingBuffer2D(rows, acq.n_channels)
+            if acq.channel_names:
+                n_channels = len(acq.channel_names)
+                # rows = int(max([self.subplot_options[pos]['t_span'] * acq.sample_rate for pos in self.positions]))
+                rows = int(max([_['t_span'] * acq.sample_rate for _ in self.plots[source] if _['pos'] != 'image']))
+                self.ring_buffers[source] = RingBuffer2D(rows, n_channels)
+            
+            if acq.channel_names_video:
+                # self.new_images = [np.random.rand(10, 10)] * len(acq.channel_names_video)
+                self.new_images = [(ch, np.random.rand(10, 10)) for ch in acq.channel_names_video]
+
+            if source not in self.ring_buffers.keys():
+                self.ring_buffers[source] = RingBuffer2D(1, 1)
 
 
 class MainWindow(QMainWindow):
@@ -490,7 +418,7 @@ class MainWindow(QMainWindow):
         self.app = app
 
         script_directory = os.path.dirname(os.path.realpath(__file__))
-        icon_path = os.path.join(script_directory, "logo.png")
+        icon_path = os.path.join(script_directory, "../logo.png")
         app_icon = QIcon(icon_path)
         self.setWindowIcon(app_icon)
 
@@ -600,15 +528,32 @@ class MainWindow(QMainWindow):
 
     
     def init_plots(self):
+        # Compute the update refresh rate
+        n_lines = sum([len(plot_channels) for plot_channels in self.vis.plots.values()])
+        minimum_refresh_rate = int(min(list(set([plot['refresh_rate'] for plot in [plot for plots in self.vis.plots.values() for plot in plots]]))))
+        
+        # Compute the max number of plots per refresh (if sequential plot updates are enabled)
+        if self.vis.sequential_plot_updates:
+            # Max number of plots per refresh is computed
+            computed_update_refresh_rate = max(10, min(500, int(minimum_refresh_rate/(n_lines+1))))
+            self.vis.max_plots_per_refresh = int(np.ceil((n_lines * computed_update_refresh_rate) / minimum_refresh_rate))
+            self.vis.update_refresh_rate = computed_update_refresh_rate
+        else:
+            self.vis.max_plots_per_refresh = 1e40
+            self.vis.update_refresh_rate = minimum_refresh_rate
+
+
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
 
         self.time_start = time.time()
         grid_layout = pg.GraphicsLayoutWidget()
 
-        self.layout_widget.addWidget(grid_layout)
         self.subplots = {}
         self.legends = {}
+
+        if self.vis.add_line_widget:
+            self.layout_widget.addWidget(grid_layout, stretch=1)
 
         color_dict = {}
         ##################################################################
@@ -655,6 +600,7 @@ class MainWindow(QMainWindow):
                         self.subplots[pos].setYRange(transform_lim_y(options['ylim'][0]), transform_lim_y(options['ylim'][1]))
                 
         # Create lines for each plot channel
+        images = 0
         for source, plot_channels in self.vis.plots.items():
             channel_names = self.core.acquisitions[self.core.acquisition_names.index(source)].channel_names
             color_dict.update({ch: ind+len(color_dict) for ind, ch in enumerate(channel_names)})
@@ -662,22 +608,51 @@ class MainWindow(QMainWindow):
             for i, plot_channel in enumerate(plot_channels):
                 pos = plot_channel['pos']
                 ch = plot_channel['channels']
-                if isinstance(ch, tuple):
-                    x, y = ch
-                    line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[y]], width=2), name=f"{channel_names[x]} vs. {channel_names[y]}")
-                    self.vis.plots[source][i]['line'] = line
 
-                elif isinstance(ch, int):
-                    line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[ch]], width=2), name=f"{channel_names[ch]}")
-                    self.vis.plots[source][i]['line'] = line
+                if pos == 'image':
+                    images += 1
+                    if "boxstate" in plot_channel.keys():
+                        # remove the key
+                        plot_channel.pop("boxstate")
 
-                # Add legend to the subplot
-                if pos not in self.legends.keys():
-                    legend = self.subplots[pos].addLegend()
-                    for item in self.subplots[pos].items:
-                        if isinstance(item, pg.PlotDataItem):
-                            legend.addItem(item, item.opts['name'])
-                    self.legends[pos] = legend
+                    if plot_channel['color_map'] == 'CET-L17':
+                        cm = pg.colormap.get(plot_channel['color_map'])
+                    else:
+                        cm = pg.colormap.getFromMatplotlib(plot_channel['color_map'])
+
+                    if cm.color[0, 0] == 1:
+                        cm.reverse()
+
+                    image_view = ImageView()
+                    image_view.setColorMap(cm)
+
+                    if images == 1:
+                        self.image_grid_layout = QGridLayout()
+                        self.layout_widget.addLayout(self.image_grid_layout, stretch=1)
+                    
+                    col, row = divmod(images-1, 2)
+                    self.image_grid_layout.addWidget(image_view, row, col)
+                    image_view.ui.histogram.hide()
+                    image_view.ui.roiBtn.hide()
+                    image_view.ui.menuBtn.hide()
+                    self.vis.plots[source][i]['image_view'] = image_view
+                else:
+                    if isinstance(ch, tuple):
+                        x, y = ch
+                        line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[y]], width=2), name=f"{channel_names[x]} vs. {channel_names[y]}")
+                        self.vis.plots[source][i]['line'] = line
+
+                    elif isinstance(ch, int):
+                        line = self.subplots[pos].plot(pen=pg.mkPen(color=color_dict[channel_names[ch]], width=2), name=f"{channel_names[ch]}")
+                        self.vis.plots[source][i]['line'] = line
+
+                    # Add legend to the subplot
+                    if pos not in self.legends.keys() and pos != 'image':
+                        legend = self.subplots[pos].addLegend()
+                        for item in self.subplots[pos].items:
+                            if isinstance(item, pg.PlotDataItem):
+                                legend.addItem(item, item.opts['name'])
+                        self.legends[pos] = legend
 
         self.plots = self.vis.plots
         
@@ -689,9 +664,20 @@ class MainWindow(QMainWindow):
 
 
     def update_ring_buffers(self):
-        new_data = self.core._get_measurement_dict_PLOT()
         for source, buffer in self.vis.ring_buffers.items():
-            buffer.extend(new_data[source])
+            acq = self.core.acquisitions[self.core.acquisition_names.index(source)]
+            if acq.channel_names_video:
+                plot_channel = self.plots[source][-1]
+                since_refresh = plot_channel['since_refresh']
+                refresh_rate = plot_channel['refresh_rate']
+                if (refresh_rate <= since_refresh + self.vis.update_refresh_rate):
+                    _, new_data = acq.get_data(N_points=1, data_to_return="video")
+                    # self.new_images = [_[-1].T for _ in new_data]
+                    self.new_images = dict([(ch, _[-1].T) for ch, _ in zip(acq.channel_names_video, new_data)])
+
+            if acq.channel_names:
+                new_data = acq.get_data_PLOT()
+                buffer.extend(new_data)
 
 
     def update_plots(self, force_refresh=False):
@@ -721,28 +707,50 @@ class MainWindow(QMainWindow):
         self.update_ring_buffers()
 
         if not self.freeze_plot:
+            updated_plots = 0
             for source, plot_channels in self.plots.items():
                 self.vis.acquisition = self.core.acquisitions[self.core.acquisition_names.index(source)]
 
                 # for line, pos, apply_function, *channels in plot_channels:
-                for plot_channel in plot_channels:
-                    refresh_rate = self.vis.subplot_options[plot_channel['pos']]['subplot_refresh_rate']
+                for i, plot_channel in enumerate(plot_channels):
+                    refresh_rate = plot_channel['refresh_rate']
                     since_refresh = plot_channel['since_refresh']
 
-                    if refresh_rate <= since_refresh + self.vis.update_refresh_rate or force_refresh:
+                    if (refresh_rate <= since_refresh + self.vis.update_refresh_rate or force_refresh) and updated_plots < self.vis.max_plots_per_refresh:
                         # If time to refresh, refresh the plot and set since_refresh to 0.
                         plot_channel['since_refresh'] = 0
                         
-                        new_data = self.vis.ring_buffers[source].get_data()
-                        self.update_line(new_data, plot_channel)
+                        if plot_channel['pos'] == 'image':
+                            if hasattr(self, 'new_images'):
+                                new_data = self.new_images[plot_channel['channels']]
+                                #print(new_data.shape)
+                                self.update_image(new_data, plot_channel)
+                        else:
+                            new_data = self.vis.ring_buffers[source].get_data()
+                            self.update_line(new_data, plot_channel)
+
+                        updated_plots += 1
                     else:
                         # If not time to refresh, increase since_refresh by update_refresh_rate.
                         plot_channel['since_refresh'] += self.vis.update_refresh_rate
     
+    
+    def update_image(self, new_data, plot_channel):
+        _view = plot_channel['image_view'].getView()
+        if 'boxstate' in plot_channel.keys():
+            _state = _view.getState()
+
+        plot_channel['image_view'].setImage(new_data)
+
+        if 'boxstate' in plot_channel.keys():
+            _view.setState(_state)
+        
+        plot_channel['boxstate'] = True
+
 
     def update_line(self, new_data, plot_channel):
         # only plot data that are within xlim (applies only for normal plot, not ch vs. ch)
-        t_span_samples = int(self.vis.subplot_options[plot_channel['pos']]['t_span'] * self.vis.acquisition.sample_rate)
+        t_span_samples = int(plot_channel['t_span'] * self.vis.acquisition.sample_rate)
         
         nth = plot_channel['nth']
 
@@ -778,7 +786,7 @@ class MainWindow(QMainWindow):
             mask = (x >= xlim[0]) & (x <= xlim[1]) # Remove data outside of xlim
             
             plot_channel['line'].setData(x[mask][::nth], y[mask][::nth])
-        
+
         else:
             raise Exception("A single channel or channel vs. channel plot can be plotted at a time. Got more than 2 channels.")
 

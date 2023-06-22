@@ -3,19 +3,16 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to LadiskDAQ documentation!
+Welcome to LDAQ documentation!
 ===============================================================
 
 This package provides an extendable interface for data acquisition and generation. It is designed to be quickly set-up, easy to use and accomodate a wide range of data sources.
 
-The source-code for this package is available on `GitHub <https://github.com/ladisk/LadiskDAQ>`_.
+The source-code for this package is available on `GitHub <https://github.com/ladisk/LDAQ>`_.
 
 The package enables data **acquisition** from multiple sources, signal **generation** on multiple ouputs, and costumizable **live data visualization**.
 
-Examples of the acquisition/generation code for commonly used sources are presented in the showcase notebooks:
-
-- `National Instruments <https://github.com/ladisk/LadiskDAQ/blob/master/Showcase%20-%20National%20Instruments.ipynb>`_
-- `Serial communication <https://github.com/ladisk/LadiskDAQ/blob/master/Showcase%20-%20Serial.ipynb>`_
+Examples of the acquisition/generation code for commonly used sources are presented in the examples notebooks.
 
 .. note::
    

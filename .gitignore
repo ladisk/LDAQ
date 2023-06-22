@@ -107,3 +107,10 @@ venv.bak/
 
 # VSCode
 .vscode/
+
+# venv
+venv_py_3_10/
+venv_py_3_11/
+
+# ignore notebooks if Dev in notebook name:
+*Dev*.ipynb

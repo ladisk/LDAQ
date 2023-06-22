@@ -1,24 +1,30 @@
 Live visualization
 ==================
 
-Live visualization of the measurments is possible by adding the :class:`LadiskDAQ.Visualization` object to the
-:class:`LadiskDAQ.Core` class:
+Live visualization of the measurments is possible by adding the :class:`LDAQ.Visualization` object to the
+:class:`LDAQ.Core` class:
 
 .. code-block:: python
 
-    ldaq = LadiskDAQ.Core(acq, visualization=vis)
+    ldaq = LDAQ.Core(acq, visualization=vis)
 
 
 - ``acq`` is defined as presented in the `first example <simple_start.html>`_. 
-- ``vis`` is an instance of :class:`LadiskDAQ.Visualization` and is initiated as follows:
+- ``vis`` is an instance of :class:`LDAQ.Visualization` and is initiated as follows:
 
 .. code-block:: python
 
-    vis = LadiskDAQ.Visualization(refresh_rate=100)
+    vis = LDAQ.Visualization(refresh_rate=100, max_points_to_refresh=1e4, sequential_plot_updates=True)
 
-``refresh_rate``: defines the refresh rate of the live plot in milliseconds. ``refresh_rate`` can also be defined for each 
-subplot separetely (see :ref:`subplot_options <subplot_options>` for more details).
+- ``refresh_rate``: defines the refresh rate of the live plot in milliseconds. ``refresh_rate`` can also be defined for each 
+  line/image separetely (see :ref:`add_lines <add_lines>` for more details).
+- ``max_points_to_refresh``: defines the maximum number of points to refresh in the plot. Adjust this number to optimize performance.
+  This number is used to compute the ``nth`` value automatically.
+- ``sequential_plot_updates``: if ``True``, the lines are updated sequentially in each iteration of the main loop. 
+  Potentially, the plot can show a phase shift between the lines. This is because when the first line is updated, 
+  the data for the second line is already acquired. To avoid this, set ``sequential_plot_updates`` to ``False``.
 
+.. _add_lines:
 Adding lines to the plot
 ------------------------
 
@@ -26,7 +32,7 @@ To show plot the data, the lines have to be added to the plot. The number of sub
 
 .. code-block:: python
 
-    vis.add_lines(position=(0, 0), source='DataSource', channels=0, function=None, nth=10)
+    vis.add_lines(position=(0, 0), source='DataSource', channels=0, function=None, nth=10, refresh_rate=1000)
 
 The arguments are:
 
@@ -36,6 +42,9 @@ The arguments are:
 - ``function``: the function to be applied to the data. This can be a built-in function or a custom function. See :ref:`the function argument <function_argument>` for more details.
 - ``nth``: the number of data points to be plotted. If ``nth`` is set to 10, every 10th data point will be plotted. This is useful when the data is acquired at a high sample rate and the plot is updated at a low refresh rate.
   By default, ``nth`` is set to ``'auto'``. In this case, the number of data points to be plotted is determined automatically.
+- ``refresh_rate``: the refresh rate of the subplot. If ``None``, the refresh rate is set to the refresh rate set in the ``Visualization`` object.
+- ``t_span``: the time span of the data to be plotted. If ``None``, the time span is computed based on the ``xlim``. The ``t_span`` defines the length of the data passed to a function.
+  This is the same argument that can be given in the ``config_subplot`` method, but if it is defined here, this is the one that is taken into account.
 
 
 .. _channels_argument:
@@ -66,7 +75,7 @@ Multiple channel vs. channel plots can be added to the same subplot:
 
 .. _function_argument:
 The ``function`` argument
-~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The data can be processed on-the-fly by a specified function.
 
@@ -131,7 +140,7 @@ To configure the subplots, the ``config_subplot`` method is used:
 
 .. code-block:: python
 
-    vis.config_subplots(position=(2, 2), xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1, refresh_rate=None)
+    vis.config_subplot(position=(2, 2), xlim=None, ylim=None, t_span=None, axis_style='linear', title=None, rowspan=1, colspan=1)
 
 The valid arguments are:
 
@@ -143,7 +152,6 @@ The valid arguments are:
 - ``title``: the title of the subplot.
 - ``rowspan``: the number of rows the subplot spans.
 - ``colspan``: the number of columns the subplot spans.
-- ``refresh_rate``: the refresh rate of the subplot. If ``None``, the refresh rate is set to the refresh rate set in the ``Visualization`` object.
 
 .. note:: 
     When plotting a simple time signal, the ``t_span`` and ``xlim`` have the same effect. 

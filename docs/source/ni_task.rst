@@ -10,7 +10,7 @@ First create a ``NITask`` object:
 
 .. code:: python
 
-    task = LadiskDAQ.NITask('task', sample_rate=1000, settings_file=None)
+    task = LDAQ.national_instruments.NITask('task', sample_rate=1000, settings_file=None)
 
 The arguments of the ``NITask`` class are:
 
@@ -29,7 +29,7 @@ After all channels are added to the task, the task can be passed to the ``NIAcqu
 
 .. code:: python
 
-    acq = LadiskDAQ.NIAcquisition(task, acquisition_name='source_name')
+    acq = LDAQ.national_instruments.NIAcquisition(task, acquisition_name='source_name')
 
 For more details, see `getting started page <simple_start.html>`_.
 
@@ -45,14 +45,14 @@ To simplify the creation of the settings file, a settings file can be created. T
 
 - ``serial_nr``: serial number of the sensor.
 - ``sensitivity``: sensitivity of the sensor.
-- ``sensitivity_units``: units of the sensitivity (see ``LadiskDAQ.UNITS`` for the list of supported units).
+- ``sensitivity_units``: units of the sensitivity (see ``LDAQ.UNITS`` for the list of supported units).
 - ``units``: units of the sensor.
 
 To use the settings file, pass it to the ``NITask`` object:
 
 .. code:: python
 
-    task = LadiskDAQ.NITask('task', sample_rate=1000, settings_file='settings.xmlx')
+    task = LDAQ.national_instruments.NITask('task', sample_rate=1000, settings_file='settings.xmlx')
 
 Then, when adding the channels, the sensitivity, sensitivity units and units can be ommitted.
 The ``channel_name``, ``device_ind`` and ``channel_ind`` are still required. Additionally, the
@@ -82,7 +82,7 @@ If the ``scale`` argument is passed, it is assumed, that the measured signal is 
 The output (scaled) units are specified by the ``units`` argument.
 
 For the example above, the measured signal is in ``Volts`` and the output units are in ``Newtons``.
-The scaled units are an arbitrary string and do **not** have to be in the ``LadiskDAQ.UNITS`` list.
+The scaled units are an arbitrary string and do **not** have to be in the ``LDAQ.UNITS`` list.
 
 Save task
 ~~~~~~~~~
@@ -111,11 +111,11 @@ directly passed to the ``NIAcquisition`` object. In this case the task's name mu
 Output task
 -----------
 
-Output task can also be create by ``LadiskDAQ``. First, create :class:`LadiskDAQ.NITaskOutput` object:
+Output task can also be create by ``LDAQ``. First, create :class:`LDAQ.national_instruments.NITaskOutput` object:
 
 .. code:: python
 
-    output_task = LadiskDAQ.NITaskOutput('task', sample_rate=1000)
+    output_task = LDAQ.national_instruments.NITaskOutput('task', sample_rate=1000)
 
 Then add the analog output channels:
 
@@ -128,9 +128,9 @@ Finally, add the ``output_task`` to the ``NIGenerator`` class (instead of the ta
 
 .. code:: python
 
-    gen = LadiskDAQ.NIGenerator(output_task, generator_name='source_name')
+    gen = LDAQ.national_instruments.NIGeneration(output_task, generator_name='source_name')
 
-For more details on :class:`LadiskDAQ.NIGenerator` class, see `generation page <generation.html>`_.
+For more details on :class:`LDAQ.national_instruments.NIGenerator` class, see `generation page <generation.html>`_.
 
 .. note::
 

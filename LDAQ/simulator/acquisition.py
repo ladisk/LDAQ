@@ -20,9 +20,6 @@ class SimulatedAcquisition(BaseAcquisition):
         self._channel_names_video_init   = [] # list of original video channels names from source
         self._channel_shapes_video_init  = [] # list of original video channels shapes from source
         
-        
-        self.set_trigger(1e20, 0, duration=1.0)
-        
     def set_simulated_data(self, fun, channel_names=None, sample_rate=None, args=()):
         """sets simulated data to be returned by read_data() method. 
         This should also update self._channel_names_init list.
@@ -54,6 +51,9 @@ class SimulatedAcquisition(BaseAcquisition):
                 raise ValueError("Number of channels in data and channel_names does not match.")
         else:
             raise ValueError("Data must be 2D array.")
+        
+        self.set_data_source()
+        self.set_trigger(1e20, 0)
 
     def set_simulated_video(self, fun, channel_name_video=None, sample_rate=None, args=()):
         """sets simulated video to be returned by read_data() method.
@@ -85,6 +85,9 @@ class SimulatedAcquisition(BaseAcquisition):
             self._channel_shapes_video_init = [data.shape[1:]]
         else:
             raise ValueError("Data must be 3D array.")
+        
+        self.set_data_source()
+        self.set_trigger(1e20, 0)
 
         
     def set_data_source(self):
@@ -129,7 +132,7 @@ class SimulatedAcquisition(BaseAcquisition):
         """
         Clears serial buffer.
         """
-        pass
+        self.read_data()
             
     def get_sample_rate(self):
         """Returns acquisition sample rate.

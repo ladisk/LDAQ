@@ -155,7 +155,7 @@ class BaseAcquisition:
     - self.read_data()
     - self.terminate_data_source()
     - self.set_data_source()
-    - self.clear_buffer()
+    - self.clear_buffer() (optional)
     - self.get_sample_rate() (optional)
     
     For further information on how to override these methods, see the listed methods docstrings.

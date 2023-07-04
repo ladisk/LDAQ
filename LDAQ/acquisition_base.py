@@ -4,6 +4,7 @@ import pickle
 import datetime
 import time
 import threading
+import inspect
 
 from pyTrigger import pyTrigger, RingBuffer2D
 from ctypes import *
@@ -270,13 +271,17 @@ class BaseAcquisition:
         # NOTE: never change that virtual channels are added after data and video channels!!!
         # 2) add virtual channels:
         for virt_ch_name in self.virtual_channel_dict.keys():
-            func, source_channel_indices = self.virtual_channel_dict[virt_ch_name ]
+            func, source_channel_indices, first_arg_is_ref = self.virtual_channel_dict[virt_ch_name ]
             
             shapes_used = [self.channel_shapes[ idx ] for idx in source_channel_indices] # here this should support multiple channels
             
             # test if function returns proper output:
             dummy_arrays = [np.random.rand(3, *shape ) for  shape in shapes_used   ] # test arrays, 1st dim 3 just for testing
-            output = func(*dummy_arrays) # this is just a test to get output shape
+            if first_arg_is_ref:
+                output = func(self, *dummy_arrays) # this is just a test to get output shape
+            else:
+                output = func(*dummy_arrays)
+                
             if type(output) != np.ndarray:
                 raise ValueError('Virtual channel function must return numpy array of arbitrary shape and not int, float, tuple...')
             
@@ -292,9 +297,9 @@ class BaseAcquisition:
                 self.channel_shapes.append( shape )
                 self.channel_names_video.append(virt_ch_name )
             else:
-                shape = output.shape[1:]
+                shape = output.shape
                 raise ValueError(f'Output shape {shape} of virtual channel {virt_ch_name} is not supported.\n'
-                                 'Virtual channel function must return numpy array of shape (n_samples, M) and not (n_samples, ) or (n_samples, M, K) ...'
+                                 'Virtual channel function must return numpy array of shape (n_samples, M) and NOT (n_samples, ) or (n_samples, M, K) ...'
                                  )
             
             
@@ -315,22 +320,58 @@ class BaseAcquisition:
         
         Args:
             virtual_channel_name (str): Name of the channel that will be created
-            source_channel (list): list of name strings or indices of the channels in self.channel_names_all on which function will be applied
+            source_channel (int, str, list): list of name strings or indices of the channels in self.channel_names_all on which function will be applied.
+                                        optionally, if only one channel is used, it can be given as a string or index form self.channel_names_all
             function (function): Function used on the channels. Takes channels' arrays as input and has to return a numpy array
                                  where the first dimension is the number of samples. If returned array has 2 dimensions, it is treated
                                  as data source, if it has 3 dimensions, it is treated as video source.
+                                 The first argument of the function can be a reference to the acquisition class itself. This is useful
+                                 if the function needs to access some of the acquisition class' attributes, for example data history.
                                  
-        Example:
+        Example 1:
             >>> def func(ch1, ch2): # ch1 and ch2 are numpy arrays
+            >>>     # ch1 and ch2 are of shape (n_samples, 1) and NOT (1, )
             >>>     return ch1 + ch2 # returns numpy array of shape (n_samples, 1) or (n_samples, M, K)
-            >>> add_virtual_channel('ch1+ch2', ['ch1', 'ch2'], func)
+            >>> acq.add_virtual_channel('ch1+ch2', ['ch1', 'ch2'], func)
+        
+        Example 2:
+            >>> def virtual_channel_func(self, ch1):
+            >>>     try:
+            >>>         # At virtual channel definition, retrieving data or channel indices is not yet possible for all channels.
+            >>>         # Therefore, we use a try-except block to properly execute channel definition.
+            >>>         time, data = self.get_data(N_points=2)
+            >>>         i_ch3 = self.get_channel_index("ch3", channel_type='data') # retrieve data index channel of ch1
+            >>>         ch3_prev = data[-1, i_ch3] # retrieve last value of ch1
+            >>>         
+            >>>     except:
+            >>>         # at channel definition, no data is available yet. Therefore, we set the previous value to 0.
+            >>>         ch3_prev = 0
+            >>>         
+            >>>     # cumulative sum of ch1:
+            >>>     ch1_cumsum = np.cumsum(ch1) + ch3_prev	
+            >>>     return ch1_cumsum.reshape(-1,1) # reshape to (n_samples, 1)
+            >>>
+            >>> acq.add_virtual_channel('ch3', 'ch1', virtual_channel_func)
+            
+            
         """
         if source_channels == int or source_channels == str:
             source_channels = [source_channels]
         self.terminate_data_source()
         # list comprehension to get indices of the channels:
         source_channels = [self.channel_names_all.index(ch) if type(ch) == str else ch for ch in source_channels]
-        self.virtual_channel_dict[virtual_channel_name] = (function, source_channels)
+        # check if first element is refrence to acquisition class:
+        sig = inspect.signature(function)
+        input_arguments = [param.name for param in sig.parameters.values()]
+        if input_arguments[0] == 'self':
+            first_arg_is_ref = True
+        else:
+            first_arg_is_ref = False
+        if 'self' in input_arguments[1:]:
+            raise ValueError('Virtual channel function cannot can have only one reference to acquisition class as FIRST argument.')
+        
+        self.virtual_channel_dict[virtual_channel_name] = (function, source_channels, first_arg_is_ref)
+
         
         self.set_data_source()
         self.terminate_data_source()
@@ -382,14 +423,16 @@ class BaseAcquisition:
         
         # calculate data of virtual channels:
         if len(self.virtual_channel_dict.keys()) > 0:
-            for virt_ch_name, (func, source_channel_indices) in self.virtual_channel_dict.items():
-                #shape_source_list =  [self.channel_shapes[ idx ] for idx in source_channel_indices]
+            for virt_ch_name, (func, source_channel_indices, first_arg_is_ref) in self.virtual_channel_dict.items():
                 data_source_list = [
                     data[:, self.channel_pos[idx][0] : self.channel_pos[idx][1] ].reshape(-1, *self.channel_shapes[idx])
                     for idx in source_channel_indices
                 ]
-                
-                data_virt_ch = func(*data_source_list)
+                if first_arg_is_ref:
+                    data_virt_ch = func(self, *data_source_list)
+                else:
+                    data_virt_ch = func(*data_source_list)
+                    
                 if len(data_virt_ch.shape) == 1:
                     data_virt_ch = data_virt_ch.reshape(-1, 1)
                 elif len(data_virt_ch.shape) == 2:
@@ -412,6 +455,26 @@ class BaseAcquisition:
         Returns self.sample_rate
         """
         return self.sample_rate
+    
+    def get_channel_index(self, channel_name, channel_type='data'):
+        """Returns the index of the channel from either self.channel_names_all, self.channel_names or self.channel_names_video.
+        The channel_type argument is used to specify which list to use. If index is used for retrieving channel data from array
+        returned by self.get_data() then channel_type should depend on which type of data you are recieving.
+
+        Args:
+            channel_name (str): name of the channel
+            channel_type (str): type of the channel. Can be 'all', 'data' or 'video'. Default is 'data'.
+        Returns:
+            channel_index (int): index of the channel
+        """
+        if channel_type == 'all':
+            return self.channel_names_all.index(channel_name)
+        elif channel_type == "data":
+            return self.channel_names.index(channel_name)
+        elif channel_type == "video":
+            return self.channel_names_video.index(channel_name)
+        else:
+            raise ValueError("channel_type must be 'all', 'data' or 'video'.")
     
     def clear_buffer(self):
         """EDIT in child class

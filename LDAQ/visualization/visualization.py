@@ -690,14 +690,16 @@ class MainWindow(QMainWindow):
             self.on_measurement_start()
 
             if self.core.measurement_duration is not None: 
-                self.progress_bar.setMaximum(int(1000*self.core.acquisitions[0].Trigger.N_samples_to_acquire) ) 
+                self.progress_bar.setMaximum( 1000 ) 
             else:
                 pass
 
         # If the measurement is running, update the progress bar and the label.
         if self.triggered and self.core.is_running_global:
             if self.core.measurement_duration is not None:
-                self.progress_bar.setValue(int(1000*self.core.acquisitions[0].Trigger.N_acquired_samples_since_trigger))
+                
+                progress_value = float(self.core.acquisitions[0].Trigger.N_acquired_samples_since_trigger)/float(self.core.acquisitions[0].Trigger.N_samples_to_acquire)*1000
+                self.progress_bar.setValue( int(progress_value) )
                 string = f"Duration: {self.core.measurement_duration:.1f} s"
             else:
                 string = "Duration: Until stopped"

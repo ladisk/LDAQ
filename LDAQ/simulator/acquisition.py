@@ -1,6 +1,7 @@
 import numpy as np
 import time
 import multiprocessing as mp
+import threading as th
 import dill as pickle
 
 from ..acquisition_base import BaseAcquisition
@@ -9,10 +10,12 @@ class SimulatedAcquisition(BaseAcquisition):
     """
     Simulated acquisition class that can be used when no source is present.
     """
-    def __init__(self, acquisition_name=None):
+    def __init__(self, acquisition_name=None, multi_processing=False):
         """
         Args:
             acquisition_name (str, optional): Name of the acquisition. Defaults to None, in which case the name "Simulator" is used.
+            multi_processing (bool, optional): If True, the data generation process is run in a separate process. Defaults to True.
+                                               If False, data generation is executed in separate thread.
         """
         super().__init__()
         
@@ -23,6 +26,7 @@ class SimulatedAcquisition(BaseAcquisition):
         self._channel_shapes_video_init  = [] # list of original video channels shapes from source
         
         self.child_process_started = False
+        self.multi_processing = multi_processing
         
     def __del__(self):
         """If class is deleted, stop the data generation process.
@@ -71,7 +75,6 @@ class SimulatedAcquisition(BaseAcquisition):
         data = fun(time_array, *self._args)
 
         if data.ndim == 2:
-
             if channel_names is None:
                 self._channel_names_init = [f"channel_{i}" for i in range(data.shape[1])]
 
@@ -87,8 +90,9 @@ class SimulatedAcquisition(BaseAcquisition):
         """sets simulated video to be returned by read_data() method.
         This should also update self._channel_names_video_init and self._channel_shapes_video_init lists.
 
-        NOTE: The function 'fun' should also include all library imports needed for its execution. This is due to serialization limitations of the function
-        of 'dill' library in order to be able to pass the function to the child process. For example, if the function 'fun' uses numpy, it should be imported.
+        NOTE: if simulator acqusition is running with multi_processing=True, The function 'fun' should also include all library imports needed for its execution. 
+              This is due to serialization limitations of the function of 'dill' library in order to be able to pass the function to the child process.
+              For example, if the function 'fun' uses numpy, it should be imported.
         
         Args:
             fun (function): function that takes time array as first argument and returns numpy array with shape (n_samples, width, height)
@@ -127,22 +131,35 @@ class SimulatedAcquisition(BaseAcquisition):
         """  
         if initiate_data_source:
             if not self.child_process_started:
-                # Create a Pipe for communication between processes
-                self.parent_conn, self.child_conn = mp.Pipe()
-                # Event to signal stop of generation of simulated data:
-                self.stop_event = mp.Event()
-                
-                # serialize function using pickle:
-                ser_simulated_fun = pickle.dumps(self.simulated_function)
-                
-                self.child_process_started = True
-                self.process = mp.Process(target=self.data_generator, args=(self.child_conn, self.stop_event, self.sample_rate, ser_simulated_fun, self._args))
-                self.process.start()
-                
-                
-            
+                if self.multi_processing:
+                    self._set_data_source_multiprocessing()
+                    
+                else:
+                    self._set_data_source_threading()
+                    
         super().set_data_source()
+                
+    def _set_data_source_multiprocessing(self):
+        # Create a Pipe for communication between processes
+        self.parent_conn, self.child_conn = mp.Pipe()
+        # Event to signal stop of generation of simulated data:
+        self.stop_event = mp.Event()
         
+        # serialize function using pickle:
+        ser_simulated_fun = pickle.dumps(self.simulated_function)
+        
+        self.child_process_started = True
+        self.process = mp.Process(target=self.data_generator_multiprocessing, args=(self.child_conn, self.stop_event, self.sample_rate, ser_simulated_fun, self._args))
+        self.process.start()
+        
+    def _set_data_source_threading(self):
+        self.lock_retrieve_data = th.Lock()
+        self.stop_event = th.Event()
+        
+        self.child_process_started = True
+        self.process = th.Thread(target=self.data_generator_threading, args=(self.stop_event, self.sample_rate, self.simulated_function, self._args))
+        self.process.start()
+                    
     def terminate_data_source(self):
         """
         Terminates simulated data source
@@ -156,39 +173,90 @@ class SimulatedAcquisition(BaseAcquisition):
             self.child_process_started = False
 
     def read_data(self):
-        """reads data from simulated data source.
+        """Reads data from simulated data source.
 
         Returns:
             np.ndarray: data from serial port with shape (n_samples, n_channels).
         """
         time.sleep(0.002)
+        if self.multi_processing:
+            data = self._read_data_multiprocessing()
+        else:
+            data = self._read_data_threading()
+            
+        return data
+        
+    def _read_data_threading(self):
+        """Reads data from buffer when threading is used."""
+        with self.lock_retrieve_data:
+            if len(self.buffer) > 0:
+                data = np.vstack(self.buffer)
+                self.buffer.clear()
+            else:
+                data = np.empty((0, self.n_channels_trigger))
+
+        return data
+    
+    def _read_data_multiprocessing(self):
+        """Reads data from buffer when multiprocessing is used."""
+        
         # Send a request for data
         self.parent_conn.send('get_data')
         # Receive the data
-        return self.parent_conn.recv()
+        data = self.parent_conn.recv()
+        if data.shape[0] > 0:
+            return data
+        else:
+            return np.empty((0, len(self.n_channels_trigger)))
+            
     
     def clear_buffer(self):
         """
         Clears serial buffer.
         """
         self.read_data()
-            
-    def get_sample_rate(self):
-        """Returns acquisition sample rate.
-
-        Returns:
-            float: estimated sample rate
-        """
-        
-        return self.sample_rate
     
-    @staticmethod
-    def data_generator(connection, stop_event, sample_rate, ser_function, fun_args):
+    def data_generator_threading(self, stop_event, sample_rate, function, fun_args):
         """
         This function runs in a separate process and generates data (2D numpy arrays),
         and maintains a buffer of generated data.
         """
-        print("setting up child process")
+        time_start = time.time()
+        time_previous = time_start
+        time_add = 0
+        
+        self.buffer = []
+        while not stop_event.is_set():
+            time_now = time.time()
+            time_elapsed = time_now - time_previous
+            
+            samples_to_read = int(time_elapsed * sample_rate)
+            time_array = np.arange(samples_to_read)/sample_rate + time_add
+            
+            if len(time_array) == 0:
+                continue
+            
+            data = function(time_array, *fun_args)
+            
+            if data.ndim == 3:
+                data = data.reshape((-1, data.shape[1]*data.shape[2]))
+                
+            time_previous = time_now
+            time_add = time_array[-1] + 1/sample_rate
+            
+            # Simulate data generation (using random numbers here)
+            with self.lock_retrieve_data:
+                self.buffer.append(data)
+                
+            # Sleep for a bit to simulate time it takes to generate data
+            time.sleep(0.01)
+        
+    @staticmethod
+    def data_generator_multiprocessing(connection, stop_event, sample_rate, ser_function, fun_args):
+        """
+        This function runs in a separate process and generates data (2D numpy arrays),
+        and maintains a buffer of generated data.
+        """
         import time
         import numpy as np
         
@@ -200,7 +268,6 @@ class SimulatedAcquisition(BaseAcquisition):
         time_add = 0
         
         buffer = []
-        print("child process set up")
         while not stop_event.is_set():
             time_now = time.time()
             time_elapsed = time_now - time_previous
@@ -229,9 +296,13 @@ class SimulatedAcquisition(BaseAcquisition):
             if connection.poll():
                 request = connection.recv()
                 if request == 'get_data':
-                    # Send the entire buffer as a numpy array
-                    connection.send(np.vstack(buffer))
-                    # Clear the buffer
-                    buffer.clear()
-
+                    if len(buffer) > 0:
+                        # Send the entire buffer as a numpy array
+                        connection.send(np.vstack(buffer))
+                        # Clear the buffer
+                        buffer.clear()
+                    else:
+                        connection.send( np.array([]) )
+        
+    
     

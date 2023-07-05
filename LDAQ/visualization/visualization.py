@@ -329,8 +329,13 @@ class Visualization:
                         self.plots[source][i]['channels'] = self.core.acquisitions[acq_index].channel_names.index(channel)
                     elif type(plot_channel['channels']) == int:
                         pass
+                    elif type(plot_channel['channels']) == tuple:
+                        channel1, channel2 = plot_channel['channels']
+                        channel1 = self.core.acquisitions[acq_index].channel_names.index(channel1) if type(channel1)==str else channel1
+                        channel2 = self.core.acquisitions[acq_index].channel_names.index(channel2) if type(channel2)==str else channel2
+                        self.plots[source][i]['channels'] = (channel1, channel2)
                     else:
-                        raise ValueError("The `channel` must be a string (`channel_name`) or intiger (`channel_index`).")
+                        raise ValueError("The `channel` must be a string (`channel_name`), intiger (`channel_index`) or tuple of two strings or intigers.")
 
 
     def _check_added_lines(self):

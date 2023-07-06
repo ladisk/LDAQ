@@ -36,7 +36,7 @@ class SimulatedAcquisition(BaseAcquisition):
             self.process.join()
             self.child_process_started = False
         
-    def set_simulated_data(self, fun, channel_names=None, sample_rate=None, args=()):
+    def set_simulated_data(self, fun_or_array, channel_names=None, sample_rate=None, args=()):
         """sets simulated data to be returned by read_data() method. 
         This should also update self._channel_names_init list.
         
@@ -44,7 +44,8 @@ class SimulatedAcquisition(BaseAcquisition):
         of 'dill' library in order to be able to pass the function to the child process. For example, if the function 'fun' uses numpy, it should be imported.
 
         Args:
-            fun (function): function that returns numpy array with shape (n_samples, n_channels)
+            fun_or_array (function, np.ndarray): function that returns numpy array with shape (n_samples, n_channels) or numpy array with shape (n_samples, n_channels) that
+                                                 will be repeated in a loop.
             channel_names (list, optional): list of channel names. Defaults to None, in which case the names "channel_0", "channel_1", ... are used.
             sample_rate (int, optional): sample rate of the simulated data. Defaults to None, in which case the sample rate of 1000 Hz is used.
             args (tuple, optional): arguments for the function. Defaults to ().
@@ -66,13 +67,21 @@ class SimulatedAcquisition(BaseAcquisition):
         self._channel_names_video_init   = [] # list of original video channels names from source
         self._channel_shapes_video_init  = [] # list of original video channels shapes from source
 
-        self.simulated_function = fun
         self._channel_names_init = channel_names
         self.sample_rate = 1000 if sample_rate is None else sample_rate
-        self._args = args
         
-        time_array = np.arange(self.sample_rate)/self.sample_rate
-        data = fun(time_array, *self._args)
+        if isinstance(fun_or_array, np.ndarray):
+            data = fun_or_array
+            self.simulated_function = data
+            self._args = ()
+        elif callable(fun_or_array): # function
+            fun = fun_or_array
+            self.simulated_function = fun
+            self._args = args
+            time_array = np.arange(self.sample_rate)/self.sample_rate
+            data = fun(time_array, *self._args)
+        else:
+            raise ValueError("fun_or_array must be either function or numpy array.")
 
         if data.ndim == 2:
             if channel_names is None:
@@ -86,7 +95,7 @@ class SimulatedAcquisition(BaseAcquisition):
         self.set_data_source(initiate_data_source=True)
         self.set_trigger(1e20, 0)
 
-    def set_simulated_video(self, fun, channel_name_video=None, sample_rate=None, args=()):
+    def set_simulated_video(self, fun_or_array, channel_name_video=None, sample_rate=None, args=()):
         """sets simulated video to be returned by read_data() method.
         This should also update self._channel_names_video_init and self._channel_shapes_video_init lists.
 
@@ -95,7 +104,8 @@ class SimulatedAcquisition(BaseAcquisition):
               For example, if the function 'fun' uses numpy, it should be imported.
         
         Args:
-            fun (function): function that takes time array as first argument and returns numpy array with shape (n_samples, width, height)
+            fun_or_array (function, np.ndarray): function that returns numpy array with shape (n_samples, width, height) or numpy array with shape (n_samples, width, height) that
+                                                 will be repeated in a loop.
             channel_name_video (str, optional): name of the video channel. Defaults to None, in which case the name "video" is used.
             sample_rate (int, optional): sample rate of the simulated data. Defaults to None, in which case the sample rate of 30 Hz is used.
             args (tuple, optional): arguments for the function. Defaults to ().
@@ -104,12 +114,20 @@ class SimulatedAcquisition(BaseAcquisition):
         self._channel_names_video_init   = [] # list of original video channels names from source
         self._channel_shapes_video_init  = [] # list of original video channels shapes from source
 
-        self.simulated_function = fun
         self.sample_rate = 30 if sample_rate is None else sample_rate
-        self._args = args
         
-        time_array = np.arange(self.sample_rate)/self.sample_rate
-        data = fun(time_array, *self._args)
+        if isinstance(fun_or_array, np.ndarray):
+            data = fun_or_array
+            self.simulated_function = data
+            self._args = ()
+        elif callable(fun_or_array): # function
+            fun = fun_or_array
+            self.simulated_function = fun
+            self._args = args
+            time_array = np.arange(self.sample_rate)/self.sample_rate
+            data = fun(time_array, *self._args)
+        else:
+            raise ValueError("fun_or_array must be either function or numpy array.")
 
         if data.ndim == 3:
             if channel_name_video is None:
@@ -216,7 +234,7 @@ class SimulatedAcquisition(BaseAcquisition):
         """
         self.read_data()
     
-    def data_generator_threading(self, stop_event, sample_rate, function, fun_args):
+    def data_generator_threading(self, stop_event, sample_rate, fun_or_arr, fun_args):
         """
         This function runs in a separate process and generates data (2D numpy arrays),
         and maintains a buffer of generated data.
@@ -225,6 +243,14 @@ class SimulatedAcquisition(BaseAcquisition):
         time_previous = time_start
         time_add = 0
         
+        if callable(fun_or_arr):
+            function = fun_or_arr
+            is_fun = True
+        else:
+            data_loop = fun_or_arr
+            is_fun = False
+        
+        N = 0 # samples generated so far
         self.buffer = []
         while not stop_event.is_set():
             time_now = time.time()
@@ -236,7 +262,11 @@ class SimulatedAcquisition(BaseAcquisition):
             if len(time_array) == 0:
                 continue
             
-            data = function(time_array, *fun_args)
+            if is_fun:
+                data = function(time_array, *fun_args)
+            else:
+                idx = np.arange(N, N + samples_to_read) % len(data_loop)
+                data = data_loop[idx]
             
             if data.ndim == 3:
                 data = data.reshape((-1, data.shape[1]*data.shape[2]))
@@ -248,6 +278,7 @@ class SimulatedAcquisition(BaseAcquisition):
             with self.lock_retrieve_data:
                 self.buffer.append(data)
                 
+            N += samples_to_read
             # Sleep for a bit to simulate time it takes to generate data
             time.sleep(0.01)
         

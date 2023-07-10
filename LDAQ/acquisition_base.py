@@ -589,6 +589,8 @@ class BaseAcquisition:
             
         if measurement_duration is not None:
             self.N_samples_to_acquire = int(measurement_duration*self.sample_rate)
+        else:
+            self.N_samples_to_acquire = None
                    
     def _set_trigger_instance(self):
         """
@@ -636,7 +638,7 @@ class BaseAcquisition:
         if self.continuous_mode:
             self.Trigger.N_samples_to_acquire = self.N_samples_to_acquire   
             
-        self.N_samples_to_acquire = self.trigger_settings["duration_samples"]      
+        #self.N_samples_to_acquire = self.trigger_settings["duration_samples"]      
         
     def set_trigger(self, level, channel, duration=1, duration_unit='seconds', presamples=0, type='abs'):
         """Set parameters for triggering the measurement. 

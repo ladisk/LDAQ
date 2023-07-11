@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.signal import coherence
+from scipy.signal import coherence, csd
 import types
 
 
@@ -116,14 +116,21 @@ def _fun_frf_amp(self_vis, channel_data):
         2D numpy array: np.array([freq, np.abs(H1)]).T
     """
     # estimate FRF:
+    # x, y = channel_data.T
+    # X = np.fft.rfft(x)
+    # Y = np.fft.rfft(y)
+    # Sxy = np.conj(X) * Y
+    # Sxx = np.conj(X) * X
+    # H1 = Sxy / Sxx
+    
+    # freq = np.fft.rfftfreq(len(channel_data), d=1/self_vis.acquisition.sample_rate)
+    
     x, y = channel_data.T
-    X = np.fft.rfft(x)
-    Y = np.fft.rfft(y)
-    Sxy = np.conj(X) * Y
-    Sxx = np.conj(X) * X
+    fs = self_vis.acquisition.sample_rate
+    freq, Sxy = csd(x, y, fs, nperseg=int(fs))
+    freq, Sxx = csd(x, x, fs, nperseg=int(fs))
     H1 = Sxy / Sxx
     
-    freq = np.fft.rfftfreq(len(channel_data), d=1/self_vis.acquisition.sample_rate)
     return np.array([freq, np.abs(H1)]).T
     
 def _fun_frf_phase(self_vis, channel_data):   
@@ -136,15 +143,13 @@ def _fun_frf_phase(self_vis, channel_data):
     Returns:
         2D numpy array: np.array([freq, np.angle(H1)*180/np.pi]).T
     """
-    # estimate FRF:
+
     x, y = channel_data.T
-    X = np.fft.rfft(x)
-    Y = np.fft.rfft(y)
-    Sxy = np.conj(X) * Y
-    Sxx = np.conj(X) * X
+    fs = self_vis.acquisition.sample_rate
+    freq, Sxy = csd(x, y, fs, nperseg=int(fs))
+    freq, Sxx = csd(x, x, fs, nperseg=int(fs))
     H1 = Sxy / Sxx
     
-    freq = np.fft.rfftfreq(len(channel_data), d=1/self_vis.acquisition.sample_rate)
     return np.array([freq, np.angle(H1)*180/np.pi]).T
 
 def _fun_coh(self_vis, channel_data):   
@@ -159,19 +164,8 @@ def _fun_coh(self_vis, channel_data):
     """
     # estimate FRF:
     x, y = channel_data.T
-    fs   = self_vis.acquisition.sample_rate
-    # X = np.fft.rfft(x)
-    # Y = np.fft.rfft(y)
-    # Sxy = np.conj(X) * Y
-    # Sxx = np.conj(X) * X
-    # Syy = np.conj(Y) * Y
-    
-    # coh = np.abs( ( np.abs(Sxy)**2 / (Sxx * Syy) ) )
-    # coh[ np.isnan(coh) ] = 0
-    
-    # freq = np.fft.rfftfreq(len(channel_data), d=1/fs)
-    
-    freq, coh = coherence(x, y, fs, nperseg=fs*2)
+    fs   = self_vis.acquisition.sample_rate    
+    freq, coh = coherence(x, y, fs, nperseg=fs)
     
     return np.array([freq, coh]).T
         

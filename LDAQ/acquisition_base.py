@@ -577,10 +577,25 @@ class BaseAcquisition:
 
         Args:
             boolean (bool, optional): Defaults to True.
-            measurement_duration (float, optional): If not None, sets the duration of the measurement in seconds.
-            NOTE: Based on measurement duration, the number of total samples to be acquired is calculated. In this case the 
-            ring buffer size can be different to the number of samples to be acquired. If None, measurement duration is 
-            set to the size of the ring buffer.
+            measurement_duration (float, optional): If not None, sets the duration of the measurement in seconds. It does NOT
+                                                    update ring buffer size. Defaults to None.
+            
+            NOTE: Based on measurement_duration, the number of total samples to be acquired is calculated. In this case the 
+            ring buffer size can be different to the number of samples to be acquired. If None, measurement duration measurement
+            will not stop until externally stopped. This means that after the ring buffer is filled, the oldest data will be
+            overwritten by the newest data. 
+            
+        Returns:
+            None
+            
+        Examples:
+            # Setting continuous mode to True, setting buffer size to 10 seconds of data, measurement will run indefinitely:
+            >>> acq.set_trigger(level=0, channel=0, duration=10.) # this will trigger measurement right away, buffer size will be 10 seconds
+            >>> acq.set_continuous_mode(True, measurement_duration=None) # acquisition will run indefinitely until externally stopped
+            
+            # Setting continuous mode to True, setting buffer size to 5 seconds of data, measurment will run for 10 seconds:
+            >>> acq.set_trigger(level=0, channel=0, duration=5.) # this will trigger measurement right away, buffer size will be 5 seconds
+            >>> acq.set_continuous_mode(True, measurement_duration=10.) # acquisition will run for 10 seconds, but buffer will store only 5 seconds of data
         """
         if boolean:
             self.continuous_mode = True

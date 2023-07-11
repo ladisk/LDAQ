@@ -41,7 +41,62 @@ class Core():
         for control in self.controls:
             control._retrieve_core_object(self) # give control object access to core object
         
+        # Trigger and Measurement settings:
         self.trigger_source_index = None
+        self.measurement_duration = None
+        self.global_trigger_settings = {"source": None, "channel": None, "level": None, "duration_unit": None, "presamples": None, "type": None}
+        
+        # Added functions to be called during measurement:
+        self.additional_check_functions = []
+        
+    def __repr__(self):
+        """Returns description of the Core object settings.
+
+        Returns:
+            str: description of the Core object settings.
+        """
+        string = ""
+        
+        # Acquisition sources:
+        string += "Acquisition sources (index, name):\n"
+        acq_string = ""
+        if len(self.acquisitions) == 0:
+            string += "\tNone\n"
+        else:
+            for i, acq in enumerate(self.acquisition_names):
+                acq_string += f"\t{i} - {acq}\n"
+            string += acq_string
+        string += "\n"
+          
+        # Generation sources:      
+        string += "Generation sources (index, name):\n"
+        if len(self.generations) == 0:
+            string += "\tNone\n"
+        else:
+            gen_string = ""
+            for i, gen in enumerate(self.generation_names):
+                gen_string += f"\t{i} - {gen}\n"
+            string += gen_string
+        string += "\n"
+        
+        # Additional check events:
+        string += "Additional check events:\n"
+        if len(self.additional_check_functions) == 0:
+            string += "\tNone\n"
+        else:
+            string += "Custom check events:\n"
+            for fun in self.additional_check_functions:
+                string += f"\t{fun.__name__}\n"
+        string += "\n"
+        
+        # Trigger settings:
+        string += "Trigger settings:\n"
+        string += f"\t- duration [sec]      {self.measurement_duration}\n"
+        for key in self.global_trigger_settings:
+            if key != "duration_unit":
+                string += f"\t- {key:<20}{self.global_trigger_settings[key]}\n"
+            
+        return string     
         
     def synchronize_acquisitions(self):
         """
@@ -135,7 +190,8 @@ class Core():
         for control in self.controls:
             thread_control = threading.Thread(target= self._stop_event_handling(control.run_control) )
             self.thread_list.append(thread_control)
-             
+        
+        time.sleep(0.005)     
         # check events that can stop the acquisition:
         thread_check_events = threading.Thread(target= self._stop_event_handling( self._check_events) )
         self.thread_list.append(thread_check_events)
@@ -288,7 +344,7 @@ class Core():
         NOTE: only one trigger channel is supported at the moment. Additionally trigger can only be set
         on 'data' channels. If trigger is needed on 'video' channels, a 'data' virtual channel has to be created
         using 'add_virtual_channel()' method, and then trigger can be set on this virtual channel.
-        """
+        """        
         duration_unit = duration_unit.lower()
         trigger_type  = trigger_type.lower()
         
@@ -332,6 +388,13 @@ class Core():
                 self.measurement_duration = duration/source_sample_rate
             else:
                 pass # should not happen
+            
+            self.global_trigger_settings["source"]  = source
+            self.global_trigger_settings["channel"] = channel
+            self.global_trigger_settings["level"]   = level
+            self.global_trigger_settings["duration_unit"] = duration_unit
+            self.global_trigger_settings["presamples"]    = presamples
+            self.global_trigger_settings["type"]          = trigger_type
             
     def _keyboard_hotkeys_setup(self):
         """Adds keyboard hotkeys for interaction.

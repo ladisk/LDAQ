@@ -1,1 +1,1 @@
-from .acquisition import SerialAcquisition
+from .acquisition import SerialAcquisition, SerialAcquisitionSimple

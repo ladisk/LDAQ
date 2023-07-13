@@ -3,6 +3,8 @@ import time
 import multiprocessing as mp
 import threading as th
 import dill as pickle
+import psutil
+import os
 
 from ..acquisition_base import BaseAcquisition
 
@@ -92,7 +94,7 @@ class SimulatedAcquisition(BaseAcquisition):
         else:
             raise ValueError("Data must be 2D array.")
         
-        self.set_data_source(initiate_data_source=True)
+        self.set_data_source(initiate_data_source=False)
         self.set_trigger(1e20, 0)
 
     def set_simulated_video(self, fun_or_array, channel_name_video=None, sample_rate=None, args=()):
@@ -139,7 +141,7 @@ class SimulatedAcquisition(BaseAcquisition):
         else:
             raise ValueError("Data must be 3D array.")
         
-        self.set_data_source(initiate_data_source=True)
+        self.set_data_source(initiate_data_source=False)
         self.set_trigger(1e20, 0)
 
         
@@ -196,7 +198,7 @@ class SimulatedAcquisition(BaseAcquisition):
         Returns:
             np.ndarray: data from serial port with shape (n_samples, n_channels).
         """
-        time.sleep(0.002)
+        time.sleep(0.05)
         if self.multi_processing:
             data = self._read_data_multiprocessing()
         else:
@@ -253,6 +255,8 @@ class SimulatedAcquisition(BaseAcquisition):
         N = 0 # samples generated so far
         self.buffer = []
         while not stop_event.is_set():
+            time.sleep(0.01)
+            
             time_now = time.time()
             time_elapsed = time_now - time_previous
             
@@ -280,7 +284,7 @@ class SimulatedAcquisition(BaseAcquisition):
                 
             N += samples_to_read
             # Sleep for a bit to simulate time it takes to generate data
-            time.sleep(0.01)
+            
         
     @staticmethod
     def data_generator_multiprocessing(connection, stop_event, sample_rate, ser_function, fun_args):
@@ -335,5 +339,3 @@ class SimulatedAcquisition(BaseAcquisition):
                     else:
                         connection.send( np.array([]) )
         
-    
-    

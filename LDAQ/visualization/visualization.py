@@ -21,7 +21,7 @@ INBUILT_FUNCTIONS = {'fft': _fun_fft, 'frf_amp': _fun_frf_amp, 'frf_phase': _fun
     
     
 class Visualization:
-    def __init__(self, refresh_rate: int = 100, max_points_to_refresh: int = 10000, sequential_plot_updates: bool = True):
+    def __init__(self, refresh_rate: int = 100, max_points_to_refresh: int = 10000, sequential_plot_updates: bool = False):
         """Initialize a new `Visualization` object.
 
         Args:

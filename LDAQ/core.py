@@ -33,11 +33,14 @@ class Core():
         self.visualization = visualization
         
         self.acquisition_names = [acq.acquisition_name for acq in self.acquisitions]
-        self.generation_names = [gen.generation_name for gen in self.generations]
+        self.generation_names  = [gen.generation_name for gen in self.generations]
+        self.control_names     = [con.control_name for con in self.controls]
         if any(self.acquisition_names.count(s) > 1 for s in set(self.acquisition_names)): # check for duplicate acq. names
             raise Exception("Two or more acquisition sources have the same name. Please make them unique.")
         if any(self.generation_names.count(s) > 1 for s in set(self.generation_names)):
             raise Exception("Two or more generation sources have the same name. Please make them unique.")
+        if any(self.control_names.count(s) > 1 for s in set(self.control_names)):
+            raise Exception("Two or more control sources have the same name. Please make them unique.")
         for control in self.controls:
             control._retrieve_core_object(self) # give control object access to core object
         
@@ -218,7 +221,6 @@ class Core():
 
         # on exit:
         self.stop_acquisition_and_generation()
-        
         for thread in self.thread_list:
             thread.join()
             

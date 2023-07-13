@@ -1,7 +1,7 @@
 import pyqtgraph as pg
 from pyqtgraph import ImageView, ImageItem
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QPushButton, QHBoxLayout, QDesktopWidget, QProgressBar, QLabel
-from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtCore import QTimer, Qt, QPointF
 from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QIcon
 
 import numpy as np
@@ -18,8 +18,63 @@ from typing import Optional, Tuple, Union, List, Callable
 from .visualization_helpers import compute_nth, check_subplot_options_validity, _fun_fft, _fun_frf_amp, _fun_frf_phase, _fun_coh
 
 INBUILT_FUNCTIONS = {'fft': _fun_fft, 'frf_amp': _fun_frf_amp, 'frf_phase': _fun_frf_phase, 'coh': _fun_coh}
-    
-    
+
+# Create a subclass of ImageView
+class HoverImageView(pg.ImageView):
+    def __init__(self):
+        super().__init__()
+
+        # Create a label to display the pixel value
+        self.pixel_label = QLabel(self)
+        self.pixel_label.setStyleSheet("background-color: white; padding: 2px;")
+
+        # Position the label on top of the ImageView
+        self.pixel_label.setAlignment(Qt.AlignCenter)
+        self.pixel_label.setFixedWidth(500)
+        self.pixel_label.move(10, 10)
+
+        # Save the last hover position
+        self.last_hover_pos = None
+
+        # Enable mouse tracking to receive hover events
+        self.getImageItem().hoverEvent = self.hoverEvent
+        self.setMouseTracking(True)
+
+        # Create a timer to periodically check the pixel value under the cursor
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.checkPixelValue)
+        self.timer.start(100)  # check every 100 ms
+
+    def hoverEvent(self, event):
+        """Override the hover event handler. Record the last hover position, if the
+        mouse is outside the image, set the last hover position to None."""
+        if event.isExit():
+            self.last_hover_pos = None
+        else:
+            self.last_hover_pos = event.pos()
+
+    def checkPixelValue(self):
+        """Because the hover event is only triggered when the mouse moves, this event is called within
+        a timer to periodically check the pixel value under the cursor."""
+        if self.last_hover_pos is not None:
+            pos = self.last_hover_pos
+            x = int(pos.x())
+            y = int(pos.y())
+            mapped_pos = self.view.mapFromItem(self.getImageItem(), QPointF(pos))
+            x_m = int(mapped_pos.x())
+            y_m = int(mapped_pos.y())
+            image = self.getImageItem().image
+            if 0 <= x < image.shape[1] and 0 <= y < image.shape[0]:
+                value = image[y, x]
+                # mapped_pos = self.view.mapFromItem(self.getImageItem(), QPointF(pos))
+                self.pixel_label.setText(f'x:{x}, y:{y}, {value}')
+                self.pixel_label.move(x_m + 10, y_m + 10)
+            else:
+                self.pixel_label.setText('')
+        else:
+            self.pixel_label.setText('')
+            self.pixel_label.move(10, 10)
+
 class Visualization:
     def __init__(self, refresh_rate: int = 100, max_points_to_refresh: int = 10000, sequential_plot_updates: bool = False):
         """Initialize a new `Visualization` object.
@@ -628,7 +683,7 @@ class MainWindow(QMainWindow):
                     if cm.color[0, 0] == 1:
                         cm.reverse()
 
-                    image_view = ImageView()
+                    image_view = HoverImageView()
                     image_view.setColorMap(cm)
 
                     if images == 1:

@@ -172,7 +172,7 @@ class Core():
             if self.measurement_duration is not None:
                 acquisition.update_trigger_parameters(duration=self.measurement_duration, duration_unit="seconds")
             if self.save_interval is not None:
-                # update ringbuffer sizes to 1.2x the save size:
+                # update ringbuffer size to 1.2x the save size:
                 acquisition.set_continuous_mode(True, measurement_duration=self.measurement_duration)
                 acquisition.update_trigger_parameters(duration=1.2*self.save_interval, duration_unit="seconds")
             else:
@@ -595,7 +595,7 @@ class Core():
         else:
             current_file_size = 0
 
-        # Check if file size exceeds 100 MB, create a new file with incremented index
+        # Check if file size exceeds 200 MB, create a new file with incremented index
         if current_file_size >= max_file_size:
             file_index += 1 # update file index
             

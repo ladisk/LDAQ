@@ -11,7 +11,7 @@ from .ni_task import NITaskOutput
 from ..generation_base import BaseGeneration
 
 class NIGeneration(BaseGeneration):
-    def __init__(self, task_name, signal, generation_name=None):
+    def __init__(self, task_name, signal=None, generation_name=None):
         """NI Generation class used for generating signals.
         
         Args:
@@ -21,11 +21,10 @@ class NIGeneration(BaseGeneration):
         """
         super().__init__()
         self.task_name = task_name
-        self.signal = signal
-
-        if self.signal.ndim > 1:
-            self.signal = self.signal.T
-
+        
+        if signal is not None:
+            self.set_generation_signal(signal)
+        
         self.task_terminated = True
         self.task_base = task_name
         
@@ -38,6 +37,16 @@ class NIGeneration(BaseGeneration):
         
         self.set_data_source(initiate=False)
         self.generation_name = task_name if generation_name is None else generation_name
+        
+    def set_generation_signal(self, signal):
+        """sets signal that will be generated, and repeated in a loop.
+
+        Args:
+            signal (np.ndarray): numpy array with shape ``(n_samples, n_channels)`` or ``(n_samples,)``.
+        """
+        self.signal = signal
+        if self.signal.ndim > 1:
+            self.signal = self.signal.T
 
     def set_data_source(self, initiate=True):
         """Sets the data source for the generation.
@@ -70,6 +79,8 @@ class NIGeneration(BaseGeneration):
     def generate(self):
         """Generates the signal.
         """
+        if self.signal is None:
+            raise ValueError("No signal set for generation.")
         self.Task.generate(self.signal, clear_task=False)
 
     def clear_task(self):

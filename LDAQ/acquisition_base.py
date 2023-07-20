@@ -301,8 +301,7 @@ class BaseAcquisition:
                 raise ValueError(f'Output shape {shape} of virtual channel {virt_ch_name} is not supported.\n'
                                  'Virtual channel function must return numpy array of shape (n_samples, M) and NOT (n_samples, ) or (n_samples, M, K) ...'
                                  )
-            
-            
+        
         # 3) recalculate total number of channels: 
         self.n_channels = len(self.channel_names_all)
         self.n_channels_trigger  = 0

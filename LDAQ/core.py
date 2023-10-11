@@ -564,7 +564,12 @@ class Core():
                         file_name = f"{now.strftime('%Y%m%d_%H%M%S')}_{name}.pkl"
                         file_created = True
 
-                    file_index = self._open_and_save(file_name, root, file_index)
+                    try:
+                        file_index = self._open_and_save(file_name, root, file_index)
+                    except FileNotFoundError:
+                        pass
+                        # TODO: find the root cause of this error. It usually happens when 
+                        #       new file is created.
 
         if self.triggered_globally:
             time.sleep(0.5)
@@ -604,8 +609,9 @@ class Core():
             time_last_dict = {acq.acquisition_name: data[acq.acquisition_name]["time"][-1] for acq in self.acquisitions}
         else:
             time_last_dict = {acq.acquisition_name: 0 for acq in self.acquisitions}
-            
-        file_name = f"{file_name_base}_{file_index}{ext}"
+        
+        file_index_str = str(file_index).zfill(4)
+        file_name = f"{file_name_base}_{file_index_str}{ext}"
         file_path = os.path.join(root, file_name)
         
         if os.path.exists(file_path):

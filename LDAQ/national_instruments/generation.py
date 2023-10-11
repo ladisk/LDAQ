@@ -109,5 +109,4 @@ class NIGeneration(BaseGeneration):
         self.is_running = True
         
         self.set_data_source()
-
         self.generate()

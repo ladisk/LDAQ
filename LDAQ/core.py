@@ -587,7 +587,7 @@ class Core():
         Returns:
             int: updated file index
         """
-        max_file_size = 200 * 1024 * 1024  # 200 MB - maximum file size
+        max_file_size = 10 * 1024 * 1024  # 200 MB - maximum file size
 
         file_name_base, ext = os.path.splitext(file_name_base)
         file_index_str = str(file_index).zfill(4)
@@ -604,12 +604,6 @@ class Core():
         if current_file_size >= max_file_size:
             file_index += 1 # update file index
             
-            # get previous times for each acquisition:
-            data = load_measurement(file_name, root)
-            time_last_dict = {acq.acquisition_name: data[acq.acquisition_name]["time"][-1] for acq in self.acquisitions}
-        else:
-            time_last_dict = {acq.acquisition_name: 0 for acq in self.acquisitions}
-        
         file_index_str = str(file_index).zfill(4)
         file_name = f"{file_name_base}_{file_index_str}{ext}"
         file_path = os.path.join(root, file_name)
@@ -627,16 +621,9 @@ class Core():
 
                 if name not in data:
                     data[name] = measurement
-                    data[name]['time'] += time_last_dict[name] + 1 / acq.sample_rate
         
                 else:
-                    if len(data[name]['time']) > 0:
-                        time_last = data[name]['time'][-1]
-                    else:
-                        time_last = time_last_dict[name]
-                        
-                    new_time = measurement['time'] + time_last + 1 / acq.sample_rate
-                    data[name]['time'] = np.concatenate((data[name]['time'], new_time), axis=0)
+                    data[name]['time'] = np.concatenate((data[name]['time'], measurement['time']), axis=0)
                     
                     if 'data' in measurement.keys():
                         new_data = measurement['data']

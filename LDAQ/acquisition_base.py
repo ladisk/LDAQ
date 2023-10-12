@@ -813,7 +813,8 @@ class BaseAcquisition:
         else:
             data = self.Trigger.get_data()[-N_points:]
                 
-        time = np.arange(data.shape[0])/self.sample_rate     
+        N = self.Trigger.N_acquired_samples_since_trigger
+        time = np.arange(N-data.shape[0], N)/self.sample_rate     
         data_return = self._reshape_data(data, data_to_return)
     
         return time, data_return

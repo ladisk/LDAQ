@@ -5,6 +5,7 @@ import numpy as np
 import keyboard
 from beautifultable import BeautifulTable
 
+import copy
 import threading
 import pickle
 import sys
@@ -107,7 +108,8 @@ class Core():
         """
         pass
     
-    def run(self, measurement_duration=None, autoclose=True, autostart=False, save_interval=None, run_name="Run", root='', verbose=2):
+    def run(self, measurement_duration=None, autoclose=True, autostart=False, save_interval=None, run_name="Run", 
+            root='', save_channels=None, verbose=2):
         """
         Runs the measurement with acquisition and generation sources that have already been set. This entails setting configuration
         and making acquiring and generation threads for each source, as well as starting and stopping them when needed. If visualization
@@ -125,7 +127,11 @@ class Core():
             save_interval (float): data is saved every 'save_periodically' seconds. Defaults to None, meaning data is not saved.
             run_name (str): name of the run. This name is used to save measurements when periodic saving is turned on. Default is "Run".
             root (str): root directory where measurements are saved. Default is empty string.
-            verbose (int): 0 (print nothing), 1 (print status) or 2 (print status and hotkey legend). Default is 2.
+            save_channels (list): list of channels (strings) to save when periodic saving is turned on (save_interval != None). 
+                                  For each acquisition source a check if specified channels exists will be performed. If None, 
+                                  all channels are saved. Default is None.
+            verbose (int): 0 (print nothing), 1 (print status) or 2 (print status and hotkey legend, if used without visualization). 
+                           Default is 2.
             
         Returns:
             None   
@@ -142,6 +148,7 @@ class Core():
         self.autoclose = autoclose
         self.is_running_global = True
         self.autostart = autostart
+        self._save_channels = save_channels
         
         self.first = True # for printing trigger the first time.
         
@@ -476,7 +483,7 @@ class Core():
                     'channel_names_video': self.channel_names_video, 'video': list of 3D arrays (n_samples, height, width),
                     'sample_rate': self.sample_rate}
         """        
-        self.measurement_dict = {}
+        measurement_dict = {}
         for idx, name in enumerate(self.acquisition_names):
             if N_seconds is None:
                 N_points = None
@@ -487,11 +494,71 @@ class Core():
             else:
                 raise KeyError("Wrong argument type passed to N_seconds.")
                 
-            self.measurement_dict[ name ] = self.acquisitions[idx].get_measurement_dict(N_points)
+            measurement_dict[ name ] = self.acquisitions[idx].get_measurement_dict(N_points)
         
-        return self.measurement_dict    
+        return measurement_dict    
     
-    def save_measurement(self, name=None, root=None, timestamp=True, comment=None):
+    def _remove_channels_from_acq_dict(self, meas, retain_channels):
+        """Saves only specified channels from the measurement dictionary.
+        
+        Args:
+            meas (dict): measurement dictionary as returned by get_measurement_dict() method by acquisition source (not Core()).
+            retain_channels (list): list of channels (strings) to save. For each acquisition source a check if specified channels
+                                    exists will be performed.
+                                    
+        Returns:
+            dict: measurement dictionary with only specified channels.      
+        """
+        # deep copy of the measurement dictionary:
+        #measurement_dict = copy.deepcopy(measurement_dict)
+        
+        remove_acquisition = False
+    
+        # all channels in acq:
+        if 'channel_names_video' not in meas.keys():
+            all_channels = meas['channel_names']
+        elif 'channel_names' not in meas.keys():
+            all_channels = meas['channel_names_video']
+        else:
+            all_channels = meas['channel_names'] + meas['channel_names_video']
+            
+        # preserve only channels that not in retain_channels:
+        remove_channels = [ch for ch in all_channels if ch not in retain_channels]
+    
+        # remove data channels:
+        if 'data' in meas.keys():
+            for channel in remove_channels:
+                if any(channel == s for s in meas['channel_names']):
+                    i = meas['channel_names'].index(channel)
+                    meas['channel_names'].pop(i)
+                    meas['data'] = np.delete(meas['data'], i, axis=1)
+                    if meas['data'].shape[1] == 0:
+                        meas['data'] = np.array([])
+                    
+        # remove video channels:           
+        if 'video' in meas.keys():
+            for channel in remove_channels:
+                if any(channel == s for s in meas['channel_names_video']):
+                    i = meas['channel_names_video'].index(channel)
+                    meas['channel_names_video'].pop(i)
+                    meas['video'].pop(i)
+                    
+        # if video channels are all removed, remove video key:
+        if 'video' in meas.keys() and len(meas['video']) == 0:
+            meas.pop('video')
+            meas.pop('channel_names_video')
+            
+        # if all data channels are removed, remove acquisition source:
+        if 'data' in meas.keys() and len(meas['data']) == 0 and 'video' not in meas.keys():
+            remove_acquisition = True 
+                
+        if remove_acquisition:
+            meas = {}
+                
+        return meas
+        
+    
+    def save_measurement(self, name=None, root=None, timestamp=True, comment=None, save_channels=None):
         """Save acquired data from all sources into one dictionary saved as pickle. See get_measurement_dict() method for the 
            structure of the dictionary.
         
@@ -500,6 +567,9 @@ class Core():
             root (str, optional): directory to save to. Defaults to None.
             timestamp (bool, optional): include timestamp before 'filename'. Defaults to True.
             comment (str, optional): comment on the saved file. Defaults to None.
+            save_channels (list): list of channels (strings) to save when periodic saving is turned on (save_interval != None). 
+                                  For each acquisition source a check if specified channels exists will be performed. If None, 
+                                  all channels are saved. Default is None.
             
         Returns:
             str: path to the saved file
@@ -509,9 +579,19 @@ class Core():
         if root is None:
             root = self.root
             
-        self.measurement_dict = self.get_measurement_dict()
+        measurement_dict = self.get_measurement_dict()
+        if save_channels is not None:
+            pop_keys = []
+            for acq_name in measurement_dict.keys():
+                measurement_dict[acq_name] = self._remove_channels_from_acq_dict(measurement_dict[acq_name], save_channels)
+                if measurement_dict[acq_name] == {}:
+                    pop_keys.append(acq_name)
+            
+            for key in pop_keys:
+                measurement_dict.pop(key)
+                
         if comment is not None:
-            self.measurement_dict['comment'] = comment
+            measurement_dict['comment'] = comment
             
         if not os.path.exists(root) and root != '':
             os.mkdir(root)
@@ -525,7 +605,7 @@ class Core():
         filename = f'{stamp}{name}.pkl'
         path = os.path.join(root, filename)
         with open(path, 'wb') as f:
-            pickle.dump(self.measurement_dict, f, protocol=-1)
+            pickle.dump(measurement_dict, f, protocol=-1)
 
         return path  
      
@@ -587,7 +667,7 @@ class Core():
         Returns:
             int: updated file index
         """
-        max_file_size = 10 * 1024 * 1024  # 200 MB - maximum file size
+        max_file_size = 200 * 1024 * 1024  # 200 MB - maximum file size
 
         file_name_base, ext = os.path.splitext(file_name_base)
         file_index_str = str(file_index).zfill(4)
@@ -618,6 +698,10 @@ class Core():
             name = acq.acquisition_name
             if acq.is_triggered():
                 measurement = acq.get_measurement_dict(N_points="new")
+                if self._save_channels is not None:
+                    measurement = self._remove_channels_from_acq_dict(measurement, self._save_channels)
+                    if measurement == {}:
+                        continue
 
                 if name not in data:
                     data[name] = measurement

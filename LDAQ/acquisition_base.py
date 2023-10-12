@@ -855,7 +855,7 @@ class BaseAcquisition:
         NOTE: if N_points = "new" is used for retrieving new results during measurement and Core() class is used for
                 measurement control, then periodic saving should be turned off in run() method of Core() class.
         """
-        self.measurement_dict = {}
+        measurement_dict = {}
         
         time, data = self.get_data(N_points=N_points, data_to_return="flattened")
         
@@ -878,25 +878,25 @@ class BaseAcquisition:
                 video_only.append( data[:, pos[0]:pos[1]].reshape( (data.shape[0], *shape) ) )
             
             # save video and data separately
-            self.measurement_dict['time'] = time
+            measurement_dict['time'] = time
             
-            self.measurement_dict['channel_names'] = self.channel_names
-            self.measurement_dict['data']  = data_only
+            measurement_dict['channel_names'] = self.channel_names.copy()
+            measurement_dict['data']  = data_only
             
-            self.measurement_dict['channel_names_video'] = self.channel_names_video
-            self.measurement_dict['video'] = video_only
+            measurement_dict['channel_names_video'] = self.channel_names_video.copy()
+            measurement_dict['video'] = video_only
             
         else: # no video, flattened array is actually only data:
-            self.measurement_dict['time'] = time
-            self.measurement_dict['channel_names'] = self.channel_names
-            self.measurement_dict['data'] = data
+            measurement_dict['time'] = time
+            measurement_dict['channel_names'] = self.channel_names.copy()
+            measurement_dict['data'] = data
         
         if hasattr(self, 'sample_rate'):
-            self.measurement_dict['sample_rate'] = self.sample_rate
+            measurement_dict['sample_rate'] = self.sample_rate
         else:
-            self.measurement_dict['sample_rate'] = None
+            measurement_dict['sample_rate'] = None
             
-        return self.measurement_dict
+        return measurement_dict
     
     def save(self, name, root='', timestamp=True, comment=None):
         """Save acquired data.
@@ -915,10 +915,10 @@ class BaseAcquisition:
         Returns:
             None
         """
-        self.measurement_dict = self.get_measurement_dict()
+        measurement_dict = self.get_measurement_dict()
         
         if comment is not None:
-            self.measurement_dict['comment'] = comment
+            measurement_dict['comment'] = comment
         
         if not os.path.exists(root):
             os.mkdir(root)
@@ -931,5 +931,5 @@ class BaseAcquisition:
 
         filename = f'{stamp}{name}.pkl'
         path = os.path.join(root, filename)
-        pickle.dump(self.measurement_dict, open(path, 'wb'), protocol=-1)
+        pickle.dump(measurement_dict, open(path, 'wb'), protocol=-1)
 

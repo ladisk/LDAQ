@@ -5,8 +5,11 @@ import copy
 
 from typing import Optional, Union
 
-from .daqtask import DAQTask
-from .ni_task import NITaskOutput
+try:
+    from .daqtask import DAQTask
+    from .ni_task import NITaskOutput
+except:
+    pass
 
 from ..generation_base import BaseGeneration
 

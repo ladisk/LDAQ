@@ -23,7 +23,7 @@ Then, the channels can be added to the task:
 .. code:: python
 
     task.add_channel(channel_name='Channel_1', device_ind=0, channel_ind=0, sensitivity=100, sensitivity_units='mV/g', units='g')
-    task.add_channel(channel_name='Channel_1', device_ind=0, channel_ind=1, sensitivity=100, sensitivity_units='mV/g', units='g')
+    task.add_channel(channel_name='Channel_2', device_ind=0, channel_ind=1, sensitivity=100, sensitivity_units='mV/g', units='g')
 
 After all channels are added to the task, the task can be passed to the ``NIAcquisition`` object:
 
@@ -61,7 +61,7 @@ serial number of the sensor is required to find the correct settings in the sett
 .. code:: python
     
     task.add_channel(channel_name='Channel_1', device_ind=0, channel_ind=0, serial_nr='123')
-    task.add_channel(channel_name='Channel_1', device_ind=0, channel_ind=1, serial_nr='456')
+    task.add_channel(channel_name='Channel_2', device_ind=0, channel_ind=1, serial_nr='456')
 
 Custom scale
 ~~~~~~~~~~~~

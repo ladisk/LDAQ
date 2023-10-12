@@ -2,10 +2,13 @@ import numpy as np
 import time
 import copy
 
-from PyDAQmx.DAQmxFunctions import *
-from PyDAQmx.Task import Task
-from nidaqmx._lib import lib_importer
-from .daqtask import DAQTask
+try:
+    from PyDAQmx.DAQmxFunctions import *
+    from PyDAQmx.Task import Task
+    from nidaqmx._lib import lib_importer
+    from .daqtask import DAQTask
+except:
+    pass
 
 import typing
 

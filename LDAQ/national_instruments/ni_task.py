@@ -125,8 +125,6 @@ class NITaskOutput:
         devices = '\n'.join([f"\t({i}) - {_}" for i, _ in enumerate(self.device_list)])
         return f"Task name: {self.task_name}\nConnected devices:\n{devices:s}\nChannels: {list(self.channels.keys())}"
 
-
-
 class NITask:
     def __init__(self, task_name: str, sample_rate: float, settings_file: Optional[str] = None) -> None:
         """Create a new NI task.

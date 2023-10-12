@@ -103,10 +103,10 @@ class NIGeneration(BaseGeneration):
             
             del self.Task
 
-    def run_generation(self):
-        """Runs the signal generation.
-        """
-        self.is_running = True
+    # def run_generation(self):
+    #     """Runs the signal generation.
+    #     """
+    #     self.is_running = True
         
-        self.set_data_source()
-        self.generate()
+    #     self.set_data_source()
+    #     self.generate()

@@ -101,12 +101,6 @@ class Core():
                 string += f"\t- {key:<20}{self.global_trigger_settings[key]}\n"
             
         return string     
-        
-    def synchronize_acquisitions(self):
-        """
-        TODO: Currently no serious synchronization is done. This method is a placeholder for future synchronization.
-        """
-        pass
     
     def run(self, measurement_duration=None, autoclose=True, autostart=False, save_interval=None, run_name="Run", 
             root='', save_channels=None, verbose=2):
@@ -176,14 +170,15 @@ class Core():
             # update triggers from acquisition to match acquired samples to run_time:
             acquisition.is_standalone = False
             acquisition.reset_trigger()
-            if self.measurement_duration is not None:
-                acquisition.update_trigger_parameters(duration=self.measurement_duration, duration_unit="seconds")
             if self.save_interval is not None:
                 # update ringbuffer size to 1.2x the save size:
                 acquisition.set_continuous_mode(True, measurement_duration=self.measurement_duration)
                 acquisition.update_trigger_parameters(duration=1.2*self.save_interval, duration_unit="seconds")
             else:
                 acquisition.set_continuous_mode(False)
+                
+            if self.measurement_duration is not None and self.save_interval is None:
+                acquisition.update_trigger_parameters(duration=self.measurement_duration, duration_unit="seconds")
                 
             if autostart:
                 acquisition.update_trigger_parameters(level=1e40)   

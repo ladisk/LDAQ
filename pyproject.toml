@@ -11,7 +11,7 @@ license = "MIT"
 description = "Data acquisition and generation with live visualization."
 readme = "README.rst"
 keywords = ["data acquisition", "data generation", "live visualization"]
-requires-python = ">=3.10"
+requires-python = ">=3.8"
 
 dependencies = [
     "numpy>=1.11.0",

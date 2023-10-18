@@ -1,5 +1,7 @@
 @ECHO OFF
 
+python "create_example_notebooks.py"
+
 pushd %~dp0
 
 REM Command file for Sphinx documentation

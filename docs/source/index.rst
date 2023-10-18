@@ -25,6 +25,7 @@ Table of Contents
 .. toctree::
    :maxdepth: 3
 
+   installation
    simple_start
    ni_task
    generation

@@ -33,6 +33,7 @@ Table of Contents
    multiple_sources
    snippets
    code
+   examples
 
 
 

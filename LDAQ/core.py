@@ -1,11 +1,13 @@
 import time
 import datetime
 import os
+import pathlib
 import numpy as np
 import keyboard
 from beautifultable import BeautifulTable
 
-import copy
+import h5py
+
 import threading
 import pickle
 import sys
@@ -101,12 +103,6 @@ class Core():
                 string += f"\t- {key:<20}{self.global_trigger_settings[key]}\n"
             
         return string     
-        
-    def synchronize_acquisitions(self):
-        """
-        TODO: Currently no serious synchronization is done. This method is a placeholder for future synchronization.
-        """
-        pass
     
     def run(self, measurement_duration=None, autoclose=True, autostart=False, save_interval=None, run_name="Run", 
             root='', save_channels=None, verbose=2):
@@ -148,7 +144,23 @@ class Core():
         self.autoclose = autoclose
         self.is_running_global = True
         self.autostart = autostart
+        
+        self.lock_write = threading.Lock() # for locking a thread if needed.
+        
         self._save_channels = save_channels
+        if self._save_channels is not None:
+            if hasattr(self._save_channels, '__iter__') == False:
+                raise KeyError("save_channels must be iterable.")
+            if any(type(ch) != str for ch in self._save_channels):
+                raise KeyError("save_channels must be a list of strings.")
+            
+            all_channels = [] # get all channel names in all acquisitions
+            for acq in self.acquisitions: 
+                all_channels.extend(acq.channel_names_all)
+                
+            for channel in self._save_channels:
+                if channel not in all_channels: # check if all channels exist
+                    raise KeyError(f"Channel {channel} does not exist in any acquisition source.")
         
         self.first = True # for printing trigger the first time.
         
@@ -176,14 +188,15 @@ class Core():
             # update triggers from acquisition to match acquired samples to run_time:
             acquisition.is_standalone = False
             acquisition.reset_trigger()
-            if self.measurement_duration is not None:
-                acquisition.update_trigger_parameters(duration=self.measurement_duration, duration_unit="seconds")
             if self.save_interval is not None:
                 # update ringbuffer size to 1.2x the save size:
                 acquisition.set_continuous_mode(True, measurement_duration=self.measurement_duration)
                 acquisition.update_trigger_parameters(duration=1.2*self.save_interval, duration_unit="seconds")
             else:
                 acquisition.set_continuous_mode(False)
+                
+            if self.measurement_duration is not None and self.save_interval is None:
+                acquisition.update_trigger_parameters(duration=self.measurement_duration, duration_unit="seconds")
                 
             if autostart:
                 acquisition.update_trigger_parameters(level=1e40)   
@@ -613,6 +626,7 @@ class Core():
         """Periodically saves the measurement data."""
         name = self.run_name
         root = self.root
+        root = str( pathlib.Path(root).absolute() ) # convert to absolute path
 
         start_time = time.time()
         file_index = 0
@@ -621,7 +635,6 @@ class Core():
         running = True
         delay_saving = 0.5  # seconds
         delay_start = time.time()
-
         while running:
             time.sleep(0.2)
 
@@ -642,18 +655,64 @@ class Core():
                     if not file_created:
                         now = datetime.datetime.now()
                         file_name = f"{now.strftime('%Y%m%d_%H%M%S')}_{name}.pkl"
+                        #file_name = f"{now.strftime('%Y%m%d_%H%M%S')}_{name}.hdf5"
                         file_created = True
 
-                    try:
-                        file_index = self._open_and_save(file_name, root, file_index)
-                    except FileNotFoundError:
-                        pass
-                        # TODO: find the root cause of this error. It usually happens when 
-                        #       new file is created.
+                    file_index = self._open_and_save(file_name, root, file_index)   
 
         if self.triggered_globally:
             time.sleep(0.5)
             self._open_and_save(file_name, root, file_index)
+
+    def _open_and_save__(self, file_name_base, root, file_index):
+        """
+        Open existing file and save new data in hdf5 format.
+        """
+        max_file_size = 200 * 1024 * 1024  # 200 MB - maximum file size
+
+        file_name_base, ext = os.path.splitext(file_name_base)
+        file_index_str = str(file_index).zfill(4)
+        file_name = f"{file_name_base}_{file_index_str}.hdf5"
+        file_path = os.path.join(root, file_name)
+
+        # Check if file size exceeds 200 MB, create a new file with incremented index
+        if os.path.exists(file_path) and os.path.getsize(file_path) >= max_file_size:
+            file_index += 1
+            file_index_str = str(file_index).zfill(4)
+            file_name = f"{file_name_base}_{file_index_str}.hdf5"
+            file_path = os.path.join(root, file_name)
+
+        with h5py.File(file_path, 'a') as hf:  # 'a' mode: Read/write if exists, create otherwise
+            # Update data with new measurements
+            for acq in self.acquisitions:
+                name = acq.acquisition_name
+
+                if acq.is_triggered():
+                    measurement = acq.get_measurement_dict(N_points="new")
+                    if self._save_channels is not None:
+                        measurement = self._remove_channels_from_acq_dict(measurement, self._save_channels)
+                        if measurement == {}:
+                            continue
+
+                    if name not in hf:
+                        # If the group does not exist, create it
+                        group = hf.create_group(name)
+                    else:
+                        group = hf[name]
+
+                    # Store the data arrays under the corresponding group
+                    for key, value in measurement.items():
+                        if key in group:
+                            # Append data to existing dataset
+                            prev_data = group[key][...]
+                            group[key].resize((len(prev_data) + len(value),))
+                            group[key][len(prev_data):] = value
+                        else:
+                            # Create a new dataset
+                            maxshape = (None,) if isinstance(value, np.ndarray) and value.ndim == 1 else None
+                            group.create_dataset(key, data=value, maxshape=maxshape)
+
+        return file_index
 
     def _open_and_save(self, file_name_base, root, file_index):
         """
@@ -718,8 +777,9 @@ class Core():
                     
 
         # Save updated data
-        with open(file_path, 'wb') as f:
-            pickle.dump(data, f, protocol=-1)
+        with self.lock_write:
+            with open(file_path, 'wb') as f:
+                pickle.dump(data, f, protocol=-1)
 
         return file_index
 

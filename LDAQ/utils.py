@@ -18,7 +18,11 @@ def load_measurement(name: str, directory: str = ''):
     Returns:
         measurement (dict): dictionary containing the measurement
     """
-    file_path = os.path.join(directory, name)
+    if directory == '':
+        file_path = name
+    else:
+        file_path = os.path.join(directory, name)
+        
     with open(file_path, 'rb') as f:
         return pickle.load(f)
     

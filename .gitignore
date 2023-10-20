@@ -114,3 +114,4 @@ venv_py_3_11/
 
 # ignore notebooks if Dev in notebook name:
 *Dev*.ipynb
+temp_data/

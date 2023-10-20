@@ -47,7 +47,6 @@ class CustomPyTrigger(pyTrigger):
         self.finished = False
         self.first_data = True
         
-        
         self.N_acquired_samples               = 0 # samples acquired throughout whole acquisition process
         self.N_acquired_samples_since_trigger = 0 # samples acquired since trigger
         self.N_new_samples                    = 0 # new samples that have not been retrieved yet
@@ -271,16 +270,17 @@ class BaseAcquisition:
         # NOTE: never change that virtual channels are added after data and video channels!!!
         # 2) add virtual channels:
         for virt_ch_name in self.virtual_channel_dict.keys():
-            func, source_channel_indices, first_arg_is_ref = self.virtual_channel_dict[virt_ch_name ]
+            func, source_channel_indices, first_arg_is_ref, args, kwargs = self.virtual_channel_dict[virt_ch_name ]
             
             shapes_used = [self.channel_shapes[ idx ] for idx in source_channel_indices] # here this should support multiple channels
             
             # test if function returns proper output:
             dummy_arrays = [np.random.rand(3, *shape ) for  shape in shapes_used   ] # test arrays, 1st dim 3 just for testing
+            func_input = dummy_arrays + list(args)
             if first_arg_is_ref:
-                output = func(self, *dummy_arrays) # this is just a test to get output shape
+                output = func(self, *func_input, **kwargs) # this is just a test to get output shape
             else:
-                output = func(*dummy_arrays)
+                output = func(*func_input, **kwargs)
                 
             if type(output) != np.ndarray:
                 raise ValueError('Virtual channel function must return numpy array of arbitrary shape and not int, float, tuple...')
@@ -313,7 +313,7 @@ class BaseAcquisition:
             self.channel_pos.append( (pos, pos_next) )
             pos = pos_next
     
-    def add_virtual_channel(self, virtual_channel_name, source_channels, function):
+    def add_virtual_channel(self, virtual_channel_name, source_channels, function, *args, **kwargs):
         """
         Add a virtual channel to the acquisition class.
         
@@ -327,6 +327,9 @@ class BaseAcquisition:
                                  The first argument of the function can be a reference to the acquisition class itself. This is useful
                                  if the function needs to access some of the acquisition class' attributes, for example data history.
                                  
+            *args: additional arguments to be passed to the function (function passed as input argument to this method)
+            **kwargs: additional keyword arguments to be passed to the function (function passed as input argument to this method)
+
         Example 1:
             >>> def func(ch1, ch2): # ch1 and ch2 are numpy arrays
             >>>     # ch1 and ch2 are of shape (n_samples, 1) and NOT (1, )
@@ -354,6 +357,8 @@ class BaseAcquisition:
             
             
         """
+        first_arg_is_ref = False
+        
         if source_channels == int or source_channels == str:
             source_channels = [source_channels]
         self.terminate_data_source()
@@ -364,12 +369,11 @@ class BaseAcquisition:
         input_arguments = [param.name for param in sig.parameters.values()]
         if input_arguments[0] == 'self':
             first_arg_is_ref = True
-        else:
-            first_arg_is_ref = False
+        
         if 'self' in input_arguments[1:]:
             raise ValueError('Virtual channel function cannot can have only one reference to acquisition class as FIRST argument.')
         
-        self.virtual_channel_dict[virtual_channel_name] = (function, source_channels, first_arg_is_ref)
+        self.virtual_channel_dict[virtual_channel_name] = (function, source_channels, first_arg_is_ref, args, kwargs)
 
         
         self.set_data_source()
@@ -422,15 +426,16 @@ class BaseAcquisition:
         
         # calculate data of virtual channels:
         if len(self.virtual_channel_dict.keys()) > 0:
-            for virt_ch_name, (func, source_channel_indices, first_arg_is_ref) in self.virtual_channel_dict.items():
+            for virt_ch_name, (func, source_channel_indices, first_arg_is_ref, args, kwargs) in self.virtual_channel_dict.items():
                 data_source_list = [
                     data[:, self.channel_pos[idx][0] : self.channel_pos[idx][1] ].reshape(-1, *self.channel_shapes[idx])
                     for idx in source_channel_indices
                 ]
+                func_input = data_source_list + list(args)
                 if first_arg_is_ref:
-                    data_virt_ch = func(self, *data_source_list)
+                    data_virt_ch = func(self, *func_input, **kwargs)
                 else:
-                    data_virt_ch = func(*data_source_list)
+                    data_virt_ch = func(*func_input, **kwargs)
                     
                 if len(data_virt_ch.shape) == 1:
                     data_virt_ch = data_virt_ch.reshape(-1, 1)

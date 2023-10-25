@@ -6,7 +6,7 @@ import numpy as np
 import keyboard
 from beautifultable import BeautifulTable
 
-import h5py
+#import h5py
 
 import threading
 import pickle
@@ -664,56 +664,6 @@ class Core():
             time.sleep(0.5)
             self._open_and_save(file_name, root, file_index)
 
-    def _open_and_save__(self, file_name_base, root, file_index):
-        """
-        Open existing file and save new data in hdf5 format.
-        """
-        max_file_size = 200 * 1024 * 1024  # 200 MB - maximum file size
-
-        file_name_base, ext = os.path.splitext(file_name_base)
-        file_index_str = str(file_index).zfill(4)
-        file_name = f"{file_name_base}_{file_index_str}.hdf5"
-        file_path = os.path.join(root, file_name)
-
-        # Check if file size exceeds 200 MB, create a new file with incremented index
-        if os.path.exists(file_path) and os.path.getsize(file_path) >= max_file_size:
-            file_index += 1
-            file_index_str = str(file_index).zfill(4)
-            file_name = f"{file_name_base}_{file_index_str}.hdf5"
-            file_path = os.path.join(root, file_name)
-
-        with h5py.File(file_path, 'a') as hf:  # 'a' mode: Read/write if exists, create otherwise
-            # Update data with new measurements
-            for acq in self.acquisitions:
-                name = acq.acquisition_name
-
-                if acq.is_triggered():
-                    measurement = acq.get_measurement_dict(N_points="new")
-                    if self._save_channels is not None:
-                        measurement = self._remove_channels_from_acq_dict(measurement, self._save_channels)
-                        if measurement == {}:
-                            continue
-
-                    if name not in hf:
-                        # If the group does not exist, create it
-                        group = hf.create_group(name)
-                    else:
-                        group = hf[name]
-
-                    # Store the data arrays under the corresponding group
-                    for key, value in measurement.items():
-                        if key in group:
-                            # Append data to existing dataset
-                            prev_data = group[key][...]
-                            group[key].resize((len(prev_data) + len(value),))
-                            group[key][len(prev_data):] = value
-                        else:
-                            # Create a new dataset
-                            maxshape = (None,) if isinstance(value, np.ndarray) and value.ndim == 1 else None
-                            group.create_dataset(key, data=value, maxshape=maxshape)
-
-        return file_index
-
     def _open_and_save(self, file_name_base, root, file_index):
         """
         Open existing file and save new data.
@@ -726,6 +676,8 @@ class Core():
         Returns:
             int: updated file index
         """
+        # TODO: replace pickle to hdf5 (h5py) in the future.
+        
         max_file_size = 200 * 1024 * 1024  # 200 MB - maximum file size
 
         file_name_base, ext = os.path.splitext(file_name_base)

@@ -63,7 +63,10 @@ class SerialAcquisition(BaseAcquisition):
         
         self.n_channels_trigger = self.n_channels # number of channels used for triggering
         
-        self.set_data_source()          # initializes serial connection
+        if self.start_bytes_write is not None:
+            self.set_data_source(write_start_bytes=True)          # initializes serial connection
+        else:
+            self.set_data_source(write_start_bytes=False)
     
         self.buffer = b""               # buffer to which recieved data is added
 
@@ -73,9 +76,13 @@ class SerialAcquisition(BaseAcquisition):
         # set default trigger, so the signal will not be trigered:
         self.set_trigger(1e20, 0, duration=1.0)
 
-    def set_data_source(self):
+    def set_data_source(self, write_start_bytes=False):
         """
         Initializes serial connection, sets channels and virtual channels.
+        
+        Args:
+            write_start_bytes (bool, optional): If True, then writes write_start_bytes to serial port 
+            (passed in init method). Defaults to False.
         """
         # open terminal:
         if not hasattr(self, 'ser'):
@@ -91,8 +98,9 @@ class SerialAcquisition(BaseAcquisition):
             pass 
         
         # Send commands over serial:
-        self.write_to_serial(self.start_bytes_write, self.write_delay_ms)
-        time.sleep(0.5)
+        if write_start_bytes:
+            self.write_to_serial(self.start_bytes_write, self.write_delay_ms)
+            time.sleep(0.5)
 
         self.ser.reset_input_buffer() # clears previous data
         self.buffer = b"" # reset class buffer

@@ -328,7 +328,7 @@ class BaseAcquisition:
                                  if the function needs to access some of the acquisition class' attributes, for example data history.
                                  
             *args: additional arguments to be passed to the function (function passed as input argument to this method)
-            **kwargs: additional keyword arguments to be passed to the function (function passed as input argument to this method)
+            **kwargs: additional keyword arguments to be passed to the function (function passed as input argument to this method)y
 
         Example 1:
             >>> def func(ch1, ch2): # ch1 and ch2 are numpy arrays

@@ -6,7 +6,7 @@ import numpy as np
 import keyboard
 from beautifultable import BeautifulTable
 
-import h5py
+#import h5py
 
 import threading
 import pickle

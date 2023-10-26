@@ -196,8 +196,8 @@ class Visualization:
             raise ValueError("The source must be a string.")
         if not isinstance(position, tuple):
             raise ValueError("The position must be a tuple.")
-        if not (isinstance(channels, list) or isinstance(channels, tuple) or isinstance(channels, int)):
-            raise ValueError("The channels must be a list, tuple or an integer.")
+        if not (isinstance(channels, list) or isinstance(channels, tuple) or isinstance(channels, int) or isinstance(channels, str)):
+            raise ValueError("The channels must be a list, tuple, string or an integer.")
         if not (isinstance(function, types.FunctionType) or function in INBUILT_FUNCTIONS.keys() or function is None):
             raise ValueError("The function must be a function or a string.")
         if not (isinstance(nth, int) or nth == 'auto'):
@@ -209,8 +209,10 @@ class Visualization:
         if source not in self.plots.keys():
             self.plots[source] = []
 
-        if isinstance(channels, int) or isinstance(channels, tuple):
+        if isinstance(channels, int) or isinstance(channels, str):
             channels = [channels]
+        if isinstance(channels, tuple):
+            channels = list(channels)
 
         if isinstance(function, types.FunctionType):
             apply_function = function

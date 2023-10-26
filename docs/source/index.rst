@@ -10,9 +10,9 @@ This package provides an extendable interface for data acquisition and generatio
 
 The source-code for this package is available on `GitHub <https://github.com/ladisk/LDAQ>`_.
 
-The package enables data **acquisition** from multiple sources, signal **generation** on multiple ouputs, and costumizable **live data visualization**.
+The package enables data **acquisition** and signal **generation** from multiple hardware sources, and costumizable **live data visualization**.
 
-Examples of the acquisition/generation code for commonly used sources are presented in the examples notebooks.
+See :doc:`examples`  of the acquisition/generation code for commonly used sources are presented in the examples notebooks.
 
 .. note::
    

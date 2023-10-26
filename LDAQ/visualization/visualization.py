@@ -182,6 +182,7 @@ class Visualization:
                     self: instance of the acquisition object (has to be there so the function is called properly)
                     channel_data (dict): A dictionary containing the channel data.
                 '''
+                
                 return channel_data**2
 
         The ``self`` argument in the custom function referes to the instance of the acquisition object. 
@@ -203,7 +204,6 @@ class Visualization:
                 Args:
                     self: instance of the acquisition object (has to be there so the function is called properly)
                     channel_data (np.ndarray): A 2D channel data array of size (N, 2).
-
                 Returns:
                     np.ndarray: A 2D array np.array([x, y]).T that will be plotted on the subplot.
                 '''
@@ -211,7 +211,6 @@ class Visualization:
                 x =  np.arange(len(ch1)) / self.acquisition.sample_rate # time array
                 y = ch1**2 + ch0 - 10
                 return np.array([x, y]).T
-
         """
         self.add_line_widget = True
 

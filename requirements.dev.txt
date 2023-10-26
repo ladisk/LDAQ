@@ -5,3 +5,5 @@ twine
 wheel
 pytest
 sphinx-rtd-theme
+sphinx-book-theme
+Pygments

@@ -16,17 +16,16 @@ class IRFormatType:
 
 class FLIRThermalCamera(BaseAcquisition):    
     """
-    Acquisition class for FLIR thermal camera (A50)
+    Acquisition class for FLIR thermal camera (A50).
     
     This class is adapted from examples for thermal A50 camera provided by FLIR, found on their website (login required):
     https://www.flir.com/support-center/iis/machine-vision/downloads/spinnaker-sdk-download/spinnaker-sdk--download-files/
     
     Installation steps:
-    1) Install Spinnaker SDK (i.e. SpinnakerSDK_FULL_3.1.0.79_x64.exe, found on provided link)
-    2) Install PySpin (python wrapper for Spinnaker SDK). On the website listed above, there are
-       multiple build wheels listed under "Lastest Windows Python Spinnaker SDK". Choose the one
-       that matches your python version and architecture (i.e. spinnaker_python-3.1.0.79-cp310-cp310-win_amd64.zip 
-       for python 3.10 64-bit - this is also the version used for development of this class)
+    
+    - Install Spinnaker SDK (i.e. SpinnakerSDK_FULL_3.1.0.79_x64.exe, found on provided link)
+    
+    - Install PySpin (python wrapper for Spinnaker SDK). On the website listed above, there are multiple build wheels listed under "Lastest Windows Python Spinnaker SDK". Choose the one that matches your python version and architecture (i.e. spinnaker_python-3.1.0.79-cp310-cp310-win_amd64.zip for python 3.10 64-bit - this is also the version used for development of this class)
     """
     def __init__(self, acquisition_name=None, channel_name_IR_cam="temperature_field", IRtype='LINEAR_10MK'):
         """

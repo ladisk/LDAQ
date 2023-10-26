@@ -64,13 +64,13 @@ class WaveFormsAcquisition(BaseAcquisition):
         
     def configure_channels(self, input_range=None):
         """Specify min and max value range for each channel.
+        
         Args:
             input_range (dict): dictionary with channel index as key and tuple of min and max values as value. channel indices
                                 have to be the same as self.channel_idx (or channels input parameters in init)
                                 For example: {0:(-10, 10), 1:(-5, 5)} 
                                 -> channel 0 has range -10 to 10 V and channel 1 has range -5 to 5 V.
-                                By default, all channels have range -10 to 10 V.
-                            
+                                By default, all channels have range -10 to 10 V.          
         """
         if input_range is None:
             if not hasattr(self, 'input_range'):

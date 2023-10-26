@@ -24,6 +24,11 @@ files = glob.glob(os.path.join(this_dir, "../examples/*.ipynb"))
 examples_file = open(os.path.join(this_dir, "source/examples.rst"), "w")
 examples_file.write(string_examples)
 
+# remove all files in source/examples:
+for file in os.listdir(os.path.join(this_dir, "source/examples")):
+    if file.endswith(".nblink"):
+        os.remove(os.path.join(this_dir, "source/examples", file))
+
 for file in files:
     print(file)
     f = os.path.split(file)[-1].split(".")[0]

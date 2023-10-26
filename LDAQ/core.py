@@ -489,12 +489,17 @@ class Core():
                         should not be used as it will cause data loss.
 
         Returns:
-            dict: Measurement dictionary. 1st level keys are acquisition names and its values are acquisitions dictionaries.
-                  Those have the following structure:
-                  {'time': 1D array, 
-                    'channel_names': self.channel_names, 'data': 2D array (n_samples, n_data_channels),
-                    'channel_names_video': self.channel_names_video, 'video': list of 3D arrays (n_samples, height, width),
-                    'sample_rate': self.sample_rate}
+            dict: Measurement dictionary. 
+            
+            - **1st level keys**: Acquisition names.
+            
+            - **Values**: Acquisition dictionaries with the following keys and types:
+                - `time`: 1D array
+                - `channel_names`: Corresponding to self.channel_names
+                - `data`: 2D array with shape (n_samples, n_data_channels)
+                - `channel_names_video`: Corresponding to self.channel_names_video
+                - `video`: List of 3D arrays with shape (n_samples, height, width)
+                - `sample_rate`: Corresponding to self.sample_rate
         """        
         measurement_dict = {}
         for idx, name in enumerate(self.acquisition_names):

@@ -359,8 +359,9 @@ class BaseAcquisition:
         """
         first_arg_is_ref = False
         
-        if source_channels == int or source_channels == str:
+        if type(source_channels) == int or type(source_channels) == str:
             source_channels = [source_channels]
+            
         self.terminate_data_source()
         # list comprehension to get indices of the channels:
         source_channels = [self.channel_names_all.index(ch) if type(ch) == str else ch for ch in source_channels]

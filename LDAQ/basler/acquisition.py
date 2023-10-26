@@ -18,8 +18,10 @@ class BaslerCamera(BaseAcquisition):
     https://www.baslerweb.com/en/downloads/software-downloads/#type=pylonsoftware;language=all;version=7.3.0
     
     Installation steps:
-    1) Download and install pylon 7.3.0 Camera Software Suite Windows software and choose developer option during installation
-    2) Install python library with pip install pypylon
+    
+    - Download and install pylon 7.3.0 Camera Software Suite Windows software and choose developer option during installation
+    
+    - Install python library with pip install pypylon
     
     """
     def __init__(self, acquisition_name=None, sample_rate=10, channel_name_camera="Camera", offset=(0, 0), size=(3000, 2000),

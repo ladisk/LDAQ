@@ -8,3 +8,4 @@ sphinx-rtd-theme
 nbsphinx
 nbsphinx_link
 jupyter
+sphinx-book-theme

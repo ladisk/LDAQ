@@ -1,8 +1,10 @@
 import pyqtgraph as pg
 from pyqtgraph import ImageView, ImageItem
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, QPushButton, QHBoxLayout, QDesktopWidget, QProgressBar, QLabel
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, 
+                             QPushButton, QHBoxLayout, QDesktopWidget, QProgressBar, QLabel, 
+                             QSizePolicy)
 from PyQt5.QtCore import QTimer, Qt, QPointF
-from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QIcon
+from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QFont
 
 import numpy as np
 import sys
@@ -29,9 +31,18 @@ class HoverImageView(pg.ImageView):
         self.pixel_label.setStyleSheet("background-color: white; padding: 2px;")
 
         # Position the label on top of the ImageView
-        self.pixel_label.setAlignment(Qt.AlignCenter)
-        self.pixel_label.setFixedWidth(500)
-        self.pixel_label.move(10, 10)
+        font = QFont("Courier")
+        self.pixel_label.setFont(font)
+        self.pixel_label.setAlignment(Qt.AlignLeft)
+        self.pixel_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        self.pixel_label.setContentsMargins(2, 2, 2, 2)  # Reduce the left and right margins
+        
+        
+        self.pixel_label.setText(f'x:{0:4}, y:{0:4}\nvalue: {0:4}')
+        self.pixel_label.adjustSize()
+
+        #self.pixel_label.setFixedWidth(500)
+        #self.pixel_label.setFixedHeight(20)
 
         # Save the last hover position
         self.last_hover_pos = None
@@ -43,7 +54,7 @@ class HoverImageView(pg.ImageView):
         # Create a timer to periodically check the pixel value under the cursor
         self.timer = QTimer()
         self.timer.timeout.connect(self.checkPixelValue)
-        self.timer.start(100)  # check every 100 ms
+        self.timer.start(50)  # check every 50 ms
 
     def hoverEvent(self, event):
         """Override the hover event handler. Record the last hover position, if the
@@ -64,16 +75,28 @@ class HoverImageView(pg.ImageView):
             x_m = int(mapped_pos.x())
             y_m = int(mapped_pos.y())
             image = self.getImageItem().image
-            if 0 <= x < image.shape[1] and 0 <= y < image.shape[0]:
-                value = image[y, x]
-                # mapped_pos = self.view.mapFromItem(self.getImageItem(), QPointF(pos))
-                self.pixel_label.setText(f'x:{x}, y:{y}, {value}')
-                self.pixel_label.move(x_m + 10, y_m + 10)
+                
+            if 0 <= x < image.shape[0] and 0 <= y < image.shape[1]:
+                value = image[x, y]
+                self.pixel_label.setText(f'x:{x:4}, y:{y:4}\nvalue: {value:4}')
+                
+                # Adjust the position to ensure pixel_label is within ImageView
+                label_width = self.pixel_label.width()
+                label_height = self.pixel_label.height()
+                view_width = self.view.width()
+                view_height = self.view.height()
+                
+                # Check boundaries and adjust
+                new_x = x_m + 10 if x_m + label_width + 10 < view_width else x_m - 10 - label_width
+                new_y = y_m + 10 if y_m + label_height + 10 < view_height else y_m - 10 - label_height
+
+                self.pixel_label.move(new_x, new_y)
             else:
                 self.pixel_label.setText('')
         else:
             self.pixel_label.setText('')
             self.pixel_label.move(10, 10)
+
 
 class Visualization:
     def __init__(self, refresh_rate: int = 100, max_points_to_refresh: int = 10000, sequential_plot_updates: bool = False):
@@ -159,6 +182,7 @@ class Visualization:
                     self: instance of the acquisition object (has to be there so the function is called properly)
                     channel_data (dict): A dictionary containing the channel data.
                 '''
+                
                 return channel_data**2
 
         The ``self`` argument in the custom function referes to the instance of the acquisition object. 
@@ -180,7 +204,6 @@ class Visualization:
                 Args:
                     self: instance of the acquisition object (has to be there so the function is called properly)
                     channel_data (np.ndarray): A 2D channel data array of size (N, 2).
-
                 Returns:
                     np.ndarray: A 2D array np.array([x, y]).T that will be plotted on the subplot.
                 '''
@@ -188,7 +211,6 @@ class Visualization:
                 x =  np.arange(len(ch1)) / self.acquisition.sample_rate # time array
                 y = ch1**2 + ch0 - 10
                 return np.array([x, y]).T
-
         """
         self.add_line_widget = True
 
@@ -196,8 +218,8 @@ class Visualization:
             raise ValueError("The source must be a string.")
         if not isinstance(position, tuple):
             raise ValueError("The position must be a tuple.")
-        if not (isinstance(channels, list) or isinstance(channels, tuple) or isinstance(channels, int)):
-            raise ValueError("The channels must be a list, tuple or an integer.")
+        if not (isinstance(channels, list) or isinstance(channels, tuple) or isinstance(channels, int) or isinstance(channels, str)):
+            raise ValueError("The channels must be a list, tuple, string or an integer.")
         if not (isinstance(function, types.FunctionType) or function in INBUILT_FUNCTIONS.keys() or function is None):
             raise ValueError("The function must be a function or a string.")
         if not (isinstance(nth, int) or nth == 'auto'):
@@ -209,8 +231,10 @@ class Visualization:
         if source not in self.plots.keys():
             self.plots[source] = []
 
-        if isinstance(channels, int) or isinstance(channels, tuple):
+        if isinstance(channels, int) or isinstance(channels, str):
             channels = [channels]
+        if isinstance(channels, tuple):
+            channels = list(channels)
 
         if isinstance(function, types.FunctionType):
             apply_function = function
@@ -244,7 +268,8 @@ class Visualization:
             channel (str/int): The name of the channel to add the image plot to.
             function (function/str, optional): A function or string to apply to the image data before plotting. Defaults to None.
             refresh_rate (int, optional): The number of milliseconds between updates of the plot. Defaults to 100.
-            colormap (str, optional): The colormap to use for the plot. Defaults to 'CET-L17'.
+            colormap (str, optional): The colormap to use for the plot. Defaults to 'CET-L17' (suitable for thermal images), 
+                                      for grayscale use 'gray'. Any CET colormap can be used.
 
 
         This method adds an image plot to the visualization for the specified `source` and `channel`.

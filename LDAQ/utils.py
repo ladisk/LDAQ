@@ -26,7 +26,7 @@ def load_measurement(name: str, directory: str = ''):
     with open(file_path, 'rb') as f:
         return pickle.load(f)
     
-def load_measurement_multiple_files(directory: str = '', contains: str = ''):
+def load_measurement_multiple_files(directory: str = None, contains: str = ''):
     """
     Loads all measurements with name matching the string and combines them into one measurement
     dictionary.
@@ -42,7 +42,10 @@ def load_measurement_multiple_files(directory: str = '', contains: str = ''):
     files = [file for file in files if contains in file]
     measurement = {}
     for file in files:
-        meas = load_measurement(os.path.join(directory , file))
+        if directory is None:
+            meas = load_measurement(file)
+        else:
+            meas = load_measurement(os.path.join(directory , file))
         for source in meas.keys():
             if source not in measurement.keys():
                 measurement[source] = meas[source]

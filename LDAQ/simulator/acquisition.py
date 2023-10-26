@@ -28,6 +28,10 @@ class SimulatedAcquisition(BaseAcquisition):
         self._channel_shapes_video_init  = [] # list of original video channels shapes from source
         
         self.child_process_started = False
+        
+        # TODO: fix multiprocessing feature in the future
+        if multi_processing == True:
+            raise ValueError("Multi-processing is currently not supported. Use multi_processing=False.")
         self.multi_processing = multi_processing
         
     def __del__(self):
@@ -42,7 +46,7 @@ class SimulatedAcquisition(BaseAcquisition):
         """sets simulated data to be returned by read_data() method. 
         This should also update self._channel_names_init list.
         
-        NOTE: The function 'fun' should also include all library imports needed for its execution. This is due to serialization limitations of the function
+        NOTE: The function 'fun' should also include all library imports needed for its execution if multiprocessing=True. This is due to serialization limitations of the function
         of 'dill' library in order to be able to pass the function to the child process. For example, if the function 'fun' uses numpy, it should be imported.
 
         Args:

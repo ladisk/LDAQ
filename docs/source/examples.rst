@@ -18,4 +18,4 @@ Examples
    examples/009_acquisition_simulated_data_and_video.nblink
    examples/010_visualization_advanced.nblink
    examples/011_acquisition_simulated_app_performance.nblink
-   examples/12_periodic_saving_example.nblink
+   examples/012_periodic_saving_example.nblink

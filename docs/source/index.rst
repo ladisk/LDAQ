@@ -12,7 +12,9 @@ The source-code for this package is available on `GitHub <https://github.com/lad
 
 The package enables data **acquisition** and signal **generation** from multiple hardware sources, and costumizable **live data visualization**.
 
-See :doc:`examples`  of the acquisition/generation code for commonly used sources are presented in the examples notebooks.
+See :doc:`tutorials` for a quick start guide.
+
+For more advanced use cases of currently supported hardware see notebook :doc:`examples`.
 
 .. note::
    
@@ -27,10 +29,7 @@ Table of Contents
 
    installation
    simple_start
-   ni_task
-   generation
-   visualization
-   multiple_sources
+   tutorials
    snippets
    code
    examples

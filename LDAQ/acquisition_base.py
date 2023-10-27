@@ -15,25 +15,26 @@ class CustomPyTrigger(pyTrigger):
     Upgrades pyTrigger class with features needed for acquisition class BaseAcquisition.
     """
     triggered_global = False
-    def __init__(self, rows=5120, channels=4, trigger_channel=0,
-                 trigger_level=1., trigger_type='up', presamples=1000,
-                 dtype=np.float64):      
+    def __init__(self, rows:int=5120, channels:int=4, trigger_channel:int=0,
+                 trigger_level:float=1., trigger_type:str='up', presamples:int=1000,
+                 dtype:np.dtype=np.float64)->None:      
         """
         Upgrades pyTrigger class with features needed for acquisition class BaseAcquisition.
         This class handles:
+        
         - creating ring buffer for storring measured data, 
         - triggering acquisition,
         - tracking number of acquired samples,
         - retrieving data from ring buffer,
         
         Args:
-            rows (int):            number of rows
-            channels (int):        number of channels in ring buffer that will be created
+            rows (int): number of rows
+            channels (int): number of channels in ring buffer that will be created
             trigger_channel (int): the channel in ring buffer used for triggering
             trigger_level (float): the level to cross, to start trigger
-            trigger_type (str):    'up' is default, possible also 'down'/'abs'
-            presamples (int):      number of presamples
-            dtype (numpy.dtype):   dtype of the data
+            trigger_type (str): 'up' is default, possible also 'down'/'abs'
+            presamples (int): number of presamples
+            dtype (numpy.dtype): dtype of the data
         """
         self.rows = rows
         self.channels = channels
@@ -58,7 +59,7 @@ class CustomPyTrigger(pyTrigger):
         self.continuous_mode = False # continuous acquisition without definite stop.
         self.N_samples_to_acquire = self.rows # amount of samples to acquire in continuous mode.
 
-    def _add_data_to_buffer(self, data):
+    def _add_data_to_buffer(self, data:np.ndarray)->None:
         """Upgrades parent _add_data_to_buffer() to track sample variables
            N_acquired_samples, N_new_samples, N_acquired_samples_since_trigger
         """
@@ -82,7 +83,7 @@ class CustomPyTrigger(pyTrigger):
         self.N_new_samples      += N
         self.N_acquired_samples_since_trigger += N
         
-    def _add_data_chunk(self, data):
+    def _add_data_chunk(self, data:np.ndarray)->None:
         """Upgrades parent _add_data_chunk() to globally trigger all acquisition sources present
            in the measurement process, or that another acquisition source triggers this class.
            Global trigger is implemented via class property variable 'triggered_global'.
@@ -100,7 +101,7 @@ class CustomPyTrigger(pyTrigger):
             self.first_trigger  = False
         return 
     
-    def get_data_new(self):
+    def get_data_new(self)->np.ndarray:
         """Retrieves any new data from ring buffer, stored AFTER trigger event, that has been not yet retrieved.
 
         Returns:
@@ -118,7 +119,7 @@ class CustomPyTrigger(pyTrigger):
         else: # NOTE: this should not happen!
             return np.empty(shape=(0, self.ringbuff.columns))
         
-    def get_data_new_PLOT(self):
+    def get_data_new_PLOT(self)->np.ndarray:
         """Retrieves any new data from ring buffer that has been not yet retrieved. 
            This method should be used for plotting purposes only, as it has separate
            samples tracking variable N_new_samples_PLOT.
@@ -133,7 +134,7 @@ class CustomPyTrigger(pyTrigger):
         else:
             return np.empty(shape=(0, self.channels))
     
-    def _trigger_index(self, data):
+    def _trigger_index(self, data:np.ndarray)->int|np.ndarray:
         """Upgrades parent _trigger_index() method. Beside searching for trigger event, it
            adds amount of samples missed by _add_data_to_buffer() in case of use of presamples.
         """
@@ -152,28 +153,40 @@ class CustomPyTrigger(pyTrigger):
 class BaseAcquisition:
     """Parent acquisition class that should be used when creating new child acquisition source class.
     Child class should override methods the following methods:
+    
     - self.read_data()
+    
     - self.terminate_data_source()
+    
     - self.set_data_source()
+    
     - self.clear_buffer() (optional)
+    
     - self.get_sample_rate() (optional)
     
     For further information on how to override these methods, see the listed methods docstrings.
     
     Additionally, the __init__() or set_data_source() methods should override or be able to set the following attributes:
-    self._channel_names_init         # list of original data channels names from source 
-    self._channel_names_video_init   # list of original video channels names from source
-    self._channel_shapes_video_init  # list of original video channels shapes from source
-    self.sample_rate = 0
-
-    NOTE: the __init__() method should call self.set_trigger(1e20, 0, duration=1.0)
-    AT THE END of __init__ method to set trigger eventhough not used.
+    
+    - self._channel_names_init - list of original data channels names from source 
+    
+    - self._channel_names_video_init - list of original video channels names from source
+    
+    - self._channel_shapes_video_init - list of original video channels shapes from source
+    
+    - self.sample_rate = 0 - sample rate of acquisition source
     """
     all_acquisitions_ready = False # class property to indicate if all acquisitions are ready to start (not just this one)
     
-    def __init__(self):
+    def __init__(self) -> None:
         """
-        EDIT in child class. Make sure to call super().__init__() AT THE BEGINNING of __init__() method.
+        EDIT in child class. 
+        
+        Requirements:
+        
+        - Make sure to call super().__init__() AT THE BEGGINING of __init__() method.
+        
+        - Make sure to call self.set_trigger(1e20, 0, duration=1.0) AT THE END (used just for inititialization of buffer).
         """
         self.buffer_dtype = np.float64 # default dtype of data in ring buffer
         self.acquisition_name  = "DefaultAcquisition"
@@ -229,21 +242,25 @@ class BaseAcquisition:
 
         return string
     
-    def set_data_source(self):
-        """EDIT in child class
-        Properly sets acquisition source before measurement is started.
-        Few requirements for this method:
+    def set_data_source(self) -> None:
+        """EDIT in child class.
+        
+        Properly sets acquisition source before measurement is started. Requirements for this method:
+        
          - Should call super().set_data_source() AT THE END of the method.
-         - Should be set up in a way that it is able to be called multiple times in a row without issues.   
+         
+         - Should be set up in a way that it is able to be called multiple times in a row without issues.  
+         
          - Should set up self._channel_names_init and self._channel_names_video_init if not set in __init__() method.
-         - VIDEO source only: Should set self._channel_shapes_video_init list of tuples with shapes of each video channel 
-                              that will be recieved from acquisition source. This is required for proper operation of the class.  
-                              IMPORTANT: the order of the shapes should be the same as the order of the channels in 
-                              self._channel_names_video_init.
+         
+        VIDEO source only: 
+         - Should set self._channel_shapes_video_init which is a list of tuples with shapes of each video channel that will be recieved from acquisition source. This is required for proper operation of the class. 
+         
+         - the order of the shapes in self._channel_shapes_video_init should be the same as the order of the channels in self._channel_names_video_init.
         """
         self._set_all_channels()
     
-    def _set_all_channels(self):
+    def _set_all_channels(self) -> None:
         """
         Sets actual and virtual channels. This method is called at the end of set_data_source() method.
         """
@@ -313,7 +330,7 @@ class BaseAcquisition:
             self.channel_pos.append( (pos, pos_next) )
             pos = pos_next
     
-    def add_virtual_channel(self, virtual_channel_name, source_channels, function, *args, **kwargs):
+    def add_virtual_channel(self, virtual_channel_name:str, source_channels:int|str|list, function:callable, *args, **kwargs)->None:
         """
         Add a virtual channel to the acquisition class.
         
@@ -383,44 +400,47 @@ class BaseAcquisition:
         #       self.channel_names_video_init and self.channel_shapes_video_init in set_data_source() method
         
     
-    def terminate_data_source(self):
-        """EDIT in child class
+    def terminate_data_source(self)->None:
+        """EDIT in child class.
         
-        Properly closes acquisition source after the measurement. The method should be able to handle mutliple calls in a row.
-        
-        Returns None.
+        Properly closes/disconnects acquisition source after the measurement. The method should be able to handle mutliple calls in a row.
         """
         pass
             
-    def read_data(self):
-        """EDIT in child class
+    def read_data(self)->np.ndarray:
+        """EDIT in child class.
         
         This method only reads data from the source and transforms data into standard format used by other methods.
-        This method is called within self.acquire() method which properly handles acquiring data and saves it into 
+        It is called within self.acquire() method which properly handles acquiring data and saves it into 
         pyTrigger ring buffer.
         
         Must ALWAYS return a 2D numpy array of shape (n_samples, n_columns).
         
-        NOTE: if some of the channels are videos (2D array - so shape is (n_samples, n_pixels_width, n_pixels_height)), 
-              then data has to be reshaped to shape (n_samples, n_pixels_width*n_pixels_height). Then data from multiple
-              sources have to be concatenated into one array of shape (n_samples, n_cols), where cols is the combined number 
-              of pixel of all video sources and number of channels in data sources.
-              For an example where data source has 2 video sources with resolution 300x200 and 2 data channels, the final 
-              shape returned by this methods should be (n_samples, 300*200*2+2).
-            
-              For video sources, the shape of the video is automatically stored in self.channel_shapes_video_init when
-              self.set_data_source() is called (self._read_all_channels() method specifically). When data is retrieved
-              from the source, it is reshaped to (n_samples, n_pixels_width, n_pixels_height).
+        
+        **IMPORTANT**: 
+        If some of the channels are videos (2D array - so shape is (n_samples, n_pixels_width, n_pixels_height)), 
+        then data has to be reshaped to shape (n_samples, n_pixels_width*n_pixels_height). Then data from multiple
+        sources have to be concatenated into one array of shape (n_samples, n_cols), where cols is the combined number 
+        of pixel of all video sources and number of channels in data sources.
+        
+        For an example where data source has 2 video sources with resolution 300x200 and 2 data channels, the final 
+        shape returned by this methods should be (n_samples, 300*200*2+2).
+    
+        For video sources, the shape of the video is automatically stored in self.channel_shapes_video_init when
+        self.set_data_source() is called. When data is retrieved from the source, it is reshaped to (n_samples, n_pixels_width, n_pixels_height).
                   
         Returns:
             data (np.ndarray): 2D numpy array of shape (n_samples, n_columns)
         """
         pass
     
-    def _read_all_channels(self):
+    def _read_all_channels(self)->np.ndarray:
         """
         Uses acquired data and process them to create data for virtual channels.
         This method is continuously called by self.acquire() method.
+        
+        Returns:
+            data (np.ndarray): 2D numpy array of shape (n_samples, n_columns)
         """
         # read data from source:
         data = self.read_data() # shape (n_samples, n_cols) - flattened video channels (if video)
@@ -452,16 +472,14 @@ class BaseAcquisition:
 
         return data
     
-    def get_sample_rate(self):
-        """EDIT in child class
+    def get_sample_rate(self)->float:
+        """EDIT in child class (Optional).
         
         Returns sample rate of acquisition class.
-        
-        Returns self.sample_rate
         """
         return self.sample_rate
     
-    def get_channel_index(self, channel_name, channel_type='data'):
+    def get_channel_index(self, channel_name:str, channel_type:str='data')->int:
         """Returns the index of the channel from either self.channel_names_all, self.channel_names or self.channel_names_video.
         The channel_type argument is used to specify which list to use. If index is used for retrieving channel data from array
         returned by self.get_data() then channel_type should depend on which type of data you are recieving.
@@ -481,17 +499,18 @@ class BaseAcquisition:
         else:
             raise ValueError("channel_type must be 'all', 'data' or 'video'.")
     
-    def clear_buffer(self):
-        """EDIT in child class
+    def clear_buffer(self)->None:
+        """EDIT in child class (Optional).
         
-        The source buffer should be cleared with this method. It can either actually clear the buffer, or
-        just read the data with self.read_data() and does not add/save data anywhere.
+        The source buffer should be cleared with this method. It can either clear the buffer, or
+        just read the data with self.read_data() and does not add/save data anywhere. By default, this method
+        will read the data from the source and not add/save data anywhere.
         
         Returns None.
         """
         self.read_data()
             
-    def stop(self):
+    def stop(self)->None:
         """Stops acquisition run.
         """
         self.is_running = False
@@ -515,9 +534,9 @@ class BaseAcquisition:
             self.stop()
             self.terminate_data_source()
         
-    def run_acquisition(self, run_time=None, run_in_background=False):
+    def run_acquisition(self, run_time:float=None, run_in_background:bool=False)->None:
         """
-        Runs acquisition. This is the method one should call to start the acquisition.
+        Runs acquisition. This method is used to start the acquisition.
         
         Args:
             run_time (float): number of seconds for which the acquisition will run.
@@ -576,19 +595,18 @@ class BaseAcquisition:
         else:
             _loop()        
        
-    def set_continuous_mode(self, boolean=True, measurement_duration=None):
-        """Sets continuous mode of the acquisition. If True, acquisition will run indefinitely until
-           externally stopped. If False, acquisition will run for a specified time.
+    def set_continuous_mode(self, boolean:bool=True, measurement_duration:float=None)->None:
+        """Sets continuous mode of the acquisition. 
+        
+        If True, acquisition will run indefinitely until externally stopped. If False, acquisition will run for a specified time.
 
         Args:
             boolean (bool, optional): Defaults to True.
             measurement_duration (float, optional): If not None, sets the duration of the measurement in seconds. It does NOT
-                                                    update ring buffer size. Defaults to None.
-            
-            NOTE: Based on measurement_duration, the number of total samples to be acquired is calculated. In this case the 
-            ring buffer size can be different to the number of samples to be acquired. If None, measurement duration measurement
-            will not stop until externally stopped. This means that after the ring buffer is filled, the oldest data will be
-            overwritten by the newest data. 
+                                                    update ring buffer size. Defaults to None. Based on measurement_duration, the number of total samples to be acquired is calculated. In this case the 
+                                                    ring buffer size can be different to the number of samples to be acquired. If None, measurement duration measurement
+                                                    will not stop until externally stopped. This means that after the ring buffer is filled, the oldest data will be
+                                                    overwritten by the newest data. 
             
         Returns:
             None
@@ -612,7 +630,7 @@ class BaseAcquisition:
         else:
             self.N_samples_to_acquire = None
                    
-    def _set_trigger_instance(self):
+    def _set_trigger_instance(self)->None:
         """
         Creates CustomPyTrigger instance and sets its parameters.
         
@@ -660,7 +678,7 @@ class BaseAcquisition:
             
         #self.N_samples_to_acquire = self.trigger_settings["duration_samples"]      
         
-    def set_trigger(self, level, channel, duration=1, duration_unit='seconds', presamples=0, type='abs'):
+    def set_trigger(self, level:float, channel:str|int, duration:float|int=1, duration_unit:str='seconds', presamples:int=0, type:str='abs')->None:
         """Set parameters for triggering the measurement. 
         
         NOTE: only one trigger channel is supported at the moment. Additionally trigger can only be set
@@ -701,7 +719,7 @@ class BaseAcquisition:
         
         self._set_trigger_instance()
         
-    def update_trigger_parameters(self, **kwargs):
+    def update_trigger_parameters(self, **kwargs)->None:
         """
         Updates trigger settings. See 'set_trigger()' method for possible parameters.
         """  
@@ -718,7 +736,7 @@ class BaseAcquisition:
         
         self._set_trigger_instance()
         
-    def activate_trigger(self, all_sources=True):
+    def activate_trigger(self, all_sources:bool=True)->None:
         """
         Sets trigger off. Useful if the acquisition class is trigered by another process.
         This trigger can also trigger other acquisition sources by setting property class
@@ -728,14 +746,19 @@ class BaseAcquisition:
         else:
             self.Trigger.triggered = True
 
-    def reset_trigger(self, all_sources=True):
+    def reset_trigger(self, all_sources:bool=True)->None:
         """
         Resets trigger.
+        
+        Parameters:
+            all_sources (bool): if True, resets trigger of all acquisition sources. If False, resets only this acquisition source.
+                                Currently, this parameter is not used, it is always set to True.
         """
+        # TODO: check if all_sources parameter can be removed.
         CustomPyTrigger.triggered_global = False
         self.Trigger.triggered = False
         
-    def is_triggered(self):
+    def is_triggered(self)->bool:
         """
         Checks if acquisition class has been triggered during measurement.
 
@@ -744,13 +767,13 @@ class BaseAcquisition:
         """
         return self.Trigger.triggered
         
-    def _all_acquisitions_ready(self):
+    def _all_acquisitions_ready(self)->None:
         """Sets ALL acquisition sources (not only this one) to ready state. Should not be generally used.
         This method is normally used  by Core() class to set all acquisition sources to ready state.
         """
         BaseAcquisition.all_acquisitions_ready = True
     
-    def _reshape_data(self, flattened_data, data_to_return):
+    def _reshape_data(self, flattened_data:np.ndarray, data_to_return:str)->np.ndarray|list:
         """Reshapes channel arrays to the original shape.
 
         Args:
@@ -762,9 +785,13 @@ class BaseAcquisition:
                                    if 'flattened', returns flattened data array with shape (n_samples, n_ringbuffer_channels).
 
         Returns:
-            np.ndarray, list: if 'data' is requested, returns array with shape (n_samples, n_data_channels).
-                              if 'video' is requested, returns list of 3D arrays with shape (n_samples, height, width).
-                              if 'flattened' is requested, returns flattened data array with shape (n_samples, n_ringbuffer_channels).
+            np.ndarray, list: 
+            
+                - if 'data' is requested, returns array with shape (n_samples, n_data_channels).
+                
+                - if 'video' is requested, returns list of 3D arrays with shape (n_samples, height, width).
+                
+                - if 'flattened' is requested, returns flattened data array with shape (n_samples, n_ringbuffer_channels).
         """
         if data_to_return=="video":
             channels = [self.channel_names_all.index(name) for name in self.channel_names_video]
@@ -793,22 +820,26 @@ class BaseAcquisition:
         
         return data_return
             
-    def get_data(self, N_points=None, data_to_return="data"):
+    def get_data(self, N_points:int|str|None=None, data_to_return:str="data")->tuple:
         """Reads and returns data from the buffer.
+        
         Args:
             N_points (int, str, None): number of last N points to read from pyTrigger buffer.
-                            if N_points="new", then only new points will be retrieved.
-                            if None all samples are returned.
+                if N_points="new", then only new points will be retrieved.
+                if None all samples are returned.
             data_to_return (str): 'video', 'data' or 'flattened'. If 'data', only data channels are returned as an array
     
         Returns:
             tuple: (time, data) - np.ndarray 1D time vector and measured data. Data shape depends on 'data_to_return' parameter:
-                            if 'data' is requested, returns array with shape (n_samples, n_data_channels).
-                            if 'video' is requested, returns list of 3D arrays with shape (n_samples, height, width).
-                            if 'flattened' is requested, returns flattened data array with shape (n_samples, n_ringbuffer_channels).
+            
+                - if 'data' is requested, returns array with shape (n_samples, n_data_channels).
+                
+                - if 'video' is requested, returns list of 3D arrays with shape (n_samples, height, width).
+                
+                - if 'flattened' is requested, returns flattened data array with shape (n_samples, n_ringbuffer_channels).
                             
-        NOTE: if N_points = "new" is used for retrieving new results during measurement and Core() class is used for
-                measurement control, then periodic saving should be turned off in Core() class.
+        IMPORTANT: if N_points = "new" is used for retrieving new results during measurement and Core() class is used for measurement control,
+        then periodic saving should be turned OFF in Core() class. In other words, Core.run() method should be called with save_interval=None.
         """        
         if N_points is None:
             data = self.Trigger.get_data()[-self.Trigger.N_acquired_samples_since_trigger:]
@@ -825,16 +856,21 @@ class BaseAcquisition:
     
         return time, data_return
     
-    def get_data_PLOT(self, data_to_return="data"):
+    def get_data_PLOT(self, data_to_return:str="data")->np.ndarray|list:
         """Reads only new data from pyTrigger ring buffer and returns it.
-            NOTE: this method is used only for plotting purposes and should not be used for any other purpose.
-                  also it does not return time vector, only data. See get_data() method for more details. Data returned
-                  in this method is the same as in get_data().
+        
+        This method is used only for plotting purposes and SHOULD NOT BE USED for any other purpose. Additionally,
+        it does not return time vector, only data. See get_data() method for more details. Data returned in this
+        method is the same as in get_data().
+        
         Returns:
             np.ndarray, list:
-                    if 'data' is requested, returns array with shape (n_samples, n_data_channels).
-                    if 'video' is requested, returns list of 3D arrays with shape (n_samples, height, width).
-                    if 'flattened' is requested, returns flattened data array with shape (n_samples, n_ringbuffer_channels)
+            
+                    - if 'data' is requested, returns array with shape (n_samples, n_data_channels).
+                    
+                    - if 'video' is requested, returns list of 3D arrays with shape (n_samples, height, width).
+                    
+                    - if 'flattened' is requested, returns flattened data array with shape (n_samples, n_ringbuffer_channels)
         """
         with self.lock_acquisition: # lock acquisition to avoid reading data while it is being written
             data = self.Trigger.get_data_new_PLOT()
@@ -843,9 +879,8 @@ class BaseAcquisition:
         
         return data_return
     
-    def get_measurement_dict(self, N_points=None):
-        """Reads data from pyTrigger ring buffer using self.get_data() method and returns a dictionary containing
-            all relevant information about the measurement. 
+    def get_measurement_dict(self, N_points:int|str=None)->dict:
+        """Reads data from pyTrigger ring buffer using self.get_data() method and returns a dictionary containing all relevant information about the measurement. 
 
         Args:
             N_points (None, int, str): Number of points to get from pyTrigger ringbuffer. If type(N_points)==int then N_points
@@ -853,13 +888,23 @@ class BaseAcquisition:
                                        If None, all samples are returned. Defaults to None.
 
         Returns:
-            dict: {'time': 1D array, 
-                    'channel_names': self.channel_names, 'data': 2D array (n_samples, n_data_channels),
-                    'channel_names_video': self.channel_names_video, 'video': list of 3D arrays (n_samples, height, width),
-                    'sample_rate': self.sample_rate}
-                    
-        NOTE: if N_points = "new" is used for retrieving new results during measurement and Core() class is used for
-                measurement control, then periodic saving should be turned off in run() method of Core() class.
+            dict: keys and values are the following:
+                
+                - 'time': 1D array
+                 
+                - 'channel_names': list of channel names
+                
+                - 'data': 2D array (n_samples, n_data_channels)
+                
+                - 'channel_names_video': list of video channel names
+                
+                - 'video': list of 3D arrays (n_samples, height, width)
+                
+                - 'sample_rate': sample rate of acquisition
+                   
+        IMPORTANT: 
+        If N_points = "new" is used for retrieving new results during measurement and Core() class is used for measurement control,
+        then periodic saving should be turned OFF in Core() class. In other words, Core.run() method should be called with save_interval=None.
         """
         measurement_dict = {}
         
@@ -904,13 +949,8 @@ class BaseAcquisition:
             
         return measurement_dict
     
-    def save(self, name, root='', timestamp=True, comment=None):
+    def save(self, name:str, root:str='', timestamp:bool=True, comment:str=None)->None:
         """Save acquired data.
-        
-        :param name: filename
-        :param root: directory to save to
-        :param timestamp: include timestamp before 'filename'
-        :param comment: commentary on the saved file
         
         Args:
             name (str): filename

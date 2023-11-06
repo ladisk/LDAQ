@@ -19,7 +19,15 @@ from ..acquisition_base import BaseAcquisition
 
 
 class NIAcquisition(BaseAcquisition):
-    """National Instruments Acquisition class."""
+    """National Instruments Acquisition class, compatible with any NI acquisition device that is supported by NI-DAQmx library.
+    
+    To use this class, you need to install NI-DAQmx library found on this link:
+    https://www.ni.com/en/support/downloads/drivers/download.ni-daq-mx.html#494676
+    
+    Installation instructions:
+    - Download NI-DAQmx from the link listed above.
+    - Install NI-DAQmx.
+    """
 
     def __init__(self, task_name: typing.Union[str, object], acquisition_name: typing.Optional[str] = None) -> None:
         """Initialize the acquisition task.

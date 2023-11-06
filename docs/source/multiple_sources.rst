@@ -34,8 +34,13 @@ The sources can simply be added to the :class:`LDAQ.Core` object:
 
 .. note::
     
-    The sample rates of the acquisition sources are not always known. If the ``sample_rate`` argument is set to ``None``, the sample rate detection routine is started. 
-    See `sample rate detection <sample_rate_detection.html>`_ for more details.
+    The sample rates of the acquisition sources are not always known. If the ``sample_rate`` argument is set to ``None``, the sample rate detection routine is started and
+    sample rate is automatically estimated.
+
+.. note::
+
+    Currently, data obtained from multiple acquisition sources is not synchronized. The delay between the sources depends on various factors, mainly the sample rate and 
+    hardware data buffer.
 
 Multiple generation sources
 ---------------------------

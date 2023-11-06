@@ -12,15 +12,15 @@ The source-code for this package is available on `GitHub <https://github.com/lad
 
 The package enables data **acquisition** and signal **generation** from multiple hardware sources, and costumizable **live data visualization**.
 
-See :doc:`tutorials` for a quick start guide.
+See :doc:`simple_start` for a quick start guide.
+
+See :doc:`tutorials` to learn about different LDAQ features.
 
 For more advanced use cases of currently supported hardware see notebook :doc:`examples`.
 
 .. note::
    
    To quickly add acquisition code to your project, go to the :doc:`snippets` page, where you can copy and paste the code you need.
-
-For the more in-depth documentation, start with the :doc:`simple_start` page.
 
 Table of Contents
 =================
@@ -31,6 +31,7 @@ Table of Contents
    simple_start
    tutorials
    snippets
+   supported_devices
    code
    examples
 

@@ -64,7 +64,7 @@ Where:
 .. note::
 
     The :class:`LDAQ.Core` may seem unnecessary when using a single acquisition source.
-    However, it enables the usage of signal `generation <generation.html>`_, live `visualization <visualization.html>`_ and `multiple acquisition/generation <multiple_sources.html>`_ sources.
+    However, it enables the simultaneous usage of signal `generation <generation.html>`_, live `visualization <visualization.html>`_ and `multiple acquisition/generation <multiple_sources.html>`_ sources.
 
 Run the measurement
 -------------------
@@ -100,7 +100,10 @@ What else can I do with LDAQ?
 -----------------------------
 
 - Add generation to the :class:`LDAQ.Core` object. (see `generation <generation.html>`_)
+- Apply virtual channels to acquisition objects, to perform calculations on the acquired data. (see `virtual channels <virtual_channels.html>`_)
 - Add visualization to the :class:`LDAQ.Core` object. (see `visualization <visualization.html>`_)
 - Apply functions to measured data in real-time visualization. (see `visualization <visualization.html>`_)
 - Add multiple acquisition and signal generation objects to :class:`LDAQ.Core`. (see `multiple sources <multiple_sources.html>`_)
 - Define a NI Task in your program and use it with LDAQ. (see `NI Task <ni_task.html>`_)
+- Currently the package supports a limited set of devices from National Instruments, Digilent, FLIR, Basler and devices using serial communication. (see `supported devices <supported_devices.html>`_)
+- Create your own acquisition class by overriding just few methods. LDAQ support signal as well as video acquisition sources. (see `custom acquisition <custom_acquisition.html>`_)

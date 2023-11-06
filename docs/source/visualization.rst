@@ -25,6 +25,7 @@ Live visualization of the measurments is possible by adding the :class:`LDAQ.Vis
   the data for the second line is already acquired. To avoid this, set ``sequential_plot_updates`` to ``False``.
 
 .. _add_lines:
+
 Adding lines to the plot
 ------------------------
 
@@ -48,6 +49,7 @@ The arguments are:
 
 
 .. _channels_argument:
+
 Channels
 ~~~~~~~~
 
@@ -74,6 +76,7 @@ Multiple channel vs. channel plots can be added to the same subplot:
     vis.add_lines(position=(0, 0), source='DataSource', channels=[(0, 1), (2, 3)])
 
 .. _function_argument:
+
 The ``function`` argument
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -133,6 +136,7 @@ An example of such a function is:
 
 
 .. _config_subplots:
+
 Configure the subplots
 ----------------------
 

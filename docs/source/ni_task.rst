@@ -108,6 +108,8 @@ directly passed to the ``NIAcquisition`` object. In this case the task's name mu
 
         task.save(clear_task=False)
 
+.. _ni-task-output:
+
 Output task
 -----------
 

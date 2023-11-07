@@ -17,7 +17,9 @@ class WaveFormsAcquisition(BaseAcquisition):
     https://digilent.com/shop/software/digilent-waveforms/
     
     Installation instructions:
+    
     - Download WaveForms from the link listed above.
+    
     - Install WaveForms.
     """
     def __init__(self, acquisition_name=None, channels=[0, 1], sample_rate=10000, 

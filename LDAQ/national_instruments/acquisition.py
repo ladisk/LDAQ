@@ -25,7 +25,9 @@ class NIAcquisition(BaseAcquisition):
     https://www.ni.com/en/support/downloads/drivers/download.ni-daq-mx.html#494676
     
     Installation instructions:
+    
     - Download NI-DAQmx from the link listed above.
+    
     - Install NI-DAQmx.
     """
 

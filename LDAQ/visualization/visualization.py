@@ -182,7 +182,6 @@ class Visualization:
                     self: instance of the acquisition object (has to be there so the function is called properly)
                     channel_data (dict): A dictionary containing the channel data.
                 '''
-                
                 return channel_data**2
 
         The ``self`` argument in the custom function referes to the instance of the acquisition object. 

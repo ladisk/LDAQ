@@ -154,11 +154,13 @@ class BaseAcquisition:
     """Parent acquisition class that should be used when creating new child acquisition source class.
     Child class should override methods the following methods:
     
-    - self.read_data()
+    - self.__init__()
+    
+    - self.set_data_source()
     
     - self.terminate_data_source()
     
-    - self.set_data_source()
+    - self.read_data()
     
     - self.clear_buffer() (optional)
     
@@ -612,11 +614,11 @@ class BaseAcquisition:
             None
             
         Examples:
-            # Setting continuous mode to True, setting buffer size to 10 seconds of data, measurement will run indefinitely:
+            >>> # Setting continuous mode to True, setting buffer size to 10 seconds of data, measurement will run indefinitely:
             >>> acq.set_trigger(level=0, channel=0, duration=10.) # this will trigger measurement right away, buffer size will be 10 seconds
             >>> acq.set_continuous_mode(True, measurement_duration=None) # acquisition will run indefinitely until externally stopped
             
-            # Setting continuous mode to True, setting buffer size to 5 seconds of data, measurment will run for 10 seconds:
+            >>> # Setting continuous mode to True, setting buffer size to 5 seconds of data, measurment will run for 10 seconds:
             >>> acq.set_trigger(level=0, channel=0, duration=5.) # this will trigger measurement right away, buffer size will be 5 seconds
             >>> acq.set_continuous_mode(True, measurement_duration=10.) # acquisition will run for 10 seconds, but buffer will store only 5 seconds of data
         """
@@ -681,7 +683,7 @@ class BaseAcquisition:
     def set_trigger(self, level:float, channel:str|int, duration:float|int=1, duration_unit:str='seconds', presamples:int=0, type:str='abs')->None:
         """Set parameters for triggering the measurement. 
         
-        NOTE: only one trigger channel is supported at the moment. Additionally trigger can only be set
+        Only one trigger channel is supported at the moment. Additionally trigger can only be set
         on 'data' channels. If trigger is needed on 'video' channels, a 'data' virtual channel has to be created
         using 'add_virtual_channel()' method, and then trigger can be set on this virtual channel.
         

@@ -1,7 +1,7 @@
 Installation
 ============
 
-1) To install LDAQ first create a new environment:
+To install LDAQ first create a new environment:
 
 .. code:: bash
 
@@ -17,13 +17,13 @@ The `3.11` refers to the python version you are using. You can check your versio
 
     This package works with Python versions 3.8 and above.
 
-2) Then activate the environment:
+Then activate the environment:
 
 .. code:: bash
 
     <path_to_venv>\Scripts\activate
 
-3) When the `venv` environment is activated, install the package from `GitHub <https://github.com/ladisk/LDAQ>`_
+When the `venv` environment is activated, install the package from `GitHub <https://github.com/ladisk/LDAQ>`_
 (you will have to have `git <https://git-scm.com/downloads>`_ installed):
 
 .. code:: bash

@@ -5,6 +5,7 @@ twine
 wheel
 pytest
 sphinx-rtd-theme
+sphinx-copybutton
 nbsphinx
 nbsphinx_link
 jupyter

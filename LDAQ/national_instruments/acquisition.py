@@ -17,6 +17,7 @@ from ctypes import *
 from .ni_task import NITask
 from ..acquisition_base import BaseAcquisition
 
+#TODO: remove pyDAQmx completely and use only nidaqmx
 class NIAcquisition(BaseAcquisition):
     """National Instruments Acquisition class, compatible with any NI acquisition device that is supported by NI-DAQmx library.
     

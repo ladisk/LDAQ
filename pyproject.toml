@@ -4,23 +4,23 @@ build-backend = "hatchling.build"
 
 [project]
 name = "LDAQ"
-version = "0.0.2"
+version = "1.0.0"
 authors = [{name = "Tilen Košir, Klemen Zaletelj, Janko Slavič", email = "janko.slavic@fs.uni-lj.si"}]
-maintainers = [{name = "Tilen Košir, Klemen Zaletelj, Janko Slavič", email = "janko.slavic@fs.uni-lj.si"}]
+maintainers = [{name = "Tilen Košir, Klemen Zaletelj", email = "klemen.zaletelj@fs.uni-lj.si"}]
 license = "MIT"
 description = "Data acquisition and generation with live visualization."
 readme = "README.rst"
 keywords = ["data acquisition", "data generation", "live visualization"]
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 
 dependencies = [
     "numpy>=1.11.0",
     "scipy>=1.2.0",
     "matplotlib>=3.0.0",
-    "tqdm>=4.25.0",
     "pyqtgraph",
     "PyQt5>=5.15.6",
     "beautifultable>=1.1.0",
+    "dill",
     "keyboard",
     "pyTrigger",
     "PyDAQmx",
@@ -30,7 +30,6 @@ dependencies = [
     "openpyxl",
     "pandas",
     "urllib3<2.0",
-    "dill"
 ]
 
 classifiers = [
@@ -48,9 +47,13 @@ dev = [
     "wheel",
     "pytest",
     "sphinx-rtd-theme",
+    "nbsphinx",
+    "nbsphinx_link",
+    "jupyter",
+    "sphinx-book-theme",
 ]
 
 [project.urls]
-homepage = "https://github.com/ladisk/LadiskDAQ"
-documentation = "https://ladiskdaq.readthedocs.io/en/latest/"
-source = "https://github.com/ladisk/LadiskDAQ"
+homepage = "https://github.com/ladisk/LDAQ"
+documentation = "https://ldaq.readthedocs.io/en/latest/"
+source = "https://github.com/ladisk/LDAQ"

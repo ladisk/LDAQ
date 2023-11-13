@@ -23,7 +23,13 @@ Then activate the environment:
 
     <path_to_venv>\Scripts\activate
 
-When the `venv` environment is activated, install the package from `GitHub <https://github.com/ladisk/LDAQ>`_
+When the `venv` environment is activated, install the package using pip:
+
+.. code:: bash
+
+    pip install ldaq
+
+Alternatively, the latest version can always be installed from `GitHub <https://github.com/ladisk/LDAQ>`_
 (you will have to have `git <https://git-scm.com/downloads>`_ installed):
 
 .. code:: bash

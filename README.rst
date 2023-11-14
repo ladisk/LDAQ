@@ -1,3 +1,16 @@
+LDAQ
+====
+
+Data acquisition and generation with live visualization.
+
+Installation
+============
+
+The package can be installed from PyPI using pip:
+.. code-block::
+
+    pip install LDAQ
+
 Getting started
 ===============
 

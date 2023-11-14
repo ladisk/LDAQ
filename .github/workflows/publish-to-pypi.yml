@@ -1,4 +1,4 @@
-name: Release and Publish to PyPI
+name: Publish to PyPI
 on:
   push:
     tags:

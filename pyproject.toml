@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "LDAQ"
-version = "1.0.2"
+version = "1.0.3"
 authors = [{name = "Tilen Košir, Klemen Zaletelj, Janko Slavič", email = "janko.slavic@fs.uni-lj.si"}]
 maintainers = [{name = "Tilen Košir, Klemen Zaletelj", email = "klemen.zaletelj@fs.uni-lj.si"}]
 license = "MIT"

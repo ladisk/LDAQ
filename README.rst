@@ -1,8 +1,18 @@
-Project Description
-===================
+LDAQ
+====
+
+Data acquisition and generation with live visualization.
 
 .. image:: /docs/source/getting_started.gif
    :alt: demo_gif
+
+Installation
+============
+
+The package can be installed from PyPI using pip:
+.. code-block::
+
+    pip install LDAQ
 
 Getting started
 ===============

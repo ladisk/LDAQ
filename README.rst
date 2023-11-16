@@ -15,13 +15,17 @@ Key Features:
 
 - 🐍 **Python-Powered**: Built on the robust and versatile Python language, LDAQ harnesses its power to offer a streamlined data collection process. It's compatible with all Python environments, ensuring ease of integration into your existing workflows.
 
-- 🔄 **Diverse Hardware Compatibility**: LDAQ supports a variety of hardware sources, including:
+- 📟 **Diverse Hardware Compatibility**: LDAQ supports a variety of hardware sources, including:
+
   - National Instruments
+
   - Digilent
+
   - Serial communication devices (i.e. Arduino, ESP)
+
   - FLIR Cameras
 
-  This wide range of compatibility makes LDAQ a versatile tool for various data acquisition needs. Also includes simulated hardware for workflow developments, and ability to include currently unsupported hardware. 
+  - Simulated hardware
 
 - 📊 **Advanced Data Visualization & Analysis**: LDAQ doesn’t just collect data; it helps you understand it. With built-in features like real-time signal visualization and Fast Fourier Transform (FFT) analysis, you can dive deep into your data for more insightful discoveries.
 

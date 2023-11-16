@@ -44,6 +44,7 @@ Installation
 ------------
 
 The package can be installed from PyPI using pip:
+
 .. code-block::
 
     pip install LDAQ

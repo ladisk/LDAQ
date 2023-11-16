@@ -1,3 +1,9 @@
+Project Description
+===================
+
+.. image:: /docs/source/getting_started.gif
+   :alt: demo_gif
+
 Getting started
 ===============
 

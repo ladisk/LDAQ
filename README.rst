@@ -3,7 +3,7 @@ LDAQ
 
 Data acquisition and generation with live visualization.
 
-.. image:: /docs/source/getting_started.gif
+.. image:: /docs/source/images/getting_started.gif
    :alt: demo_gif
 
 Installation

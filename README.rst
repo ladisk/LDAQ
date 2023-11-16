@@ -1,21 +1,46 @@
-LDAQ
-====
+LDAQ - Streamlined Data Acquisition and Generation
+==================================================
 
-Data acquisition and generation with live visualization.
+What is LDAQ?
+-------------
+
+LDAQ stands for **L**ightweight **D**ata **A**cquisition, a Python-based toolkit designed to make data collection seamless and efficient. Whether you're a researcher, engineer, or hobbyist, LDAQ offers a powerful yet user-friendly platform to gather 
+data from a wide range of hardware sources.
+
+Key Features:
+-------------
+
+- 🐍 **Python-Powered**: Built on the robust and versatile Python language, LDAQ harnesses its power to offer a streamlined data collection process. It's compatible with all Python environments, ensuring ease of integration into your existing workflows.
+
+- 🔄 **Diverse Hardware Compatibility**: LDAQ supports a variety of hardware sources, including:
+  - National Instruments
+  - Digilent
+  - Serial communication devices (i.e. Arduino, ESP)
+  - FLIR Cameras
+
+  This wide range of compatibility makes LDAQ a versatile tool for various data acquisition needs. Also includes simulated hardware for workflow developments, and ability to include currently unsupported hardware. 
+
+- 📊 **Advanced Data Visualization & Analysis**: LDAQ doesn’t just collect data; it helps you understand it. With built-in features like real-time signal visualization and Fast Fourier Transform (FFT) analysis, you can dive deep into your data for more insightful discoveries.
+
+- ⚙️ **Customization & Flexibility**: Tailor LDAQ to your specific needs. Whether you're dealing with high-speed data streams or complex signal processing, LDAQ's customizable framework allows you to optimize and accelerate your data acquisition processes.
+
+
+Getting started
+===============
+
+Dive into the world of efficient data acquisition with LDAQ. Our `documentation <https://ldaq.readthedocs.io/en/latest>`_ will guide you through installation, setup, and basic usage to get you up and running in no time.
 
 .. image:: /docs/source/images/getting_started.gif
    :alt: demo_gif
 
 Installation
-============
+------------
 
 The package can be installed from PyPI using pip:
 .. code-block::
 
     pip install LDAQ
 
-Getting started
-===============
 
 Create the acquisition object
 -----------------------------

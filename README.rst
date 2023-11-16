@@ -4,10 +4,10 @@ LDAQ - Streamlined Data Acquisition and Generation
 What is LDAQ?
 -------------
 
-LDAQ stands for **L**ightweight **D**ata **A**cquisition, a Python-based toolkit designed to make data collection seamless and efficient. Whether you're a researcher, engineer, or hobbyist, LDAQ offers a powerful yet user-friendly platform to gather 
+LDAQ stands for **L**\ ightweight **D**\ ata **A**\ c\ **Q**\ uisition, a Python-based toolkit designed to make data collection seamless and efficient. Whether you're a researcher, engineer, or hobbyist, LDAQ offers a powerful yet user-friendly platform to gather 
 data from a wide range of hardware sources.
 
-.. image:: /docs/source/images/frf_visualization.gif
+.. image:: /docs/source/images/FRF_visualization.gif
    :alt: frf_visualization
 
 Key Features:

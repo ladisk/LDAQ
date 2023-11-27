@@ -446,7 +446,7 @@ class BaseAcquisition:
         """
         # read data from source:
         data = self.read_data() # shape (n_samples, n_cols) - flattened video channels (if video)
-        if len(data.shape[0]) == 0:
+        if data.shape[0] == 0:
             return np.empty(shape=(0, self.Trigger.channels))
         
         # calculate data of virtual channels:

@@ -27,7 +27,7 @@ class FLIRThermalCamera(BaseAcquisition):
     
     - Install PySpin (python wrapper for Spinnaker SDK). On the website listed above, there are multiple build wheels listed under "Lastest Windows Python Spinnaker SDK". Choose the one that matches your python version and architecture (i.e. spinnaker_python-3.1.0.79-cp310-cp310-win_amd64.zip for python 3.10 64-bit - this is also the version used for development of this class)
     """
-    def __init__(self, acquisition_name=None, channel_name_IR_cam="temperature_field", IRtype='LINEAR_10MK'):
+    def __init__(self, acquisition_name=None, channel_name_IR_cam="temperature_field", IRtype='LINEAR_10MK', subsampling_multiplier=1):
         """
         Args:
             acquisition_name (str, optional): Name of the class. Defaults to None.
@@ -37,7 +37,8 @@ class FLIRThermalCamera(BaseAcquisition):
                                     - LINEAR_100MK: 100mK temperature resolution
                                     - RADIOMETRIC: capture radiometric data and manually convert to temperature
                                                     (this requires calibration coefficients, currently some
-                                                     calibration values are read from the camera)         
+                                                     calibration values are read from the camera)  
+            subsampling_multiplier (int, optional) : take only each n-th frame. From the thermal camera. This effectively reduces sample rate (base sample rate is 30 Hz). This is useful if application cannot keep up with the camera. Defaults to 1.    
         """
         try:
             PySpin # check if PySpin is imported
@@ -55,9 +56,11 @@ class FLIRThermalCamera(BaseAcquisition):
         self.camera_acq_started = False
         self.set_data_source()
         
-        self.sample_rate = 30 # TODO: this can probably be set in thermal camera and read from it
+        self.subsampling_multiplier = subsampling_multiplier
+        self.sample_rate = 30./subsampling_multiplier
+         # TODO: this can probably be set in thermal camera and read from it
                               # default camera fps is 30.
-        
+        self.n_frame = 0
         # channel in set trigger is actually pixel in flatten array:
         self.set_trigger(1e20, 0, duration=1.0)
         
@@ -100,7 +103,8 @@ class FLIRThermalCamera(BaseAcquisition):
         if not self.camera_acq_started:
             self.cam.BeginAcquisition()
             self.camera_acq_started = True
-            
+        
+        self.n_frame = 0
         super().set_data_source()
 
     def read_data(self):
@@ -160,6 +164,11 @@ class FLIRThermalCamera(BaseAcquisition):
         #  Ensure image completion
         if image_result.IsIncomplete():
             return  np.empty((0, self.n_channels_trigger))
+        self.n_frame += 1
+        if self.n_frame != self.subsampling_multiplier:
+            return  np.empty((0, self.n_channels_trigger))
+        else:
+            self.n_frame = 0
 
         # Getting the image data as a np array
         image_data = image_result.GetNDArray()

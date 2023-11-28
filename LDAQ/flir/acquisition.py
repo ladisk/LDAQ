@@ -120,7 +120,7 @@ class FLIRThermalCamera(BaseAcquisition):
         # read thermal camera data:
         shape = self.channel_shapes[ 0 ] # NOTE: channel 0 is always thermal camera
         data_thermal_camera = self._read_data_thermal_camera() 
-        if not data_thermal_camera.shape[0] > 0: 
+        if not data_thermal_camera.shape[0] > 0:
             return np.empty((0, shape[0]*shape[1]))
         
         return data_thermal_camera.reshape(-1, shape[0]*shape[1]) # NOTE: change this when regular camera is added

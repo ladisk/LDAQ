@@ -576,7 +576,6 @@ class MainWindow(QMainWindow):
                 width: 100px;
                 height: 500px;
                 padding: 0px;
-                align: center;
                 text-align: center;
             }
             QProgressBar::chunk {
@@ -878,6 +877,7 @@ class MainWindow(QMainWindow):
 
 
     def close_app(self):
+        print("closing app")
         self.vis.last_position = self.pos()
         self.vis.last_size = self.size()
 

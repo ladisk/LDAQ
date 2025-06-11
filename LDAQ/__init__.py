@@ -1,4 +1,4 @@
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 from .utils import *
 from .core import Core
 from .visualization import *

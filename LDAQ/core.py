@@ -105,7 +105,7 @@ class Core():
         return string     
     
     def run(self, measurement_duration=None, autoclose=True, autostart=False, save_interval=None, run_name="Run", 
-            root='', save_channels=None, verbose=2):
+            root='', save_channels=None, verbose=2, hotkeys=True):
         """
         Runs the measurement with acquisition and generation sources that have already been set. This entails setting configuration
         and making acquiring and generation threads for each source, as well as starting and stopping them when needed. If visualization
@@ -164,7 +164,7 @@ class Core():
         
         self.first = True # for printing trigger the first time.
         
-        if self.visualization is None:
+        if self.visualization is None and hotkeys:
             self._keyboard_hotkeys_setup()
             if self.verbose == 2:
                 self._print_table()
@@ -247,7 +247,7 @@ class Core():
         if self.verbose in [1, 2]:
             print('Measurement finished.')
         
-        if self.visualization is None:
+        if self.visualization is None and hotkeys:
             self._keyboard_hotkeys_remove()
     
     def _stop_event_handling(self, func):

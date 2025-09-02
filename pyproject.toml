@@ -1,18 +1,27 @@
 [build-system]
-requires = ["hatchling"]
+requires = [
+    "hatchling",
+]
 build-backend = "hatchling.build"
 
 [project]
 name = "LDAQ"
-version = "1.0.4"
-authors = [{name = "Tilen Košir, Klemen Zaletelj, Janko Slavič", email = "janko.slavic@fs.uni-lj.si"}]
-maintainers = [{name = "Tilen Košir, Klemen Zaletelj", email = "klemen.zaletelj@fs.uni-lj.si"}]
+version = "1.1.0"
+authors = [
+    { name = "Tilen Košir, Klemen Zaletelj, Janko Slavič", email = "janko.slavic@fs.uni-lj.si" },
+]
+maintainers = [
+    { name = "Tilen Košir, Klemen Zaletelj", email = "klemen.zaletelj@fs.uni-lj.si" },
+]
 license = "MIT"
 description = "Data acquisition and generation with live visualization."
 readme = "README.rst"
-keywords = ["data acquisition", "data generation", "live visualization"]
+keywords = [
+    "data acquisition",
+    "data generation",
+    "live visualization",
+]
 requires-python = ">=3.10"
-
 dependencies = [
     "numpy>=1.11.0",
     "scipy>=1.2.0",
@@ -31,12 +40,11 @@ dependencies = [
     "pandas>=2.0.0",
     "urllib3<2.0",
 ]
-
 classifiers = [
-    'Development Status :: 5 - Production/Stable',
-    'Intended Audience :: Developers',
-    'Topic :: Scientific/Engineering',
-    'Programming Language :: Python :: 3.10',
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering",
+    "Programming Language :: Python :: 3.10",
     "License :: OSI Approved :: MIT License",
 ]
 

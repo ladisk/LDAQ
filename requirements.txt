@@ -17,3 +17,5 @@ pandas
 #h5py
 urllib3<2.0
 tqdm
+tomli-w
+tomli

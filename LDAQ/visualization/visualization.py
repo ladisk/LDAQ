@@ -124,7 +124,7 @@ class Visualization:
     
 
     def add_lines(self, position: Tuple[int, int], source: str, channels: Union[int, str, tuple, list],
-                  function: Union[callable, str, None] = None, nth: Union[int, str] = "auto",
+                  function: Union[Callable, str, None] = None, nth: Union[int, str] = "auto",
                   refresh_rate: Union[int, None] = None, t_span: Union[int, float, None] = None) -> None:
         """Build the layout dictionary.
 
@@ -259,7 +259,7 @@ class Visualization:
             })
 
 
-    def add_image(self, source: str, channel: Union[str, int], function: Optional[Union[str, callable]] = None, refresh_rate: int = 100, colormap: str = 'CET-L17') -> None:
+    def add_image(self, source: str, channel: Union[str, int], function: Optional[Union[str, Callable]] = None, refresh_rate: int = 100, colormap: str = 'CET-L17') -> None:
         """Add an image plot to the visualization for the specified source and channel.
 
         Args:

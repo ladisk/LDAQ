@@ -51,6 +51,8 @@ dev = [
     "nbsphinx_link",
     "jupyter",
     "sphinx-book-theme",
+    "tomli",
+    "tomli-w",
 ]
 
 [project.urls]

@@ -143,6 +143,7 @@ class NITask:
 
         self.system = nidaqmx.system.System.local()
         self.device_list = [_.name for _ in list(self.system.devices)]
+        self.device_product_type = [_.product_type for _ in list(self.system.devices)]
 
         if task_name in self.system.tasks.task_names:
             raise Exception(f"Task {task_name} already exists.")
@@ -388,5 +389,5 @@ class NITask:
             self.clear_task()
 
     def __repr__(self):
-        devices = '\n'.join([f"\t({i}) - {_}" for i, _ in enumerate(self.device_list)])
+        devices = '\n'.join([f"\t({i}) - {d}: {p}" for i, (d, p) in enumerate(zip(self.device_list, self.device_product_type))])
         return f"Task name: {self.task_name}\nConnected devices:\n{devices:s}\nChannels: {list(self.channels.keys())}"

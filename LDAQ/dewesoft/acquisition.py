@@ -2,7 +2,10 @@ import numpy as np
 from ctypes import *
 
 from ..acquisition_base import BaseAcquisition
-from siriusx import SiriusX
+try:
+    from siriusx import SiriusX
+except:
+    pass
 
 
 class DewesoftSiriusX(BaseAcquisition):
@@ -51,6 +54,11 @@ class DewesoftSiriusX(BaseAcquisition):
         
         - Make sure to call self.set_trigger(1e20, 0, duration=1.0) AT THE END (used just for inititialization of buffer).
         """
+        try:
+            from siriusx import SiriusX
+        except:
+            raise Exception("SiriusX library not found. Please install it before using this class.")
+
         super().__init__()
         self.sirius = SiriusX()
         self.acquisition_name = acqusition_name

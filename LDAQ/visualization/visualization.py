@@ -1,7 +1,7 @@
 import pyqtgraph as pg
 from pyqtgraph import ImageView, ImageItem
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout, 
-                             QPushButton, QHBoxLayout, QDesktopWidget, QProgressBar, QLabel, 
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout,
+                             QPushButton, QHBoxLayout, QDesktopWidget, QProgressBar, QLabel,
                              QSizePolicy)
 from PyQt5.QtCore import QTimer, Qt, QPointF
 from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QFont
@@ -14,6 +14,21 @@ import time
 import types
 import keyboard
 from pyTrigger import RingBuffer2D
+
+# Check for PyQt6 installation which can cause conflicts with PyQt5
+try:
+    import PyQt6
+    import warnings
+    warnings.warn(
+        "WARNING: PyQt6 is installed in this environment. "
+        "This may cause compatibility issues with PyQt5 and pyqtgraph. "
+        "Consider uninstalling PyQt6 if you encounter errors like "
+        "'GraphicsLayoutWidget' not being recognized as a QWidget.",
+        UserWarning,
+        stacklevel=2
+    )
+except ImportError:
+    pass  # PyQt6 not installed, no conflict
 
 from typing import Optional, Tuple, Union, List, Callable
 

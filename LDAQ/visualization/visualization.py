@@ -1,10 +1,17 @@
-import pyqtgraph as pg
-from pyqtgraph import ImageView, ImageItem
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout,
-                             QPushButton, QHBoxLayout, QDesktopWidget, QProgressBar, QLabel,
-                             QSizePolicy)
-from PyQt5.QtCore import QTimer, Qt, QPointF
-from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QFont
+try:
+    import pyqtgraph as pg
+    from pyqtgraph import ImageView
+    from pyqtgraph import ImageView, ImageItem
+    from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout,
+                                QPushButton, QHBoxLayout, QDesktopWidget, QProgressBar, QLabel,
+                                QSizePolicy)
+    from PyQt5.QtCore import QTimer, Qt, QPointF
+    from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QFont
+    haspyqt = True
+except ImportError:
+    ImageView = object
+    QMainWindow = object
+    haspyqt = False
 
 import numpy as np
 import sys
@@ -37,7 +44,7 @@ from .visualization_helpers import compute_nth, check_subplot_options_validity, 
 INBUILT_FUNCTIONS = {'fft': _fun_fft, 'frf_amp': _fun_frf_amp, 'frf_phase': _fun_frf_phase, 'coh': _fun_coh}
 
 # Create a subclass of ImageView
-class HoverImageView(pg.ImageView):
+class HoverImageView(ImageView):
     def __init__(self):
         super().__init__()
 
@@ -125,6 +132,9 @@ class Visualization:
                 If `False`, all lines are updated in each iteration of the main loop. Defaults to `True`.
 
         """
+        if not haspyqt:
+            raise ImportError("Install PyQt5 in order to use visualization.")
+
         self.max_plot_time = 1
         self.show_legend = True
         self.refresh_rate = refresh_rate

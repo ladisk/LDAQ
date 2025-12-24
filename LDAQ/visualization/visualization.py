@@ -2,16 +2,28 @@ try:
     import pyqtgraph as pg
     from pyqtgraph import ImageView
     from pyqtgraph import ImageView, ImageItem
-    from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout,
-                                QPushButton, QHBoxLayout, QProgressBar, QLabel,
-                                QSizePolicy)
-    from PyQt6.QtCore import QTimer, Qt, QPointF
-    from PyQt6.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QFont
-    haspyqt = True
+    try:
+        # Try PyQt6 first
+        from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout,
+                                    QPushButton, QHBoxLayout, QProgressBar, QLabel,
+                                    QSizePolicy)
+        from PyQt6.QtCore import QTimer, Qt, QPointF
+        from PyQt6.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QFont
+        QT_LIB = 'PyQt6'
+    except ImportError:
+        # Fall back to PySide6
+        from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout,
+                                      QPushButton, QHBoxLayout, QProgressBar, QLabel,
+                                      QSizePolicy)
+        from PySide6.QtCore import QTimer, Qt, QPointF
+        from PySide6.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QFont
+        QT_LIB = 'PySide6'
+    HAS_QT_LIB = True
 except ImportError:
     ImageView = object
     QMainWindow = object
-    haspyqt = False
+    HAS_QT_LIB = False
+    QT_LIB = None
 
 import numpy as np
 import sys
@@ -22,20 +34,39 @@ import types
 import keyboard
 from pyTrigger import RingBuffer2D
 
-# Check for PyQt5 installation which can cause conflicts with PyQt6
-try:
-    import PyQt5
-    import warnings
-    warnings.warn(
-        "WARNING: PyQt5 is installed in this environment. "
-        "This may cause compatibility issues with PyQt6 and pyqtgraph. "
-        "Consider uninstalling PyQt5 if you encounter errors like "
-        "'GraphicsLayoutWidget' not being recognized as a QWidget.",
-        UserWarning,
-        stacklevel=2
-    )
-except ImportError:
-    pass  # PyQt5 not installed, no conflict
+# Check for conflicting Qt bindings
+if HAS_QT_LIB:
+    conflicting_libs = []
+    try:
+        import PyQt5
+        if QT_LIB != 'PyQt5':
+            conflicting_libs.append('PyQt5')
+    except ImportError:
+        pass
+
+    try:
+        import PyQt6
+        if QT_LIB != 'PyQt6':
+            conflicting_libs.append('PyQt6')
+    except ImportError:
+        pass
+
+    try:
+        import PySide6
+        if QT_LIB != 'PySide6':
+            conflicting_libs.append('PySide6')
+    except ImportError:
+        pass
+
+    if conflicting_libs:
+        import warnings
+        warnings.warn(
+            f"WARNING: Using {QT_LIB}, but {', '.join(conflicting_libs)} is also installed. "
+            f"This may cause compatibility issues with pyqtgraph. "
+            f"Consider uninstalling the conflicting libraries if you encounter errors.",
+            UserWarning,
+            stacklevel=2
+        )
 
 from typing import Optional, Tuple, Union, List, Callable
 
@@ -132,8 +163,8 @@ class Visualization:
                 If `False`, all lines are updated in each iteration of the main loop. Defaults to `True`.
 
         """
-        if not haspyqt:
-            raise ImportError("Install PyQt6 in order to use visualization.")
+        if not HAS_QT_LIB:
+            raise ImportError("Install PyQt6 or PySide6 in order to use visualization.")
 
         self.max_plot_time = 1
         self.show_legend = True
@@ -405,10 +436,9 @@ class Visualization:
         if self.app is None:
             self.app = QApplication(sys.argv)
 
-        with self.app:
-            self.main_window = MainWindow(self, self.core, self.app)
-            self.main_window.show()
-            self.app.exec()
+        self.main_window = MainWindow(self, self.core, self.app)
+        self.main_window.show()
+        self.app.exec()
 
 
     def _check_channels(self):

@@ -2,11 +2,11 @@ try:
     import pyqtgraph as pg
     from pyqtgraph import ImageView
     from pyqtgraph import ImageView, ImageItem
-    from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout,
-                                QPushButton, QHBoxLayout, QDesktopWidget, QProgressBar, QLabel,
+    from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QGridLayout, QVBoxLayout,
+                                QPushButton, QHBoxLayout, QProgressBar, QLabel,
                                 QSizePolicy)
-    from PyQt5.QtCore import QTimer, Qt, QPointF
-    from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QFont
+    from PyQt6.QtCore import QTimer, Qt, QPointF
+    from PyQt6.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QFont
     haspyqt = True
 except ImportError:
     ImageView = object
@@ -22,20 +22,20 @@ import types
 import keyboard
 from pyTrigger import RingBuffer2D
 
-# Check for PyQt6 installation which can cause conflicts with PyQt5
+# Check for PyQt5 installation which can cause conflicts with PyQt6
 try:
-    import PyQt6
+    import PyQt5
     import warnings
     warnings.warn(
-        "WARNING: PyQt6 is installed in this environment. "
-        "This may cause compatibility issues with PyQt5 and pyqtgraph. "
-        "Consider uninstalling PyQt6 if you encounter errors like "
+        "WARNING: PyQt5 is installed in this environment. "
+        "This may cause compatibility issues with PyQt6 and pyqtgraph. "
+        "Consider uninstalling PyQt5 if you encounter errors like "
         "'GraphicsLayoutWidget' not being recognized as a QWidget.",
         UserWarning,
         stacklevel=2
     )
 except ImportError:
-    pass  # PyQt6 not installed, no conflict
+    pass  # PyQt5 not installed, no conflict
 
 from typing import Optional, Tuple, Union, List, Callable
 
@@ -55,8 +55,8 @@ class HoverImageView(ImageView):
         # Position the label on top of the ImageView
         font = QFont("Courier")
         self.pixel_label.setFont(font)
-        self.pixel_label.setAlignment(Qt.AlignLeft)
-        self.pixel_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        self.pixel_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.pixel_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         self.pixel_label.setContentsMargins(2, 2, 2, 2)  # Reduce the left and right margins
         
         
@@ -133,7 +133,7 @@ class Visualization:
 
         """
         if not haspyqt:
-            raise ImportError("Install PyQt5 in order to use visualization.")
+            raise ImportError("Install PyQt6 in order to use visualization.")
 
         self.max_plot_time = 1
         self.show_legend = True
@@ -408,7 +408,7 @@ class Visualization:
         with self.app:
             self.main_window = MainWindow(self, self.core, self.app)
             self.main_window.show()
-            self.app.exec_()
+            self.app.exec()
 
 
     def _check_channels(self):
@@ -541,7 +541,7 @@ class MainWindow(QMainWindow):
         self.layout_widget = QHBoxLayout(self.central_widget)
         self.layout_widget.setContentsMargins(20, 20, 20, 20) # set the padding
 
-        self.desktop = QDesktopWidget().screenGeometry()
+        self.desktop = self.app.primaryScreen().geometry()
         if hasattr(self.vis, 'last_position'):
             self.move(self.vis.last_position)
             self.resize(self.vis.last_size)
@@ -594,7 +594,7 @@ class MainWindow(QMainWindow):
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setMinimum(0)
         self.progress_bar.setMaximum(0)
-        self.progress_bar.setOrientation(Qt.Vertical)
+        self.progress_bar.setOrientation(Qt.Orientation.Vertical)
 
         self.progress_bar.setStyleSheet("""
             QProgressBar {
@@ -616,22 +616,22 @@ class MainWindow(QMainWindow):
 
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Q:
+        if event.key() == Qt.Key.Key_Q:
             if self.measurement_stopped:
                 self.close_app()
             else:
                 self.stop_measurement(mode='manual')
 
-        elif event.key() == Qt.Key_S:
+        elif event.key() == Qt.Key.Key_S:
             self.core.start_acquisition()
-        
-        elif event.key() == Qt.Key_F:
+
+        elif event.key() == Qt.Key.Key_F:
             self.toggle_freeze_plot()
-        
-        elif event.key() == Qt.Key_L:
+
+        elif event.key() == Qt.Key.Key_L:
             self.toggle_legends()
 
-        elif event.key() == Qt.Key_F11:
+        elif event.key() == Qt.Key.Key_F11:
             self.toggle_full_screen()
 
     

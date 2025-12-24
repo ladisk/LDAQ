@@ -62,8 +62,9 @@ dev = [
     "tomli",
     "tomli-w",
 ]
+
 qt = [
-    "PyQt5>=5.15.6",
+    "pyqt6",
 ]
 
 [project.urls]

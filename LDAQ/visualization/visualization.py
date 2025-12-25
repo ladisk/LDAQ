@@ -6,7 +6,7 @@ try:
                                 QPushButton, QHBoxLayout, QDesktopWidget, QProgressBar, QLabel,
                                 QSizePolicy)
     from PyQt5.QtCore import QTimer, Qt, QPointF
-    from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QFont
+    from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QFont, QFontMetrics
     haspyqt = True
 except ImportError:
     ImageView = object
@@ -129,7 +129,7 @@ class Visualization:
             max_points_to_refresh (int, optional): The maximum number of points to refresh in the plot. Adjust this number to optimize performance.
                 This number is used to compute the `nth` value automatically. Defaults to 10000.
             sequential_plot_updates (bool, optional): If `True`, the plot is updated sequentially (one line at a time).
-                If `False`, all lines are updated in each iteration of the main loop. Defaults to `True`.
+                If `False`, all lines are updated in each iteration of the main loop. Defaults to `False`.
 
         """
         if not haspyqt:
@@ -656,7 +656,8 @@ class MainWindow(QMainWindow):
 
         self.time_start = time.time()
         grid_layout = pg.GraphicsLayoutWidget()
-
+        grid_layout.viewport().setContentsMargins(100, 0, 0, 0)
+        
         self.subplots = {}
         self.legends = {}
 
@@ -761,6 +762,22 @@ class MainWindow(QMainWindow):
                             if isinstance(item, pg.PlotDataItem):
                                 legend.addItem(item, item.opts['name'])
                         self.legends[pos] = legend
+
+        # Lock the axis sizes to ensure equal sizing of all subplots
+        for plot in self.subplots.values():
+            ax = plot.getAxis('left')
+            ax.setWidth(ax.boundingRect().width())
+
+            ax = plot.getAxis('bottom')
+            ax.setHeight(ax.boundingRect().height())
+
+            fm = QFontMetrics(plot.getAxis('left').label.font())
+            plot.getAxis('left').setWidth(fm.horizontalAdvance('0') * 6 + fm.height())
+
+
+
+
+
 
         self.plots = self.vis.plots
         

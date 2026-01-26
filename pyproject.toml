@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "LDAQ"
-version = "1.1.2"
+version = "1.2.0"
 authors = [
     { name = "Tilen Košir, Klemen Zaletelj, Janko Slavič", email = "janko.slavic@fs.uni-lj.si" },
 ]
@@ -62,7 +62,6 @@ dev = [
     "tomli",
     "tomli-w",
 ]
-
 qt = [
     "pyqt6",
 ]

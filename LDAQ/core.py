@@ -437,12 +437,12 @@ class Core():
         for acquisition in self.acquisitions:
             try:
                 acquisition.stop()
-            except:
+            except Exception:
                 pass
         for generation in self.generations:
             try:
                 generation.stop()
-            except:
+            except Exception:
                 pass
             
     def start_acquisition(self):

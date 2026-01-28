@@ -660,7 +660,7 @@ class BaseAcquisition:
                     channel = self.channel_names_all.index(self.channel_names[channel]) 
                 else:
                     raise ValueError("Channel must be either string or integer")
-            except:
+            except Exception:
                 raise IndexError("Channel name not found in the list of available channels (self.channel_names)")
             
             buffer_channel = self.channel_pos[channel][0] # 1st index is the data channel position in the ring buffer

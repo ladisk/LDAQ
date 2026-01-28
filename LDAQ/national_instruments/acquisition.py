@@ -7,7 +7,7 @@ try:
     from PyDAQmx.Task import Task
     from nidaqmx._lib import lib_importer
     from .daqtask import DAQTask
-except:
+except ImportError:
     pass
 
 import typing
@@ -42,12 +42,12 @@ class NIAcquisition(BaseAcquisition):
 
         try:
             DAQmxClearTask(taskHandle_acquisition)
-        except:
+        except Exception:
             pass
 
         try:
             lib_importer.windll.DAQmxClearTask(taskHandle_acquisition)
-        except:
+        except Exception:
             pass
         
         self.task_terminated = True

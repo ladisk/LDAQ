@@ -9,7 +9,7 @@ class BaseControl:
     """
     def __init__(self, acquisition_names, generation_names, control_name=None):
         self.acquisition_names = acquisition_names
-        self.generattion_names = generation_names
+        self.generation_names = generation_names
         self.control_name = control_name if control_name is not None else "DefaultControl"
         
     def _retrieve_core_object(self, core):
@@ -40,10 +40,10 @@ class BaseControl:
 
     def run_control(self):
         self.is_running = True
-        
-        self.control_function_init()
+
+        self.control_init()
         while self.is_running:
             # perform control:
-            self.control_function_run()
+            self.control_run()
             time.sleep(0.01)
-        self.control_function_exit()
+        self.control_exit()

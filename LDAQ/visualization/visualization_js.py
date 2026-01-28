@@ -1,3 +1,6 @@
+import secrets
+import os
+import sys
 from flask import Flask, render_template
 from flask import request
 from flask_socketio import SocketIO, emit
@@ -8,8 +11,6 @@ import json
 from threading import Thread
 import time
 import subprocess
-import sys
-import os
 import numpy as np
 import logging
 import msgpack  # Install the package using: pip install msgpack
@@ -26,7 +27,7 @@ class Visualization:
         self.subplot_options = subplot_options
 
         self.app = Flask(__name__)
-        self.app.config['SECRET_KEY'] = 'sadfahsdgijweoifjačlrgijačlkgjčlkj234512352315'
+        self.app.secret_key = os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32))
         self.app.config['UPGRADE_WEBSOCKET'] = WebSocket
         # self.socketio = SocketIO(self.app, async_mode='threading')
         self.socketio = SocketIO(self.app)
@@ -58,9 +59,10 @@ class Visualization:
 
         @self.socketio.on('close')
         def on_close():
-            from win32api import GenerateConsoleCtrlEvent
-            CTRL_C_EVENT = 0
-            GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)
+            if sys.platform == 'win32':
+                from win32api import GenerateConsoleCtrlEvent
+                CTRL_C_EVENT = 0
+                GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)
             print_log('Client closed')
 
 

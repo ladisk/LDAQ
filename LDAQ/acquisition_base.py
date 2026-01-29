@@ -10,11 +10,67 @@ from pyTrigger import pyTrigger, RingBuffer2D
 from ctypes import *
 
 
-class CustomPyTrigger(pyTrigger):
+class _PyTriggerMeta(type):
+    """
+    Metaclass to provide backward compatibility for triggered_global class variable.
+
+    Intercepts class-level access to 'triggered_global' and redirects to thread-safe
+    Event-based implementation.
+    """
+    def __getattribute__(cls, name):
+        if name == 'triggered_global':
+            # Redirect to thread-safe implementation
+            return cls._triggered_global_event.is_set()
+        return super().__getattribute__(name)
+
+    def __setattr__(cls, name, value):
+        if name == 'triggered_global':
+            # Redirect to thread-safe implementation
+            if value:
+                cls._triggered_global_event.set()
+            else:
+                cls._triggered_global_event.clear()
+        else:
+            super().__setattr__(name, value)
+
+
+class CustomPyTrigger(pyTrigger, metaclass=_PyTriggerMeta):
     """
     Upgrades pyTrigger class with features needed for acquisition class BaseAcquisition.
     """
-    triggered_global = False
+    # Thread-safe global trigger signaling using threading.Event
+    _triggered_global_event = threading.Event()
+
+    @classmethod
+    def is_triggered_global(cls) -> bool:
+        """
+        Check if global trigger has been set.
+
+        Returns
+        -------
+        bool
+            True if global trigger is set, False otherwise.
+        """
+        return cls._triggered_global_event.is_set()
+
+    @classmethod
+    def set_triggered_global(cls) -> None:
+        """
+        Set the global trigger flag for all acquisition sources.
+
+        This method is thread-safe and can be called from any thread.
+        """
+        cls._triggered_global_event.set()
+
+    @classmethod
+    def clear_triggered_global(cls) -> None:
+        """
+        Clear the global trigger flag for all acquisition sources.
+
+        This method is thread-safe and can be called from any thread.
+        """
+        cls._triggered_global_event.clear()
+
     def __init__(self, rows:int=5120, channels:int=4, trigger_channel:int=0,
                  trigger_level:float=1., trigger_type:str='up', presamples:int=1000,
                  dtype:np.dtype=np.float64)->None:      
@@ -86,17 +142,17 @@ class CustomPyTrigger(pyTrigger):
     def _add_data_chunk(self, data:np.ndarray)->None:
         """Upgrades parent _add_data_chunk() to globally trigger all acquisition sources present
            in the measurement process, or that another acquisition source triggers this class.
-           Global trigger is implemented via class property variable 'triggered_global'.
+           Global trigger is implemented via thread-safe Event mechanism.
         """
         super()._add_data_chunk(data)
         if self.triggered and self.first_trigger:
-            CustomPyTrigger.triggered_global = True 
-        elif CustomPyTrigger.triggered_global and self.first_trigger:
+            CustomPyTrigger.set_triggered_global()
+        elif CustomPyTrigger.is_triggered_global() and self.first_trigger:
             self.triggered = True
         else:
             pass
 
-        if self.first_trigger and (self.triggered or CustomPyTrigger.triggered_global):
+        if self.first_trigger and (self.triggered or CustomPyTrigger.is_triggered_global()):
             self.N_triggers    += 1
             self.first_trigger  = False
         return 
@@ -106,6 +162,11 @@ class CustomPyTrigger(pyTrigger):
 
         Returns:
             np.ndarray: data of shape (rows, channels)
+
+        Notes
+        -----
+        This method is NOT thread-safe on its own. When called from BaseAcquisition.get_data()
+        with N_points="new", the lock_acquisition lock is used to ensure thread safety.
         """
         if self.triggered:
             data = self.ringbuff.get_data()
@@ -114,7 +175,7 @@ class CustomPyTrigger(pyTrigger):
             else:
                 data = np.empty(shape=(0, self.channels))
             self.N_new_samples = 0
-            
+
             return data
         else: # NOTE: this should not happen!
             return np.empty(shape=(0, self.ringbuff.columns))
@@ -150,76 +211,175 @@ class CustomPyTrigger(pyTrigger):
         self.rows_left = self.rows
         self.finished = False
 
-class BaseAcquisition:
+class _BaseAcquisitionMeta(type):
+    """
+    Metaclass to provide backward compatibility for all_acquisitions_ready class variable.
+
+    Intercepts class-level access to 'all_acquisitions_ready' and redirects to thread-safe
+    Event-based implementation.
+
+    Notes
+    -----
+    The old implementation used all_acquisitions_ready as a boolean flag. This metaclass
+    maintains that behavior while using a thread-safe Event internally.
+
+    WARNING: Arithmetic operations (+=, -=, etc.) on all_acquisitions_ready are NOT supported
+    and will not work correctly. The implementation only supports boolean operations.
+    """
+    def __getattribute__(cls, name):
+        if name == 'all_acquisitions_ready':
+            # Redirect to thread-safe implementation - return boolean
+            return cls._ready_event.is_set()
+        return super().__getattribute__(name)
+
+    def __setattr__(cls, name, value):
+        if name == 'all_acquisitions_ready':
+            # Redirect to thread-safe implementation
+            # Support both boolean and numeric 0/1 for backward compatibility
+            if value:  # Truthy values (True, 1, etc.) set the event
+                with cls._ready_lock:
+                    cls._ready_event.set()
+            else:  # Falsy values (False, 0, None, etc.) clear the event
+                with cls._ready_lock:
+                    cls._ready_event.clear()
+        else:
+            super().__setattr__(name, value)
+
+
+class BaseAcquisition(metaclass=_BaseAcquisitionMeta):
     """Parent acquisition class that should be used when creating new child acquisition source class.
     Child class should override methods the following methods:
-    
+
     - self.__init__()
-    
+
     - self.set_data_source()
-    
+
     - self.terminate_data_source()
-    
+
     - self.read_data()
-    
+
     - self.clear_buffer() (optional)
-    
+
     - self.get_sample_rate() (optional)
-    
+
     For further information on how to override these methods, see the listed methods docstrings.
-    
+
     Additionally, the __init__() or set_data_source() methods should override or be able to set the following attributes:
-    
-    - self._channel_names_init - list of original data channels names from source 
-    
+
+    - self._channel_names_init - list of original data channels names from source
+
     - self._channel_names_video_init - list of original video channels names from source
-    
+
     - self._channel_shapes_video_init - list of original video channels shapes from source
-    
+
     - self.sample_rate = 0 - sample rate of acquisition source
     """
-    all_acquisitions_ready = False # class property to indicate if all acquisitions are ready to start (not just this one)
-    
+    # Thread-safe ready state coordination
+    _ready_lock = threading.Lock()
+    _ready_count = 0
+    _ready_event = threading.Event()
+    _expected_acquisitions = 0
+
+    @classmethod
+    def reset_ready_state(cls, expected_count: int = 0) -> None:
+        """
+        Reset the ready state for all acquisition sources.
+
+        Parameters
+        ----------
+        expected_count : int, optional
+            Number of acquisition sources expected to signal ready.
+            If 0, no waiting is performed. Default is 0.
+        """
+        with cls._ready_lock:
+            cls._ready_count = 0
+            cls._expected_acquisitions = expected_count
+            cls._ready_event.clear()
+
+    @classmethod
+    def signal_ready(cls) -> None:
+        """
+        Signal that this acquisition source is ready.
+
+        If all expected acquisitions have signaled ready, sets the ready event.
+        This method is thread-safe and can be called from any thread.
+        """
+        with cls._ready_lock:
+            cls._ready_count += 1
+            if cls._expected_acquisitions > 0 and cls._ready_count >= cls._expected_acquisitions:
+                cls._ready_event.set()
+
+    @classmethod
+    def wait_all_ready(cls, timeout: float = None) -> bool:
+        """
+        Wait for all acquisition sources to signal ready.
+
+        Parameters
+        ----------
+        timeout : float, optional
+            Maximum time to wait in seconds. If None, waits indefinitely.
+
+        Returns
+        -------
+        bool
+            True if all acquisitions are ready, False if timeout occurred.
+        """
+        return cls._ready_event.wait(timeout)
+
+    @classmethod
+    def are_all_ready(cls) -> bool:
+        """
+        Check if all acquisition sources are ready.
+
+        Returns
+        -------
+        bool
+            True if all expected acquisitions have signaled ready, False otherwise.
+        """
+        return cls._ready_event.is_set()
+
     def __init__(self) -> None:
         """
-        EDIT in child class. 
-        
+        EDIT in child class.
+
         Requirements:
-        
+
         - Make sure to call super().__init__() AT THE BEGGINING of __init__() method.
-        
+
         - Make sure to call self.set_trigger(1e20, 0, duration=1.0) AT THE END (used just for inititialization of buffer).
         """
         self.buffer_dtype = np.float64 # default dtype of data in ring buffer
         self.acquisition_name  = "DefaultAcquisition"
-        
+
         # ----------------------------------------------------------------------------------------------
         # child class should override these attributes:
-        self._channel_names_init        = [] # list of original channels names from source 
+        self._channel_names_init        = [] # list of original channels names from source
         self._channel_names_video_init  = [] # list of original channels names from source
         self._channel_shapes_video_init = [] # list of original video channels shapes from source
         self.sample_rate = 0
-        # ----------------------------------------------------------------------------------------------	
-        
+        # ----------------------------------------------------------------------------------------------
+
         # these channel names variables are used to store channel names in the order they are added to the ring buffer
         # these variables are automatically modified by the BaseAcquisition class:
-        self.channel_names_all = []   # list of all channel names 
+        self.channel_names_all = []   # list of all channel names
         self.channel_names= []        # list of channel names with shape (1, )
         self.channel_names_video = [] # list of channel names with shape (M, N)
         self.channel_pos    = []      # list of tuples with start and end index positions of the data in the flattened ring buffer corresponding to each channel
         self.channel_shapes = []      # list of tuples with shapes of each channel (self.channel_names_all)
-        
+
         self.virtual_channel_dict = {} # dictionary of virtual channels where key is virtual channel name and values are
                                        # tuples (function_to_use, list of indices from self.channel_names_all)
-        
+
         # some flags required for proper operation of the class:
         self.is_running = True    # is acquisition running
         self.is_standalone = True # if this is part of bigger system or used as standalone object
         self.is_ready = False     # if acquisition is ready to start the acquisition
         self.continuous_mode = False # if acquisition is in continuous mode
-        
+
         self.lock_acquisition = threading.Lock() # ensures acquisition class runs properly if used in multiple threads.
-        
+
+        self._thread_timeout = 5.0  # Default timeout for thread join operations (seconds)
+
         self.N_samples_to_acquire = None # number of samples to acquire
         self.n_channels  = 0 # number of channels
         self.n_channels_trigger = 0
@@ -335,7 +495,7 @@ class BaseAcquisition:
     def add_virtual_channel(self, virtual_channel_name:str, source_channels:int|str|list, function:callable, *args, **kwargs)->None:
         """
         Add a virtual channel to the acquisition class.
-        
+
         Args:
             virtual_channel_name (str): Name of the channel that will be created
             source_channel (int, str, list): list of name strings or indices of the channels in self.channel_names_all on which function will be applied.
@@ -345,7 +505,7 @@ class BaseAcquisition:
                                  as data source, if it has 3 dimensions, it is treated as video source.
                                  The first argument of the function can be a reference to the acquisition class itself. This is useful
                                  if the function needs to access some of the acquisition class' attributes, for example data history.
-                                 
+
             *args: additional arguments to be passed to the function (function passed as input argument to this method)
             **kwargs: additional keyword arguments to be passed to the function (function passed as input argument to this method)y
 
@@ -354,7 +514,7 @@ class BaseAcquisition:
             >>>     # ch1 and ch2 are of shape (n_samples, 1) and NOT (1, )
             >>>     return ch1 + ch2 # returns numpy array of shape (n_samples, 1) or (n_samples, M, K)
             >>> acq.add_virtual_channel('ch1+ch2', ['ch1', 'ch2'], func)
-        
+
         Example 2:
             >>> def virtual_channel_func(self, ch1):
             >>>     try:
@@ -363,43 +523,44 @@ class BaseAcquisition:
             >>>         time, data = self.get_data(N_points=2)
             >>>         i_ch3 = self.get_channel_index("ch3", channel_type='data') # retrieve data index channel of ch1
             >>>         ch3_prev = data[-1, i_ch3] # retrieve last value of ch1
-            >>>         
+            >>>
             >>>     except:
             >>>         # at channel definition, no data is available yet. Therefore, we set the previous value to 0.
             >>>         ch3_prev = 0
-            >>>         
+            >>>
             >>>     # cumulative sum of ch1:
-            >>>     ch1_cumsum = np.cumsum(ch1) + ch3_prev	
+            >>>     ch1_cumsum = np.cumsum(ch1) + ch3_prev
             >>>     return ch1_cumsum.reshape(-1,1) # reshape to (n_samples, 1)
             >>>
             >>> acq.add_virtual_channel('ch3', 'ch1', virtual_channel_func)
-            
-            
-        """
-        first_arg_is_ref = False
-        
-        if type(source_channels) == int or type(source_channels) == str:
-            source_channels = [source_channels]
-            
-        self.terminate_data_source()
-        # list comprehension to get indices of the channels:
-        source_channels = [self.channel_names_all.index(ch) if type(ch) == str else ch for ch in source_channels]
-        # check if first element is refrence to acquisition class:
-        sig = inspect.signature(function)
-        input_arguments = [param.name for param in sig.parameters.values()]
-        if input_arguments[0] == 'self':
-            first_arg_is_ref = True
-        
-        if 'self' in input_arguments[1:]:
-            raise ValueError('Virtual channel function cannot can have only one reference to acquisition class as FIRST argument.')
-        
-        self.virtual_channel_dict[virtual_channel_name] = (function, source_channels, first_arg_is_ref, args, kwargs)
 
-        
-        self.set_data_source()
-        self.terminate_data_source()
-        # TODO: check if only self._set_all_channels() is enough - it is not, because some sources set 
-        #       self.channel_names_video_init and self.channel_shapes_video_init in set_data_source() method
+
+        """
+        with self.lock_acquisition:
+            first_arg_is_ref = False
+
+            if type(source_channels) == int or type(source_channels) == str:
+                source_channels = [source_channels]
+
+            self.terminate_data_source()
+            # list comprehension to get indices of the channels:
+            source_channels = [self.channel_names_all.index(ch) if type(ch) == str else ch for ch in source_channels]
+            # check if first element is refrence to acquisition class:
+            sig = inspect.signature(function)
+            input_arguments = [param.name for param in sig.parameters.values()]
+            if input_arguments[0] == 'self':
+                first_arg_is_ref = True
+
+            if 'self' in input_arguments[1:]:
+                raise ValueError('Virtual channel function cannot can have only one reference to acquisition class as FIRST argument.')
+
+            self.virtual_channel_dict[virtual_channel_name] = (function, source_channels, first_arg_is_ref, args, kwargs)
+
+
+            self.set_data_source()
+            self.terminate_data_source()
+            # TODO: check if only self._set_all_channels() is enough - it is not, because some sources set
+            #       self.channel_names_video_init and self.channel_shapes_video_init in set_data_source() method
         
     
     def terminate_data_source(self)->None:
@@ -440,15 +601,20 @@ class BaseAcquisition:
         """
         Uses acquired data and process them to create data for virtual channels.
         This method is continuously called by self.acquire() method.
-        
+
         Returns:
             data (np.ndarray): 2D numpy array of shape (n_samples, n_columns)
+
+        Notes
+        -----
+        This method is called within acquire() which already holds lock_acquisition,
+        so the virtual_channel_dict access is protected.
         """
         # read data from source:
         data = self.read_data() # shape (n_samples, n_cols) - flattened video channels (if video)
         if data.shape[0] == 0:
             return np.empty(shape=(0, self.Trigger.channels))
-        
+
         # calculate data of virtual channels:
         if len(self.virtual_channel_dict.keys()) > 0:
             for virt_ch_name, (func, source_channel_indices, first_arg_is_ref, args, kwargs) in self.virtual_channel_dict.items():
@@ -461,7 +627,7 @@ class BaseAcquisition:
                     data_virt_ch = func(self, *func_input, **kwargs)
                 else:
                     data_virt_ch = func(*func_input, **kwargs)
-                    
+
                 if len(data_virt_ch.shape) == 1:
                     data_virt_ch = data_virt_ch.reshape(-1, 1)
                 elif len(data_virt_ch.shape) == 2:
@@ -471,7 +637,7 @@ class BaseAcquisition:
                 else:
                     raise ValueError('Virtual channel function must return numpy array with shape:\n' \
                                     '(n_samples, 1) - signal channel OR (n_samples, n_pixels_width*n_pixels_height) - video channel')
-                    
+
                 data = np.concatenate((data, data_virt_ch), axis=1)
 
         return data
@@ -516,65 +682,90 @@ class BaseAcquisition:
             
     def stop(self)->None:
         """Stops acquisition run.
+
+        Notes
+        -----
+        If a background thread is running, this method will wait for it to finish
+        with a timeout specified by self._thread_timeout (default 5 seconds).
+        If the thread does not finish within the timeout, a warning is logged
+        but execution continues.
         """
         self.is_running = False
-        
+
         # wait for the thread to finish if it exists:
         if hasattr(self, "background_thread") and threading.current_thread() == threading.main_thread():
             if self.background_thread.is_alive():
-                self.background_thread.join()
+                self.background_thread.join(timeout=self._thread_timeout)
+                if self.background_thread.is_alive():
+                    # Thread did not finish within timeout - log warning but continue
+                    import warnings
+                    warnings.warn(
+                        f"Background acquisition thread for {self.acquisition_name} "
+                        f"did not finish within {self._thread_timeout}s timeout. "
+                        "Thread may still be running.",
+                        RuntimeWarning
+                    )
             
     
     def acquire(self):
         """Acquires data from acquisition source and also properly saves the data to pyTrigger ringbuffer.
         Additionally it also stops the measurement run and terminates acquisition source properly.
         This method is continuously called in the run_acquisition() method.
+
+        Notes
+        -----
+        Resource cleanup (terminate_data_source) is guaranteed to execute even if
+        exceptions occur during data acquisition.
         """
-        with self.lock_acquisition: # lock to secure variables
-            acquired_data = self._read_all_channels()
-            self.Trigger.add_data(acquired_data)
-            
-        if self.Trigger.finished or not self.is_running:   
-            self.stop()
-            self.terminate_data_source()
+        try:
+            with self.lock_acquisition: # lock to secure variables
+                acquired_data = self._read_all_channels()
+                self.Trigger.add_data(acquired_data)
+
+            if self.Trigger.finished or not self.is_running:
+                self.stop()
+        finally:
+            # Ensure cleanup only when acquisition is stopping
+            if self.Trigger.finished or not self.is_running:
+                self.terminate_data_source()
         
     def run_acquisition(self, run_time:float=None, run_in_background:bool=False)->None:
         """
         Runs acquisition. This method is used to start the acquisition.
-        
+
         Args:
             run_time (float): number of seconds for which the acquisition will run.
             run_in_background (bool): if True, acquisition will run in a separate thread.
-        
+
         Returns:
             None
         """
-        BaseAcquisition.all_acquisitions_ready = False # set all acquisitions to not ready. 
-                                                       # NOTE: this is a class variable, it could mess semething up in the 
-                                                       # future complex applications where sources are not started at once!
+        # NOTE: reset_ready_state() should be called by Core() class before starting acquisitions
         self.is_ready   = False
         self.is_running = True
-        
+
         if run_time is None:
             self._set_trigger_instance() # Again set the trigger instance, because it may have been changed
         else:
             self.update_trigger_parameters(duration=run_time, duration_unit='seconds')
-            
+
         self.set_data_source() # start data source
-        
+
         # if acquisition is used in some other classes, wait until all acquisition sources are ready:
         if not self.is_standalone:
             self.is_ready = True    # this source is ready (other may not be)
-            while not BaseAcquisition.all_acquisitions_ready: # until every source is ready
-                # NOTE: BaseAcquisition.all_acquisitions_ready is set to True by Core() class that handles multiple sources
+            BaseAcquisition.signal_ready()  # Signal that this acquisition is ready
+
+            while not BaseAcquisition.are_all_ready(): # until every source is ready
+                # NOTE: BaseAcquisition.are_all_ready() is set to True by Core() class that handles multiple sources
                 time.sleep(0.01)
                 self.clear_buffer() # reads data, does not store in anywhere
-                
+
                 if not self.is_running: # in case the acquisition is stopped before it starts
                     break
-                
+
             time.sleep(0.01)
-            self.clear_buffer() # ensure buffer is cleared at least once. 
+            self.clear_buffer() # ensure buffer is cleared at least once.
         else:
             # acquisition is being run as a standalone process, so no need to wait for other sources
             pass
@@ -744,22 +935,34 @@ class BaseAcquisition:
         """
         Sets trigger off. Useful if the acquisition class is trigered by another process.
         This trigger can also trigger other acquisition sources by setting property class
+
+        Parameters
+        ----------
+        all_sources : bool, optional
+            If True, triggers all acquisition sources globally. If False, triggers
+            only this acquisition source. Default is True.
         """
         if all_sources:
-            CustomPyTrigger.triggered_global = True
+            CustomPyTrigger.set_triggered_global()
         else:
             self.Trigger.triggered = True
 
     def reset_trigger(self, all_sources:bool=True)->None:
         """
         Resets trigger.
-        
-        Parameters:
-            all_sources (bool): if True, resets trigger of all acquisition sources. If False, resets only this acquisition source.
-                                Currently, this parameter is not used, it is always set to True.
+
+        Parameters
+        ----------
+        all_sources : bool, optional
+            If True, resets trigger of all acquisition sources. If False, resets
+            only this acquisition source. Default is True.
+
+        Notes
+        -----
+        Currently, this parameter is not used, it is always set to True.
+        TODO: check if all_sources parameter can be removed.
         """
-        # TODO: check if all_sources parameter can be removed.
-        CustomPyTrigger.triggered_global = False
+        CustomPyTrigger.clear_triggered_global()
         self.Trigger.triggered = False
         
     def is_triggered(self)->bool:
@@ -773,9 +976,18 @@ class BaseAcquisition:
         
     def _all_acquisitions_ready(self)->None:
         """Sets ALL acquisition sources (not only this one) to ready state. Should not be generally used.
-        This method is normally used  by Core() class to set all acquisition sources to ready state.
+        This method is normally used by Core() class to set all acquisition sources to ready state.
+
+        Notes
+        -----
+        This is a legacy method maintained for backward compatibility. The Core() class
+        should use BaseAcquisition.reset_ready_state() and the ready event will be set
+        automatically when all sources signal ready.
         """
-        BaseAcquisition.all_acquisitions_ready = True
+        # For backward compatibility, manually set the ready event
+        # This bypasses the counter but ensures old code still works
+        with BaseAcquisition._ready_lock:
+            BaseAcquisition._ready_event.set()
     
     def _reshape_data(self, flattened_data:np.ndarray, data_to_return:str)->np.ndarray|list:
         """Reshapes channel arrays to the original shape.

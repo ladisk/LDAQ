@@ -12,6 +12,7 @@ import threading
 import pickle
 import sys
 import traceback
+import warnings
 from .utils import load_measurement
         
 class Core():
@@ -55,6 +56,35 @@ class Core():
         # Added functions to be called during measurement:
         self.additional_check_functions = []
         
+    @property
+    def triggered_globally(self):
+        """
+        Backward compatibility property for triggered_globally flag.
+
+        Returns
+        -------
+        bool
+            True if trigger event is set, False otherwise.
+        """
+        return self._triggered_event.is_set() if hasattr(self, '_triggered_event') else False
+
+    @triggered_globally.setter
+    def triggered_globally(self, value):
+        """
+        Backward compatibility setter for triggered_globally flag.
+
+        Parameters
+        ----------
+        value : bool
+            If True, set the trigger event. If False, clear it.
+        """
+        if not hasattr(self, '_triggered_event'):
+            self._triggered_event = threading.Event()
+        if value:
+            self._triggered_event.set()
+        else:
+            self._triggered_event.clear()
+
     def __repr__(self):
         """Returns description of the Core object settings.
 
@@ -178,9 +208,9 @@ class Core():
         # Thread setting:  #
         ####################
         
-        self.lock = threading.Lock() # for locking a thread if needed.    
+        self.lock = threading.Lock() # for locking a thread if needed.
         self.stop_event = threading.Event()
-        self.triggered_globally = False
+        self._triggered_event = threading.Event()
         self.thread_list = []
 
         # Make separate threads for data acquisition
@@ -230,25 +260,28 @@ class Core():
             thread.start()
         time.sleep(0.2)
 
-        # TODO: using self.stop_event.is_set() terminate threads if one thread fails.
-        #       self.stop_event.set() is called in _stop_event_handling() wrapper function
-        if self.visualization is not None:
-            self._stop_event_handling( self.visualization.run )(self)
-        else:
-            # Main Loop if no visualization:
-            while self.is_running_global:
-                time.sleep(0.5)
+        try:
+            # TODO: using self.stop_event.is_set() terminate threads if one thread fails.
+            #       self.stop_event.set() is called in _stop_event_handling() wrapper function
+            if self.visualization is not None:
+                self._stop_event_handling( self.visualization.run )(self)
+            else:
+                # Main Loop if no visualization:
+                while self.is_running_global:
+                    time.sleep(0.5)
+        finally:
+            # Ensure cleanup happens even on exception
+            self.stop_acquisition_and_generation()
+            for thread in self.thread_list:
+                thread.join(timeout=5.0)
+                if thread.is_alive():
+                    warnings.warn(f"Thread {thread.name} did not terminate within timeout")
 
-        # on exit:
-        self.stop_acquisition_and_generation()
-        for thread in self.thread_list:
-            thread.join()
-            
-        if self.verbose in [1, 2]:
-            print('Measurement finished.')
-        
-        if self.visualization is None and hotkeys:
-            self._keyboard_hotkeys_remove()
+            if self.verbose in [1, 2]:
+                print('Measurement finished.')
+
+            if self.visualization is None and hotkeys:
+                self._keyboard_hotkeys_remove()
     
     def _stop_event_handling(self, func):
         """Used to handle Exception events in a process.
@@ -304,14 +337,14 @@ class Core():
                     if self.autostart:
                         self.start_acquisition()
             
-            if any(acq.is_triggered() for acq in self.acquisitions) and not self.triggered_globally:
-                self.triggered_globally = True
-                
-            if self.first and self.triggered_globally:
+            if any(acq.is_triggered() for acq in self.acquisitions) and not self._triggered_event.is_set():
+                self._triggered_event.set()
+
+            if self.first and self._triggered_event.is_set():
                 if self.verbose in [1, 2]:
                     print()
-                    print('triggered.') 
-                    print('\tRecording...', end='') 
+                    print('triggered.')
+                    print('\tRecording...', end='')
                 self.first = False
                             
             # additional functionalities added with 'add_check_events()' method:   
@@ -448,11 +481,11 @@ class Core():
     def start_acquisition(self):
         """Starts acquisitions sources.
         """
-        if not self.triggered_globally:
-            self.triggered_globally = True
-            
+        if not self._triggered_event.is_set():
+            self._triggered_event.set()
+
             # 1 acq source triggers others through CustomPyTrigger parent class
-            with self.acquisitions[0].lock_acquisition: 
+            with self.acquisitions[0].lock_acquisition:
                 self.acquisitions[0].activate_trigger()
     
     def _print_table(self):
@@ -652,7 +685,7 @@ class Core():
                 pass
 
             # periodic saving:
-            if self.triggered_globally:
+            if self._triggered_event.is_set():
                 elapsed_time = time.time() - start_time
                 if elapsed_time >= self.save_interval:
                     start_time = time.time()
@@ -663,9 +696,9 @@ class Core():
                         #file_name = f"{now.strftime('%Y%m%d_%H%M%S')}_{name}.hdf5"
                         file_created = True
 
-                    file_index = self._open_and_save(file_name, root, file_index)   
+                    file_index = self._open_and_save(file_name, root, file_index)
 
-        if self.triggered_globally:
+        if self._triggered_event.is_set():
             time.sleep(0.5)
             self._open_and_save(file_name, root, file_index)
 

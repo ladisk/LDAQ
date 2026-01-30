@@ -768,10 +768,6 @@ class TestResourceCleanup:
     even when exceptions occur during acquisition.
     """
 
-    @pytest.mark.xfail(
-        reason="Current implementation doesn't guarantee cleanup on exception in acquire()",
-        strict=True,
-    )
     def test_cleanup_on_read_data_exception(
         self, create_acquisition, reset_global_state
     ):
@@ -883,10 +879,6 @@ class TestResourceCleanup:
             "terminate_data_source not called after stop_acquisition"
         )
 
-    @pytest.mark.xfail(
-        reason="Current implementation doesn't guarantee cleanup called on exception",
-        strict=True,
-    )
     def test_cleanup_guarantee_with_context_manager_pattern(
         self, create_acquisition, reset_global_state
     ):

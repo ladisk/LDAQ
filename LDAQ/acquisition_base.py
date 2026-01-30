@@ -403,7 +403,96 @@ class BaseAcquisition(metaclass=_BaseAcquisitionMeta):
         string = add_to_string("Standalone", self.is_standalone, string, padding)
 
         return string
-    
+
+    def __enter__(self) -> 'BaseAcquisition':
+        """
+        Enter context manager - sets up data source for acquisition.
+
+        Returns
+        -------
+        BaseAcquisition
+            Returns self for use in with statement.
+
+        Examples
+        --------
+        >>> acq = LDAQ.simulator.SimulatedAcquisition()
+        >>> acq.set_simulated_data(data, channel_names=['ch0'], sample_rate=1000)
+        >>> acq.set_trigger(level=0.5, channel=0, duration=1.0)
+        >>> with acq:
+        ...     acq.run_acquisition(run_time=1.0)
+        ...     time, data = acq.get_data()
+        # terminate_data_source() automatically called
+
+        See Also
+        --------
+        __exit__ : Ensures cleanup when exiting context manager.
+        set_data_source : Called to initialize hardware connection.
+        terminate_data_source : Called to clean up hardware connection.
+
+        Notes
+        -----
+        The context manager pattern guarantees that terminate_data_source()
+        will be called even if exceptions occur during acquisition. This is
+        the recommended pattern for acquisition lifecycle management.
+        """
+        self.set_data_source()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type | None,
+        exc_val: Exception | None,
+        exc_tb: object | None
+    ) -> bool:
+        """
+        Exit context manager - ensures cleanup even on exceptions.
+
+        Parameters
+        ----------
+        exc_type : type or None
+            Exception type if exception occurred, None otherwise.
+        exc_val : Exception or None
+            Exception instance if exception occurred, None otherwise.
+        exc_tb : traceback or None
+            Exception traceback if exception occurred, None otherwise.
+
+        Returns
+        -------
+        bool
+            Always returns False to propagate exceptions.
+
+        Examples
+        --------
+        >>> with acq:
+        ...     acq.run_acquisition(run_time=1.0)
+        ...     # If an exception occurs here, cleanup still happens
+        # terminate_data_source() called automatically
+
+        >>> # Exception propagates to caller
+        >>> try:
+        ...     with acq:
+        ...         acq.run_acquisition(run_time=1.0)
+        ...         raise RuntimeError("Hardware error")
+        ... except RuntimeError as e:
+        ...     print(f"Caught: {e}")
+        # terminate_data_source() was called before exception propagated
+
+        See Also
+        --------
+        __enter__ : Sets up data source for acquisition.
+        terminate_data_source : Called to clean up hardware connection.
+
+        Notes
+        -----
+        This method guarantees terminate_data_source() is called regardless
+        of whether an exception occurred during acquisition. Exceptions are
+        NOT suppressed - they propagate to the caller after cleanup completes.
+        This ensures errors are visible for debugging while still guaranteeing
+        resource cleanup.
+        """
+        self.terminate_data_source()
+        return False  # Do not suppress exceptions
+
     def set_data_source(self) -> None:
         """EDIT in child class.
         
@@ -708,14 +797,18 @@ class BaseAcquisition(metaclass=_BaseAcquisitionMeta):
             
     
     def acquire(self):
-        """Acquires data from acquisition source and also properly saves the data to pyTrigger ringbuffer.
-        Additionally it also stops the measurement run and terminates acquisition source properly.
-        This method is continuously called in the run_acquisition() method.
+        """
+        Acquires data from acquisition source and saves to pyTrigger ringbuffer.
+
+        Continuously called in the run_acquisition() method. Stops measurement
+        and terminates acquisition source when complete or when exceptions occur.
 
         Notes
         -----
-        Resource cleanup (terminate_data_source) is guaranteed to execute even if
-        exceptions occur during data acquisition.
+        Resource cleanup (terminate_data_source) is guaranteed to execute when
+        acquisition stops, either normally or due to exceptions. If an exception
+        occurs during data acquisition, is_running is set to False before
+        re-raising the exception, ensuring cleanup occurs in the finally block.
         """
         try:
             with self.lock_acquisition: # lock to secure variables
@@ -724,9 +817,13 @@ class BaseAcquisition(metaclass=_BaseAcquisitionMeta):
 
             if self.Trigger.finished or not self.is_running:
                 self.stop()
+        except Exception:
+            # Exception during acquisition forces stop
+            self.is_running = False
+            raise
         finally:
             # Ensure cleanup only when acquisition is stopping
-            if self.Trigger.finished or not self.is_running:
+            if not self.is_running or self.Trigger.finished:
                 self.terminate_data_source()
         
     def run_acquisition(self, run_time:float=None, run_in_background:bool=False)->None:

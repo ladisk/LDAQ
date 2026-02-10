@@ -8,7 +8,7 @@ from typing import Optional, Union
 try:
     from .daqtask import DAQTask
     from .ni_task import NITaskOutput
-except:
+except ImportError:
     pass
 
 from ..generation_base import BaseGeneration

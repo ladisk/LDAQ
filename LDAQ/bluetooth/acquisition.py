@@ -1,3 +1,17 @@
+"""
+Bluetooth Low Energy (BLE) acquisition module.
+
+DEPRECATED: This module is deprecated and non-functional.
+It will be rewritten in a future release.
+"""
+import warnings
+warnings.warn(
+    "The LDAQ bluetooth module is deprecated and non-functional. "
+    "It will be rewritten in a future release.",
+    DeprecationWarning,
+    stacklevel=2
+)
+
 import numpy as np
 import time
 from ctypes import *

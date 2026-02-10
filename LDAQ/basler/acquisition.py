@@ -3,9 +3,9 @@ from ctypes import *
 
 from ..acquisition_base import BaseAcquisition
     
-try:    
+try:
     from pypylon import pylon
-except:
+except ImportError:
     pass
 
 
@@ -42,7 +42,7 @@ class BaslerCamera(BaseAcquisition):
         """
         try:
             pylon # check if pylon is imported
-        except:
+        except NameError:
             raise Exception("Pypylon library not found. Please install it before using this class.")
 
         super().__init__()

@@ -5,7 +5,7 @@ from ..acquisition_base import BaseAcquisition
 
 try:
     import PySpin
-except:
+except ImportError:
     pass
 
 
@@ -42,7 +42,7 @@ class FLIRThermalCamera(BaseAcquisition):
         """
         try:
             PySpin # check if PySpin is imported
-        except:
+        except NameError:
             raise Exception("PySpin is not installed. Please install it from the link provided in the class documentation.")
 
         super().__init__()

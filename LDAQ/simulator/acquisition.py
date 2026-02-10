@@ -20,15 +20,17 @@ class SimulatedAcquisition(BaseAcquisition):
                                                If False, data generation is executed in separate thread.
         """
         super().__init__()
-        
+
         self.acquisition_name = 'Simulator' if acquisition_name is None else acquisition_name
 
-        self._channel_names_init         = [] # list of original data channels names from source 
+        self._channel_names_init         = [] # list of original data channels names from source
         self._channel_names_video_init   = [] # list of original video channels names from source
         self._channel_shapes_video_init  = [] # list of original video channels shapes from source
-        
+
+        # Thread-safe flag for tracking child process/thread state
+        self._process_lock = th.Lock()
         self.child_process_started = False
-        
+
         # TODO: fix multiprocessing feature in the future
         if multi_processing == True:
             raise ValueError("Multi-processing is currently not supported. Use multi_processing=False.")
@@ -37,10 +39,11 @@ class SimulatedAcquisition(BaseAcquisition):
     def __del__(self):
         """If class is deleted, stop the data generation process.
         """
-        if self.child_process_started:
-            self.stop_event.set()
-            self.process.join()
-            self.child_process_started = False
+        with self._process_lock:
+            if self.child_process_started:
+                self.stop_event.set()
+                self.process.join()
+                self.child_process_started = False
         
     def set_simulated_data(self, fun_or_array, channel_names=None, sample_rate=None, args=()):
         """sets simulated data to be returned by read_data() method. 
@@ -152,34 +155,45 @@ class SimulatedAcquisition(BaseAcquisition):
     def set_data_source(self, initiate_data_source=True):
         """
         Initializes simulated data source
-        """  
+        """
         if initiate_data_source:
-            if not self.child_process_started:
-                if self.multi_processing:
-                    self._set_data_source_multiprocessing()
-                    
-                else:
-                    self._set_data_source_threading()
-                    
+            with self._process_lock:
+                if not self.child_process_started:
+                    if self.multi_processing:
+                        self._set_data_source_multiprocessing()
+
+                    else:
+                        self._set_data_source_threading()
+
         super().set_data_source()
                 
     def _set_data_source_multiprocessing(self):
+        """
+        Initialize multiprocessing-based data source.
+
+        Note: Called from set_data_source() which holds _process_lock.
+        """
         # Create a Pipe for communication between processes
         self.parent_conn, self.child_conn = mp.Pipe()
         # Event to signal stop of generation of simulated data:
         self.stop_event = mp.Event()
-        
+
         # serialize function using pickle:
         ser_simulated_fun = pickle.dumps(self.simulated_function)
-        
+
         self.child_process_started = True
         self.process = mp.Process(target=self.data_generator_multiprocessing, args=(self.child_conn, self.stop_event, self.sample_rate, ser_simulated_fun, self._args))
         self.process.start()
         
     def _set_data_source_threading(self):
+        """
+        Initialize threading-based data source.
+
+        Note: Called from set_data_source() which holds _process_lock.
+        """
         self.lock_retrieve_data = th.Lock()
         self.stop_event = th.Event()
-        
+
         self.child_process_started = True
         self.process = th.Thread(target=self.data_generator_threading, args=(self.stop_event, self.sample_rate, self.simulated_function, self._args))
         self.process.start()
@@ -188,13 +202,14 @@ class SimulatedAcquisition(BaseAcquisition):
         """
         Terminates simulated data source
         """
-        if self.child_process_started: # TODO: add logic to check if something has changed in the data source
-                                       # if yes, then reset the data source, otherwise do not terminate it
-            self.stop_event.set()
-            # Wait for the process to finish
-            self.process.join()
-            
-            self.child_process_started = False
+        with self._process_lock:
+            if self.child_process_started: # TODO: add logic to check if something has changed in the data source
+                                           # if yes, then reset the data source, otherwise do not terminate it
+                self.stop_event.set()
+                # Wait for the process to finish
+                self.process.join()
+
+                self.child_process_started = False
 
     def read_data(self):
         """Reads data from simulated data source.

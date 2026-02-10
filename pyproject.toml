@@ -39,6 +39,10 @@ dependencies = [
     "pandas>=2.0.0",
     "urllib3<2.0",
     "tqdm",
+    "msgpack",
+    "psutil",
+    "flask",
+    "flask-socketio",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -64,6 +68,9 @@ dev = [
 ]
 qt = [
     "pyqt6",
+]
+bluetooth = [
+    "bleak",
 ]
 
 [project.urls]

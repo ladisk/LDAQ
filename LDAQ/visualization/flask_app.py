@@ -1,4 +1,6 @@
 import random
+import secrets
+import os
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 from simple_websocket_server import WebSocket
@@ -7,7 +9,7 @@ import webbrowser
 import json
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'asdfasodfDfiasdfiasdfias65448s4osdfsdfsdfsdfekmiim'
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32))
 app.config['UPGRADE_WEBSOCKET'] = WebSocket
 socketio = SocketIO(app, async_mode='threading')
 

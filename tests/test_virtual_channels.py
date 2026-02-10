@@ -5,7 +5,6 @@ This module tests edge cases for virtual channels that are not covered in
 test_acquisition_base.py, including multiple virtual channels and chained
 dependencies.
 
-See openspec/changes/test-virtual-channels/specs/ for detailed requirements.
 """
 
 import pytest

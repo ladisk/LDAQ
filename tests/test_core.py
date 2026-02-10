@@ -5,7 +5,6 @@ This module tests the Core orchestrator that coordinates multiple acquisition so
 Note: Core.run() requires root on Linux due to keyboard library, so tests use
 acquisition.run_acquisition() directly.
 
-See openspec/changes/test-core/specs/ for detailed requirements.
 """
 
 import pytest

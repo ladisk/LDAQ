@@ -4,7 +4,6 @@ Tests for LDAQ integration scenarios.
 This module tests integration between multiple LDAQ components working together,
 including multi-source acquisition, cross-source triggering, and save/load cycles.
 
-See openspec/changes/test-integration/specs/ for detailed requirements.
 """
 
 import pytest

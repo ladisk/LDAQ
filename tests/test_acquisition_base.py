@@ -12,7 +12,6 @@ Tests cover:
 - Continuous mode behavior
 - Acquisition lifecycle methods
 
-See openspec/changes/test-acquisition-base/specs/ for detailed requirements.
 """
 
 import pytest

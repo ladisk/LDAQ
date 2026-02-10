@@ -6,7 +6,6 @@ This module tests the save/load functionality in utils.py:
 - load_measurement_multiple_files() - multi-file concatenation
 - load_measurement_multiple_files_memmap() - memory-mapped loading
 
-See openspec/changes/test-utils/specs/ for detailed requirements.
 """
 
 import pytest

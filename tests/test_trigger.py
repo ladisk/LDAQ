@@ -19,7 +19,6 @@ Contract Summary:
 - get_data_new_PLOT() uses independent counter N_new_samples_PLOT
 
 See LDAQ/acquisition_base.py lines 13-151 for implementation.
-See openspec/specs/testing-standards/spec.md REQ-TEST-009 for testing requirements.
 """
 
 from __future__ import annotations

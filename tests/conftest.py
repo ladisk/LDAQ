@@ -15,8 +15,6 @@ Fixtures provided:
 - validate_measurement_dict: Contract validation helper
 - acquisition_with_virtual_channel: Acquisition with virtual channel
 
-See openspec/specs/measurement-dict-contract/spec.md for data contract details.
-See openspec/changes/test-conftest-fixtures/specs/spec.md for fixture requirements.
 """
 
 import pytest
@@ -249,7 +247,7 @@ def validate_measurement_dict():
     """Validation function for measurement dict contract.
 
     Returns a callable that validates measurement dictionaries against the
-    contract defined in openspec/specs/measurement-dict-contract/spec.md.
+    standard LDAQ measurement dict contract.
 
     Returns:
         callable: Function that validates measurement dicts.

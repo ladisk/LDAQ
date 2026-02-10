@@ -10,7 +10,6 @@ This module tests the SimulatedAcquisition functionality including:
 - Input validation
 - Threading mode operation
 
-See openspec/changes/test-simulator/specs/ for detailed requirements.
 """
 
 import pytest

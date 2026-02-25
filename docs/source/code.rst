@@ -83,11 +83,10 @@ Utilities
 National Instruments
 ~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: LDAQ.national_instruments.NITask
-    :members:
-
-.. autoclass:: LDAQ.national_instruments.NITaskOutput
-    :members:
+The ``AITask`` and ``AOTask`` classes used to configure NI input and output tasks programmatically
+are provided by the `nidaqwrapper <https://github.com/ladisk/nidaqwrapper>`_ package and re-exported
+from ``LDAQ.national_instruments``. Refer to the nidaqwrapper documentation for their full API
+reference.
 
 Other
 ~~~~~

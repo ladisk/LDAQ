@@ -82,5 +82,8 @@ source = "https://github.com/ladisk/LDAQ"
 
 [dependency-groups]
 dev = [
+    "code2flow>=2.5.1",
+    "pydeps>=3.0.2",
+    "pylint>=4.0.5",
     "pytest-cov>=7.0.0",
 ]

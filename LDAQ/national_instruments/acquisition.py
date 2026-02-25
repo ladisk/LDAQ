@@ -96,9 +96,10 @@ class NIAcquisition(BaseAcquisition):
             acquisition_name if acquisition_name is not None else self._ai_task.task_name
         )
         self.sample_rate = self._ai_task.sample_rate
-        self._channel_names_init = list(self._ai_task.channel_names)
+        self._channel_names_init = list(self._ai_task.channel_list)
         self._task_active = False
 
+        self._set_all_channels()  # populate channel_names_all before set_trigger
         self.set_trigger(1e20, 0, duration=1.0)
 
     def set_data_source(self) -> None:

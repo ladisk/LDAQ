@@ -41,6 +41,7 @@ dependencies = [
     "psutil",
     "flask",
     "flask-socketio",
+    "nidaqwrapper>=0.1.0",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",

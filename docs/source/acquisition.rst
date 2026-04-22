@@ -8,9 +8,9 @@ a wrapper for the National Instruments DAQmx driver. The class accepts the name 
 
 .. code-block:: python
 
-    acq = LDAQ.national_instruments.NIAcquisition(task_name='input_task_1', acquisition_name='NI')
+    acq = LDAQ.national_instruments.NIAcquisition('input_task_1', acquisition_name='NI')
 
-``task_name`` is the input task name defined in NIMax software, and ``acquisition_name`` is the name of acquisition object. The ``acquisition_name`` argument is important when using multiple acquisition objects in the same measurement, and when specifying the layout of the
+``task`` is a positional argument that accepts either an ``AITask`` object (from ``LDAQ.national_instruments``) or a task name string defined in NI MAX. ``acquisition_name`` is the name of the acquisition object. The ``acquisition_name`` argument is important when using multiple acquisition objects in the same measurement, and when specifying the layout of the
 live `visualization <visualization.html>`_. In the next step the ``acq`` object can be added to the :class:`LDAQ.Core` class:
 
 .. code-block:: python

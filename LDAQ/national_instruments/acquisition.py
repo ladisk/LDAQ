@@ -1,168 +1,151 @@
-import numpy as np
-import time
-import copy
+from __future__ import annotations
 
+import numpy as np
+
+from ..acquisition_base import BaseAcquisition
+
+_NIDAQWRAPPER_AVAILABLE = False
 try:
-    from PyDAQmx.DAQmxFunctions import *
-    from PyDAQmx.Task import Task
-    from nidaqmx._lib import lib_importer
-    from .daqtask import DAQTask
+    from nidaqwrapper import AITask, get_task_by_name
+    _NIDAQWRAPPER_AVAILABLE = True
 except ImportError:
     pass
 
-import typing
 
-from ctypes import *
-
-from .ni_task import NITask
-from ..acquisition_base import BaseAcquisition
-
-#TODO: remove pyDAQmx completely and use only nidaqmx
 class NIAcquisition(BaseAcquisition):
-    """National Instruments Acquisition class, compatible with any NI acquisition device that is supported by NI-DAQmx library.
-    
-    To use this class, you need to install NI-DAQmx library found on this link:
-    https://www.ni.com/en/support/downloads/drivers/download.ni-daq-mx.html#494676
-    
-    Installation instructions:
-    
-    - Download NI-DAQmx from the link listed above.
-    
-    - Install NI-DAQmx.
+    """Acquisition class for National Instruments devices via nidaqwrapper.
+
+    A thin wrapper around ``nidaqwrapper.AITask`` that satisfies the
+    ``BaseAcquisition`` contract. Supports both programmatic tasks
+    (``AITask`` objects) and tasks defined in NI MAX (task name strings).
+
+    Parameters
+    ----------
+    task : nidaqwrapper.AITask or str
+        Either a fully configured ``AITask`` instance or the name of a task
+        saved in NI MAX.  When a string is supplied the task is loaded via
+        ``nidaqwrapper.get_task_by_name()``.
+    acquisition_name : str or None, optional
+        Human-readable name for this acquisition source.  Defaults to the
+        underlying NI task name when ``None``.
+
+    Raises
+    ------
+    ImportError
+        If the ``nidaqwrapper`` package is not installed.
+    TypeError
+        If ``task`` is not an ``AITask`` instance or a string.
+
+    Examples
+    --------
+    Wrap a programmatically created task:
+
+    >>> ai = AITask("my_task", sample_rate=10_000)
+    >>> ai.add_channel(...)
+    >>> acq = NIAcquisition(ai)
+
+    Load a task saved in NI MAX:
+
+    >>> acq = NIAcquisition("MyNIMaxTask")
     """
 
-    def __init__(self, task_name: typing.Union[str, object], acquisition_name: typing.Optional[str] = None) -> None:
-        """Initialize the acquisition task.
-
-        Args:
-            task_name (str, class object): Name of the task from NI Max or class object created with NITask() class using nidaqmx library.
-            acquisition_name (str, optional): Name of the acquisition. Defaults to None, in which case the task name is used.
+    def __init__(
+        self,
+        task: AITask | str,
+        acquisition_name: str | None = None,
+    ) -> None:
         """
+        Initialize NIAcquisition.
+
+        Parameters
+        ----------
+        task : nidaqwrapper.AITask or str
+            Source task: either an ``AITask`` object or an NI MAX task name.
+        acquisition_name : str or None, optional
+            Name for this acquisition source.  Uses the task name when None.
+
+        Raises
+        ------
+        ImportError
+            If ``nidaqwrapper`` is not installed.
+        TypeError
+            If ``task`` is neither an ``AITask`` nor a string.
+        """
+        if not _NIDAQWRAPPER_AVAILABLE:
+            raise ImportError(
+                "nidaqwrapper is not installed. "
+                "Install it before using NIAcquisition."
+            )
+
         super().__init__()
 
-        try:
-            DAQmxClearTask(taskHandle_acquisition)
-        except Exception:
-            pass
-
-        try:
-            lib_importer.windll.DAQmxClearTask(taskHandle_acquisition)
-        except Exception:
-            pass
-        
-        self.task_terminated = True
-
-        self.task_base = task_name
-        if isinstance(task_name, str):
-            self.NITask_used = False
-            self.task_name = task_name
-        elif isinstance(task_name, NITask):
-            self.NITask_used = True
-            self.task_name = self.task_base.task_name
+        if isinstance(task, AITask):
+            self._ai_task: AITask = task
+        elif isinstance(task, str):
+            ni_task = get_task_by_name(task)
+            if ni_task is None:
+                raise ValueError(f"NI MAX task '{task}' not found.")
+            self._ai_task = AITask.from_task(ni_task)
         else:
-            raise TypeError("task_name has to be a string or NITask object.")
+            raise TypeError(
+                f"task must be an AITask instance or a string (NI MAX task name), "
+                f"got {type(task).__name__!r}."
+            )
 
-        self.set_data_source() # the data source must be set to red the number of channels and sample rate
-        self.acquisition_name = self.task_name if acquisition_name is None else acquisition_name
+        self.acquisition_name = (
+            acquisition_name if acquisition_name is not None else self._ai_task.task_name
+        )
+        self.sample_rate = self._ai_task.sample_rate
+        self._channel_names_init = list(self._ai_task.channel_list)
+        self._task_active = False
 
-        self.sample_rate = self.Task.sample_rate
-        self._channel_names_init = self.Task.channel_list
-
-        self.terminate_data_source() # clear the data source, will be set up later
-
-        # if not self.NITask_used:
-        #     glob_vars = globals()
-        #     glob_vars['taskHandle_acquisition'] = self.Task.taskHandle
-
-        # set default trigger, so the signal will not be trigered:
+        self._set_all_channels()  # populate channel_names_all before set_trigger
         self.set_trigger(1e20, 0, duration=1.0)
 
-    def clear_task(self):
-        """Clear a task."""
-        if hasattr(self, "Task"):
-            self.Task.clear_task(wait_until_done=False)
-            time.sleep(0.1)
-            del self.Task
-        else:
-            pass
+    def set_data_source(self) -> None:
+        """Start the underlying AITask in preparation for acquisition.
 
-    def terminate_data_source(self):
-        """Properly closes the data source.
+        Calls ``super().set_data_source()`` at the end to satisfy the
+        ``BaseAcquisition`` contract.
         """
-        self.task_terminated = True
-        self.clear_task()
-        
-    def read_data(self):
-        """Reads data from device buffer and returns it.
+        if self._task_active:
+            return
 
-        Returns:
-            np.ndarray: numpy array with shape (n_samples, n_channels)
-        """
-        self.Task.acquire(wait_4_all_samples=False)
-        return self.Task.data.T
-    
-    def clear_buffer(self):
-        """
-        Clears the buffer of the device.
-        """
-        self.Task.acquire_base()
-    
-    def set_data_source(self):
-        """Sets the acquisition device to properly start the acquisition. This function is called before the acquisition is started.
-           It is used to properly initialize the device and set the data source channels and virtual channels.
-        """
-        if self.task_terminated:
-            if self.NITask_used:
-                channels_base = copy.deepcopy(self.task_base.channels)
-                self.Task = NITask(self.task_base.task_name, self.task_base.sample_rate, self.task_base.settings_file)
-                self.task_name = self.task_base.task_name
-
-                for channel_name, channel in channels_base.items():
-                    self.Task.add_channel(
-                        channel_name, 
-                        channel['device_ind'],
-                        channel['channel_ind'],
-                        channel['sensitivity'],
-                        channel['sensitivity_units'],
-                        channel['units'],
-                        channel['serial_nr'],
-                        channel['scale'],
-                        channel['min_val'],
-                        channel['max_val'])
-            else:
-                self.Task = DAQTask(self.task_base)
-            
-            self.task_terminated = False
-        
-        if self.NITask_used:
-            if not hasattr(self.Task, 'task'):
-                self.Task.initiate()
-                
+        self._ai_task.start(start_task=True)
+        self._task_active = True
         super().set_data_source()
 
-    def run_acquisition(self, run_time=None, run_in_background=False):        
+    def terminate_data_source(self) -> None:
+        """Stop the NIDAQmx task.
+
+        Safe to call multiple times; subsequent calls when the task is
+        already stopped are silently ignored.
         """
-        Runs acquisition. This is the method one should call to start the acquisition.
+        if not self._task_active:
+            return
 
-        Args:
-            run_time (float): number of seconds for which the acquisition will run.
-            run_in_background (bool): if True, acquisition will run in a separate thread.
+        self._ai_task.task.stop()
+        self._task_active = False
 
-        Returns:
-            None
+    def read_data(self) -> np.ndarray:
+        """Read all currently available samples from the device buffer.
+
+        Returns
+        -------
+        np.ndarray
+            2-D array of shape ``(n_samples, n_channels)``.  Returns an
+            empty array of shape ``(0, n_channels)`` when no data is
+            available.
         """
-        if self.NITask_used:
-            BaseAcquisition.all_acquisitions_ready = False 
-            self.is_ready = False
-            self.is_running = True
-            
-            if run_time is None:
-                self._set_trigger_instance()
-            else:
-                self.update_trigger_parameters(duration=run_time, duration_unit='seconds')
-            
-        self.set_data_source()
-        glob_vars = globals()
-        glob_vars['taskHandle_acquisition'] = self.Task.taskHandle
+        n_channels = len(self._channel_names_init)
 
-        super().run_acquisition(run_time, run_in_background=run_in_background)
+        raw = self._ai_task.acquire(n_samples=None)  # shape: (n_channels, n_samples)
+
+        if raw is None or raw.size == 0:
+            return np.empty((0, n_channels))
+
+        return raw.T  # transpose to (n_samples, n_channels)
+
+    def clear_buffer(self) -> None:
+        """Read and discard all data currently in the device buffer."""
+        self._ai_task.acquire(n_samples=None)

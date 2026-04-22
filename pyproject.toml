@@ -31,10 +31,8 @@ dependencies = [
     "dill",
     "keyboard",
     "pyTrigger",
-    "PyDAQmx>=1.3",
     "sphinx-copybutton",
     "pyserial",
-    "nidaqmx>=0.8.0",
     "openpyxl",
     "pandas>=2.0.0",
     "urllib3<2.0",
@@ -43,6 +41,7 @@ dependencies = [
     "psutil",
     "flask",
     "flask-socketio",
+    "nidaqwrapper>=0.1.0",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -72,8 +71,20 @@ qt = [
 bluetooth = [
     "bleak",
 ]
+ni = [
+    "nidaqwrapper>=0.1.0",
+    "nidaqmx>=0.8.0",
+]
 
 [project.urls]
 homepage = "https://github.com/ladisk/LDAQ"
 documentation = "https://ldaq.readthedocs.io/en/latest/"
 source = "https://github.com/ladisk/LDAQ"
+
+[dependency-groups]
+dev = [
+    "code2flow>=2.5.1",
+    "pydeps>=3.0.2",
+    "pylint>=4.0.5",
+    "pytest-cov>=7.0.0",
+]

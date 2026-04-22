@@ -2395,7 +2395,7 @@ wheels = [
 
 [[package]]
 name = "nidaqwrapper"
-version = "0.1.0"
+version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "nidaqmx" },
@@ -2404,9 +2404,9 @@ dependencies = [
     { name = "pytrigger" },
     { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/23/47/329524446385e27472f49bf08bc7a29cc5b9072134f9b23acff5290b91df/nidaqwrapper-0.1.0.tar.gz", hash = "sha256:fd7fefef78ebbb9189456bc6812d84d42c11f3a028818bb0a87a89f9c2202f1a", size = 113068, upload-time = "2026-02-24T12:25:01.649Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ef/5f/0933c3628224b67f67f875a5409711fa4d966383081977a3ba5dbb0a3162/nidaqwrapper-0.1.1.tar.gz", hash = "sha256:bd2608cc6b727c5071659c6ef9601024aac9020b588f495d43022e21dfd3255f", size = 123768, upload-time = "2026-03-02T12:56:54.792Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fe/ed/8ef46913874c3935cd6e30610b6a1b7df1c1fac8a8ab2108a3b3627ce357/nidaqwrapper-0.1.0-py3-none-any.whl", hash = "sha256:6236713d059ed6027c711adb1b69907150e79cf9e379b5c63a5e25d7f6967076", size = 45107, upload-time = "2026-02-24T12:25:00.004Z" },
+    { url = "https://files.pythonhosted.org/packages/45/5e/d96117e72fcf1b61208dc779043728ed4f9447489cf370ea5bda9e16e4d8/nidaqwrapper-0.1.1-py3-none-any.whl", hash = "sha256:217ffaa0eaa63f7dbb6864a674bad68838b2a7d16a69dd51a29bb58d787ccf3e", size = 46533, upload-time = "2026-03-02T12:56:53.426Z" },
 ]
 
 [[package]]

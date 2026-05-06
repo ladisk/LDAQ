@@ -111,7 +111,7 @@ class NIAcquisition(BaseAcquisition):
         if self._task_active:
             return
 
-        self._ai_task.start(start_task=True)
+        self._ai_task.start()
         self._task_active = True
         super().set_data_source()
 
@@ -139,12 +139,12 @@ class NIAcquisition(BaseAcquisition):
         """
         n_channels = len(self._channel_names_init)
 
-        raw = self._ai_task.acquire(n_samples=None)  # shape: (n_channels, n_samples)
+        raw = self._ai_task.acquire(n_samples=None)
 
         if raw is None or raw.size == 0:
             return np.empty((0, n_channels))
 
-        return raw.T  # transpose to (n_samples, n_channels)
+        return raw
 
     def clear_buffer(self) -> None:
         """Read and discard all data currently in the device buffer."""

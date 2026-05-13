@@ -23,18 +23,22 @@ Then, add the analog input channels to the task:
 
 .. code:: python
 
-    task.add_channel(device_name='cDAQ1Mod1', channel='ai0', channel_name='Channel_1',
-                     terminal_config='DEFAULT', voltage_range=(-10, 10))
-    task.add_channel(device_name='cDAQ1Mod1', channel='ai1', channel_name='Channel_2',
-                     terminal_config='DEFAULT', voltage_range=(-10, 10))
+    task.add_channel(channel_name='Channel_1', device='cDAQ1Mod1', channel_ind=0,
+                     units='V', min_val=-10, max_val=10)
+    task.add_channel(channel_name='Channel_2', device='cDAQ1Mod1', channel_ind=1,
+                     units='V', min_val=-10, max_val=10)
 
 The ``add_channel`` arguments are:
 
-- ``device_name``: The NI device or module name (e.g. ``'Dev1'``, ``'cDAQ1Mod1'``).
-- ``channel``: The channel string (e.g. ``'ai0'``, ``'ai1'``).
-- ``channel_name``: A human-readable name for the channel.
-- ``terminal_config``: Terminal configuration (e.g. ``'DEFAULT'``, ``'RSE'``, ``'NRSE'``, ``'DIFF'``).
-- ``voltage_range``: A tuple ``(min_val, max_val)`` specifying the input voltage range in Volts.
+- ``channel_name``: A unique logical name for the channel.
+- ``device``: The NI device or module name string (e.g. ``'Dev1'``, ``'cDAQ1Mod1'``).
+- ``channel_ind``: Physical analog-input channel index on the device (e.g. ``0`` for ``ai0``).
+- ``units``: Measurement units (e.g. ``'V'``, ``'g'``, ``'N'``). Always required.
+- ``min_val`` / ``max_val``: Minimum and maximum expected values in the chosen units.
+
+For sensor channels (accelerometer, force), pass ``sensitivity`` and ``sensitivity_units``
+instead of (or in addition to) ``min_val`` / ``max_val`` — see the
+`nidaqwrapper documentation <https://github.com/ladisk/nidaqwrapper>`_ for details.
 
 After all channels are added, the task can be passed to the ``NIAcquisition`` object:
 
@@ -66,17 +70,17 @@ Then add the analog output channels:
 
 .. code:: python
 
-    output_task.add_channel(device_name='cDAQ1Mod2', channel='ao0', channel_name='Channel_1',
-                            voltage_range=(-10, 10))
-    output_task.add_channel(device_name='cDAQ1Mod2', channel='ao1', channel_name='Channel_2',
-                            voltage_range=(-10, 10))
+    output_task.add_channel(channel_name='Channel_1', device='cDAQ1Mod2', channel_ind=0,
+                            min_val=-10, max_val=10)
+    output_task.add_channel(channel_name='Channel_2', device='cDAQ1Mod2', channel_ind=1,
+                            min_val=-10, max_val=10)
 
 The ``add_channel`` arguments for output tasks are:
 
-- ``device_name``: The NI device or module name (e.g. ``'Dev1'``, ``'cDAQ1Mod2'``).
-- ``channel``: The channel string (e.g. ``'ao0'``, ``'ao1'``).
-- ``channel_name``: A human-readable name for the channel.
-- ``voltage_range``: A tuple ``(min_val, max_val)`` specifying the output voltage range in Volts.
+- ``channel_name``: A unique logical name for the channel.
+- ``device``: The NI device or module name string (e.g. ``'Dev1'``, ``'cDAQ1Mod2'``).
+- ``channel_ind``: AO channel index on the device (e.g. ``0`` for ``ao0``).
+- ``min_val`` / ``max_val``: Minimum and maximum output voltage (defaults: ``-10`` and ``10``).
 
 Finally, pass the ``output_task`` to the ``NIGeneration`` class:
 

@@ -11,9 +11,9 @@ import LDAQ
 
 # Create a NI AITask:
 task_in = LDAQ.national_instruments.AITask("input_task_vis", sample_rate=25000)
-task_in.add_channel(channel_name='vol1', device_ind=2, channel_ind=0, units='V')
-task_in.add_channel(channel_name='vol2', device_ind=2, channel_ind=1, units='V')
-task_in.add_channel(channel_name='vol3', device_ind=2, channel_ind=2, units='V')
+task_in.add_channel(channel_name='vol1', device='cDAQ2Mod4', channel_ind=0, units='V')
+task_in.add_channel(channel_name='vol2', device='cDAQ2Mod4', channel_ind=1, units='V')
+task_in.add_channel(channel_name='vol3', device='cDAQ2Mod4', channel_ind=2, units='V')
 
 # Create acquisition source:
 acq = LDAQ.national_instruments.NIAcquisition(task_in, acquisition_name="NI")

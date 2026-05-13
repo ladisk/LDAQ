@@ -55,6 +55,32 @@ For more details, see the `getting started page <simple_start.html>`_.
     `nidaqwrapper documentation <https://github.com/ladisk/nidaqwrapper>`_ for the full API
     reference, including TOML-based task configuration.
 
+.. _ni-iepe-channels:
+
+IEPE channels
+-------------
+
+The same ``AITask.add_channel`` interface configures IEPE (Integrated
+Electronics Piezo-Electric) accelerometers and force sensors — for example on
+the NI 9234, NI 9232, or other IEPE-capable modules. Passing ``units='g'`` (or
+``'m/s**2'``) together with ``sensitivity`` and ``sensitivity_units`` routes
+the channel through ``add_ai_accel_chan``; passing ``units='N'`` routes it
+through ``add_ai_force_iepe_chan``. In both cases nidaqmx enables the IEPE
+constant-current excitation automatically.
+
+Valid unit strings:
+
+- Acceleration: ``units='g'`` or ``'m/s**2'``; ``sensitivity_units='mV/g'`` or ``'mV/m/s**2'``.
+- Force: ``units='N'``; ``sensitivity_units='mV/N'``.
+
+Voltage channels (``units='V'``) can be mixed into the same task — no
+``sensitivity`` is needed for those.
+
+A full worked example combining an IEPE impact hammer with two IEPE
+accelerometers, with a trigger on the hammer channel for pre- and post-impact
+capture, is available in the
+:doc:`examples/002_acquisition_NI_IEPE` notebook (typical modal-test setup).
+
 .. _ni-task-output:
 
 Output task

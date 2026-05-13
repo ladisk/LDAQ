@@ -7,6 +7,5 @@ pytest
 sphinx-rtd-theme
 sphinx-copybutton
 nbsphinx
-nbsphinx_link
 jupyter
 sphinx-book-theme

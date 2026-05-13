@@ -18,6 +18,15 @@ sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath('../..'))
 sys.path.append(os.path.abspath('_themes'))
 
+# Stage example notebooks into source/examples/ and (re)generate
+# source/examples.rst before Sphinx scans the docs tree. This runs on every
+# build (including Read the Docs, which invokes sphinx-build directly rather
+# than going through the Makefile target).
+_DOCS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _DOCS_DIR)
+import create_example_notebooks  # noqa: E402
+create_example_notebooks.main()
+
 
 # -- Project information -----------------------------------------------------
 

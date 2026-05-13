@@ -47,7 +47,6 @@ extensions = [
     'sphinx.ext.napoleon', 
     'sphinx_copybutton',
     'nbsphinx',
-    'nbsphinx_link'
 ]
 
 nbsphinx_allow_errors = True

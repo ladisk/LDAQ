@@ -48,6 +48,9 @@ Hardware-Specific Acqusition Classes
 .. autoclass:: LDAQ.basler.BaslerCamera
     :members:
 
+.. autoclass:: LDAQ.telops.TelopsCamera
+    :members:
+
 Generation
 ----------
 

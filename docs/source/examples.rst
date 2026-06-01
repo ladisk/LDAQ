@@ -19,3 +19,4 @@ Examples
    examples/010_visualization_advanced.nblink
    examples/011_acquisition_simulated_app_performance.nblink
    examples/012_periodic_saving_example.nblink
+   examples/013_acquisition_Telops_synchronized.nblink

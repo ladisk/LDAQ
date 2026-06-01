@@ -14,6 +14,8 @@ Acqusition
 
 - :class:`LDAQ.basler.BaslerCamera`: Based on pyPylon, any Basler Camera should work.
 
+- :class:`LDAQ.telops.TelopsCamera`: Based on pyTelops (pure-Python GigE Vision, no vendor SDK), tested with Telops FAST M3k MWIR.
+
 - :class:`LDAQ.simulator.SimulatedAcquisition`: Used to test the GUI without any hardware connected. Alternatively it can be used to track memory, CPU and disk usage.
 
 
@@ -38,6 +40,10 @@ Hardware-Specific Installation Instructions
     :noindex:
 
 .. autodata:: LDAQ.basler.BaslerCamera
+    :annotation:
+    :noindex:
+
+.. autodata:: LDAQ.telops.TelopsCamera
     :annotation:
     :noindex:
 

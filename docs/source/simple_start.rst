@@ -14,7 +14,7 @@ a wrapper for the National Instruments DAQmx driver. The class accepts the name 
 
     acq = LDAQ.national_instruments.NIAcquisition(input_task_name, acquisition_name='DataSource')
 
-If the  ``acquisition_name`` argument is not specified, the name of the acquisition object will be set to the value of ``input_task_name``.
+If the ``acquisition_name`` argument is not specified, the name of the acquisition object will be set to the task's name (from the ``AITask`` object or the NI MAX task name string).
 
 The ``acquisition_name`` argument is important when using multiple acquisition objects in the same measurement, and when specifying the layout of the
 live `visualization <visualization.html>`_.
@@ -104,6 +104,6 @@ What else can I do with LDAQ?
 - Add visualization to the :class:`LDAQ.Core` object. (see `visualization <visualization.html>`_)
 - Apply functions to measured data in real-time visualization. (see `visualization <visualization.html>`_)
 - Add multiple acquisition and signal generation objects to :class:`LDAQ.Core`. (see `multiple sources <multiple_sources.html>`_)
-- Define a NI Task in your program and use it with LDAQ. (see `NI Task <ni_task.html>`_)
+- Configure NI input/output tasks programmatically using ``AITask`` and ``AOTask``, and use them with LDAQ. (see `NI Task <ni_task.html>`_)
 - Currently the package supports a limited set of devices from National Instruments, Digilent, FLIR, Basler and devices using serial communication. (see `supported devices <supported_devices.html>`_)
 - Create your own acquisition class by overriding just few methods. LDAQ support signal as well as video acquisition sources. (see `custom acquisition <custom_acquisitions_and_generations.html>`_)

@@ -18,9 +18,9 @@ The signal must be prepared by the user (here we recommend to check `pyExSi <htt
     signal = np.array([signal1, signal2]).T # shape must be (n_samples, n_channels)
 
 
-Signal array is then passed to the :class:`LDAQ.NIGenerator` class. The ``output_task_name`` must be defined beforehand using
-`NIMax <https://www.ni.com/en/support/documentation/supplemental/21/what-is-ni-measurement---automation-explorer--ni-max--.html>`_ or
-:class:`NITaskOutput` (see :ref:`ni-task-output`).
+Signal array is then passed to the :class:`LDAQ.national_instruments.NIGeneration` class. The first argument, ``task``,
+must be either an ``AOTask`` object (see :ref:`ni-task-output`) or an output task name string defined in
+`NI MAX <https://www.ni.com/en/support/documentation/supplemental/21/what-is-ni-measurement---automation-explorer--ni-max--.html>`_.
 
 .. code-block:: python
 

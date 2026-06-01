@@ -280,6 +280,11 @@ class BaseAcquisition(metaclass=_BaseAcquisitionMeta):
     _ready_event = threading.Event()
     _expected_acquisitions = 0
 
+    @property
+    def all_acquisitions_ready(self) -> bool:
+        """Whether all acquisition sources are ready (thread-safe, reads shared Event)."""
+        return BaseAcquisition._ready_event.is_set()
+
     @classmethod
     def reset_ready_state(cls, expected_count: int = 0) -> None:
         """

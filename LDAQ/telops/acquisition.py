@@ -14,7 +14,7 @@ class TelopsCamera(BaseAcquisition):
     """
     Acquisition class for Telops thermal cameras over GigE Vision.
 
-    Uses the pyTelops driver — a pure-Python GigE Vision implementation
+    Uses the pyTelops driver, a pure-Python GigE Vision implementation
     that does not require the Telops eBUS SDK. Tested against Telops
     FAST-series MWIR cameras (e.g. FAST M3k).
 
@@ -134,7 +134,7 @@ class TelopsCamera(BaseAcquisition):
         self.acquisition_name = ('TelopsCamera' if acquisition_name is None
                                  else acquisition_name)
 
-        # Internal flags — initialize early so terminate_data_source is
+        # Internal flags; initialize early so terminate_data_source is
         # safe to call even if __init__ raises mid-way.
         self._owns_camera = (camera is None)
         self.cam = None
@@ -213,7 +213,7 @@ class TelopsCamera(BaseAcquisition):
             elif mode_name in ("NUC", "RAW", "RAW0"):
                 self.buffer_dtype = np.uint16
             else:
-                # Unknown mode — default to uint16 and warn
+                # Unknown mode; default to uint16 and warn
                 warnings.warn(
                     f"Unknown calibration mode '{mode_name}'. "
                     f"Defaulting buffer_dtype to uint16.",
@@ -221,7 +221,7 @@ class TelopsCamera(BaseAcquisition):
                 self.buffer_dtype = np.uint16
 
             # ----------------------------------------------------------
-            # Channel setup — single video channel of shape (H, W).
+            # Channel setup: single video channel of shape (H, W).
             # pyTelops returns (W, H); numpy convention is (rows, cols).
             # ----------------------------------------------------------
             self._channel_names_video_init = [channel_name]
@@ -231,7 +231,7 @@ class TelopsCamera(BaseAcquisition):
             self.set_trigger(1e20, 0, duration=1.0)
 
         except Exception:
-            # Init failed — clean up so we don't leak the camera socket
+            # Init failed; clean up so we don't leak the camera socket
             # or leave the GVSP receiver running.
             self._safe_cleanup()
             raise
@@ -252,7 +252,7 @@ class TelopsCamera(BaseAcquisition):
                 pass
 
     def set_data_source(self):
-        """Configure acquisition source. Idempotent — safe to call repeatedly.
+        """Configure acquisition source. Idempotent, safe to call repeatedly.
 
         Reads the current camera resolution, populates the channel
         shape, and starts continuous acquisition if not already running.
@@ -274,7 +274,7 @@ class TelopsCamera(BaseAcquisition):
 
         Non-blocking: returns an empty array if no new frame is ready.
         Uses ``cam.read_frame(latest=True)`` to **drain** the pyTelops
-        internal frame queue and return only the most recent frame —
+        internal frame queue and return only the most recent frame;
         older queued frames are discarded. This bounds end-to-end
         latency when the consumer (e.g. the Qt Visualization loop) is
         slower than the camera, so the live preview stays in sync with
@@ -282,7 +282,7 @@ class TelopsCamera(BaseAcquisition):
 
         Trade-off: if the consumer is slow, intermediate frames are
         dropped. For LDAQ's use case (live display + recorded window
-        during Start Measurement) this is the correct behavior — you
+        during Start Measurement) this is the correct behavior: you
         get smooth live preview, and recorded measurements still
         capture frames at the achieved consumer rate.
 
@@ -305,7 +305,7 @@ class TelopsCamera(BaseAcquisition):
 
         try:
             # latest=True drains the queue and keeps only the newest
-            # frame — bounds live-display latency when the consumer
+            # frame, bounding live-display latency when the consumer
             # is slower than the camera (Qt hiccups, GC, etc.).
             frame = self.cam.read_frame(timeout=0.0, latest=True)
         except RuntimeError as e:
@@ -328,7 +328,7 @@ class TelopsCamera(BaseAcquisition):
         """Stop continuous acquisition and clean up.
 
         If the plugin owns the camera, the camera is disconnected.
-        Otherwise only the acquisition is stopped — the camera remains
+        Otherwise only the acquisition is stopped; the camera remains
         connected and the user retains full ownership. Safe to call
         multiple times.
         """

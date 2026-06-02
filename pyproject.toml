@@ -35,7 +35,6 @@ dependencies = [
     "pyserial",
     "openpyxl",
     "pandas>=2.0.0",
-    "urllib3<2.0",
     "tqdm",
     "msgpack",
     "psutil",

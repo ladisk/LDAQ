@@ -880,19 +880,11 @@ class MainWindow(QMainWindow):
         if 'boxstate' in plot_channel.keys():
             _state = _view.getState()
 
-        # autoLevels=True forces pyqtgraph to recompute the colormap
-        # range from the current frame on every update. Without this,
-        # levels are locked by the first frame (which is a 10x10 random
-        # placeholder in [0, 1]) and real data — e.g. thermal images
-        # in [20, 30] C — is mapped entirely to the top of the colormap,
-        # rendering as a single flat color.
-        # autoRange=False preserves any user zoom/pan on the image view.
-        plot_channel['image_view'].setImage(new_data, autoLevels=True,
-                                            autoRange=False)
+        plot_channel['image_view'].setImage(new_data)
 
         if 'boxstate' in plot_channel.keys():
             _view.setState(_state)
-
+        
         plot_channel['boxstate'] = True
 
 

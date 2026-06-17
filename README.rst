@@ -25,6 +25,8 @@ Key Features:
 
   - FLIR Cameras
 
+  - Telops Cameras
+
   - Simulated hardware
 
 - 📊 **Advanced Data Visualization & Analysis**: LDAQ doesn’t just collect data; it helps you understand it. With built-in features like real-time signal visualization and Fast Fourier Transform (FFT) analysis, you can dive deep into your data for more insightful discoveries.
@@ -155,5 +157,5 @@ What else can I do with LDAQ?
 - Apply functions to measured data in real-time visualization (see `visualization <https://ldaq.readthedocs.io/en/latest/visualization.html>`_).
 - Add multiple acquisition and signal generation objects to ``LDAQ.Core`` (see `multiple sources <https://ldaq.readthedocs.io/en/latest/multiple_sources.html>`_).
 - Define a NI Task in your program and use it with ``LDAQ`` (see `NI Task <https://ldaq.readthedocs.io/en/latest/ni_task.html>`_).
-- Currently the package supports a limited set of devices from National Instruments, Digilent, FLIR, Basler and devices using serial communication (see `supported devices <https://ldaq.readthedocs.io/en/latest/supported_devices.html>`_).
+- Currently the package supports a limited set of devices from National Instruments, Digilent, FLIR, Basler, Telops and devices using serial communication (see `supported devices <https://ldaq.readthedocs.io/en/latest/supported_devices.html>`_).
 - Create your own acquisition class by overriding just few methods (see `custom acquisition <https://ldaq.readthedocs.io/en/latest/custom_acquisitions_and_generations.html>`_).

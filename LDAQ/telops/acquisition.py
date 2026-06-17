@@ -55,12 +55,6 @@ class TelopsCamera(BaseAcquisition):
         cam.disconnect()  # user owns the camera, must clean up
     """
 
-    # LDAQ Core reads this at runtime to coordinate multi-source readiness.
-    # Mirrors the pattern used by LDAQ.dewesoft.Dewesoft. Required because
-    # BaseAcquisition's metaclass only intercepts class-level access to this
-    # name; instance access (from core.py) needs a real class attribute.
-    all_acquisitions_ready = False
-
     def __init__(self, acquisition_name=None, sample_rate=None,
                  channel_name="thermal_field",
                  calibration_mode=None,
@@ -101,13 +95,14 @@ class TelopsCamera(BaseAcquisition):
 
             packet_delay (int, optional): GVSP inter-packet delay in
                 camera timer ticks (8 ns each). Spreads the per-frame
-                packet burst over time so a slow or hiccupping host
-                (Qt event loop jitter, matplotlib redraws, GC pauses)
-                can't overflow the UDP receive queue. ``1000`` = ~8 µs
-                between packets, safe up to ~400 fps, eliminates most
-                "packets unrecoverable" warnings on live streaming.
-                ``None`` (default) leaves whatever is currently
-                configured on the camera (usually 0 = no delay).
+                packet burst over time so a slow or jittery
+                consumer/host process can't overflow the UDP receive
+                queue. ``1000`` = ~8 us between packets, safe up to
+                ~400 fps, eliminates most "packets unrecoverable"
+                warnings on live streaming. The value persists across
+                stream restarts. ``None`` (default) leaves whatever is
+                currently configured on the camera (usually 0 = no
+                delay).
 
             integration_time (float, optional): Integration time in
                 microseconds. If ``None`` (default), uses whatever is
@@ -173,8 +168,8 @@ class TelopsCamera(BaseAcquisition):
 
             # ----------------------------------------------------------
             # Packet delay: spreads per-frame burst over time so a
-            # slow host (Qt/matplotlib/GC) can keep up. Persists across
-            # stream restarts via pyTelops's _packet_delay_override.
+            # slow or jittery consumer/host process can keep up.
+            # Persists across stream restarts.
             # ----------------------------------------------------------
             if packet_delay is not None:
                 self.cam.packet_delay = packet_delay
@@ -185,7 +180,12 @@ class TelopsCamera(BaseAcquisition):
             if sample_rate is None and self._owns_camera:
                 sample_rate = 100.0
             if sample_rate is not None:
-                self.cam.frame_rate = sample_rate
+                # The driver's frame_rate setter emits its own
+                # UserWarning when it clamps. Suppress it so only the
+                # plugin's richer RuntimeWarning fires for one clamp event.
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", UserWarning)
+                    self.cam.frame_rate = sample_rate
             self.sample_rate = self.cam.frame_rate
 
             # Warn if achieved rate differs significantly from requested
@@ -208,6 +208,10 @@ class TelopsCamera(BaseAcquisition):
             # Handle both enum (real pyTelops) and string (test mocks)
             mode_name = (active_mode.name if hasattr(active_mode, "name")
                          else str(active_mode)).upper()
+            # dtype assumption: NUC/RAW frames carry zero header
+            # coefficients, so the driver's convert step is a no-op cast
+            # and the data stays uint16. The float modes (RT, IBR, IBI)
+            # return float32. The astype in read_data relies on this.
             if mode_name in ("RT", "IBR", "IBI"):
                 self.buffer_dtype = np.float32
             elif mode_name in ("NUC", "RAW", "RAW0"):
@@ -273,18 +277,20 @@ class TelopsCamera(BaseAcquisition):
         """Pull the newest available frame from the running acquisition.
 
         Non-blocking: returns an empty array if no new frame is ready.
-        Uses ``cam.read_frame(latest=True)`` to **drain** the pyTelops
+        Uses ``cam.read_frame(latest=True)`` to **drain** the driver's
         internal frame queue and return only the most recent frame;
         older queued frames are discarded. This bounds end-to-end
-        latency when the consumer (e.g. the Qt Visualization loop) is
-        slower than the camera, so the live preview stays in sync with
-        real time instead of lagging further behind each second.
+        latency when the consuming display/processing loop is slower
+        than the camera, so the live preview stays in sync with real
+        time instead of lagging further behind each second.
 
         Trade-off: if the consumer is slow, intermediate frames are
-        dropped. For LDAQ's use case (live display + recorded window
-        during Start Measurement) this is the correct behavior: you
-        get smooth live preview, and recorded measurements still
-        capture frames at the achieved consumer rate.
+        dropped. Because stale frames are discarded (latest=True), the
+        frame timestamps of a recorded measurement reflect the achieved
+        consumer/poll rate, not the camera frame rate, whenever the
+        consumer is slower than the camera. For faithful high-frame-rate
+        recorded capture, use the onboard-buffer workflow instead (see
+        example 014).
 
         Returns a 2D array of shape ``(n_samples, n_columns)`` where
         ``n_samples`` is 0 or 1 and ``n_columns = H * W``.
@@ -306,7 +312,7 @@ class TelopsCamera(BaseAcquisition):
         try:
             # latest=True drains the queue and keeps only the newest
             # frame, bounding live-display latency when the consumer
-            # is slower than the camera (Qt hiccups, GC, etc.).
+            # is slower than the camera.
             frame = self.cam.read_frame(timeout=0.0, latest=True)
         except RuntimeError as e:
             if not self._acq_broken:

@@ -57,7 +57,7 @@ def telops_module():
 
 
 class TestTelopsCameraConstruction:
-    """Constructor wiring — owned camera, user-provided camera."""
+    """Constructor wiring - owned camera, user-provided camera."""
 
     def test_owned_camera_default(self, telops_module):
         tel = telops_module.TelopsCamera()
@@ -89,7 +89,7 @@ class TestTelopsCameraConstruction:
     def test_sample_rate_set_and_read_back(self, telops_module):
         # Plugin should set frame_rate on the camera, then read back
         # the actual achieved value. With a plain MagicMock the read-back
-        # equals the set value — real pyTelops would clamp to the max
+        # equals the set value - real pyTelops would clamp to the max
         # achievable for the current resolution and integration time.
         tel = telops_module.TelopsCamera(sample_rate=250.0)
         assert tel.sample_rate == 250.0
@@ -104,6 +104,19 @@ class TestTelopsCameraConstruction:
         tel = telops_module.TelopsCamera(integration_time=25.0, camera=cam)
         # The plugin should have set integration_time on the camera
         assert cam.integration_time == 25.0
+
+    def test_packet_delay_passed_through(self, telops_module):
+        cam = _make_fake_pytelops_camera()
+        tel = telops_module.TelopsCamera(packet_delay=1000, camera=cam)
+        # The plugin should have set packet_delay on the camera
+        assert cam.packet_delay == 1000
+
+    def test_packet_delay_none_leaves_camera_untouched(self, telops_module):
+        """Omitting packet_delay must NOT touch the camera's setting."""
+        cam = _make_fake_pytelops_camera()
+        cam.packet_delay = 7  # pre-existing value on the camera
+        tel = telops_module.TelopsCamera(camera=cam)  # no packet_delay kwarg
+        assert cam.packet_delay == 7
 
     def test_buffer_dtype_uint16_for_raw_modes(self, telops_module):
         cam = _make_fake_pytelops_camera(cal_mode_name="NUC")
@@ -141,7 +154,7 @@ class TestTelopsCameraConstruction:
         cam = _make_fake_pytelops_camera(cal_mode_name="NUC")
         original_mode = cam.calibration_mode  # save reference
         tel = telops_module.TelopsCamera(camera=cam, calibration_mode=None)
-        # The setter was NOT called — calibration_mode is still the
+        # The setter was NOT called - calibration_mode is still the
         # original MagicMock object we pre-set.
         assert cam.calibration_mode is original_mode
 
@@ -221,6 +234,31 @@ class TestTelopsCameraConstruction:
         assert cleanup_seen["disconnected"], (
             "Owned camera must be disconnected when __init__ raises "
             "after connect()")
+        # acquisition_start raised before camera_acq_started flipped True,
+        # so cleanup must NOT call acquisition_stop on this path.
+        assert cleanup_seen["acq_stopped"] is False
+
+    def test_init_failure_after_acq_start_stops_and_disconnects(
+            self, telops_module):
+        """If __init__ raises AFTER acquisition_start succeeds (owned
+        camera), cleanup must stop acquisition AND disconnect."""
+        cam = _make_fake_pytelops_camera()
+        telops_module._PyTelopsCamera.side_effect = lambda: cam
+
+        # acquisition_start succeeds (sets camera_acq_started True), then a
+        # later __init__ step raises. set_trigger runs right after
+        # set_data_source (which calls acquisition_start), so patching it to
+        # raise is the only path that reaches the acquisition_stop branch.
+        def boom(*a, **kw):
+            raise RuntimeError("simulated post-acquisition_start failure")
+
+        with patch.object(telops_module.TelopsCamera, "set_trigger", boom):
+            with pytest.raises(RuntimeError, match="simulated"):
+                telops_module.TelopsCamera()
+
+        cam.acquisition_start.assert_called_once()
+        cam.acquisition_stop.assert_called_once()
+        cam.disconnect.assert_called_once()
 
 
 class TestTelopsCameraDataFlow:
@@ -229,7 +267,7 @@ class TestTelopsCameraDataFlow:
     def test_channel_shape_matches_resolution(self, telops_module):
         cam = _make_fake_pytelops_camera(width=128, height=64)
         tel = telops_module.TelopsCamera(camera=cam)
-        # Channel shape is (H, W) — numpy convention
+        # Channel shape is (H, W) - numpy convention
         assert tel._channel_shapes_video_init == [(64, 128)]
 
     def test_read_data_returns_one_frame(self, telops_module):
@@ -239,6 +277,9 @@ class TestTelopsCameraDataFlow:
         assert result.shape == (1, 32)  # (1 sample, H*W = 4*8)
         assert result.dtype == np.float32
         assert (result == 25.0).all()
+        # Live-latency contract: read_data must drain to the newest frame
+        # via the non-blocking latest=True call.
+        cam.read_frame.assert_called_with(timeout=0.0, latest=True)
 
     def test_read_data_returns_empty_when_no_frame(self, telops_module):
         cam = _make_fake_pytelops_camera(width=8, height=4)
@@ -280,13 +321,26 @@ class TestTelopsCameraDataFlow:
         fake = np.zeros((4, 8), dtype=np.float32)
         cam.read_frame.side_effect = [fake, fake, fake, None]
         tel.clear_buffer()
-        # Drain pulled 3 frames and then saw None — exited the loop.
-        # Use >= to avoid baking in the "+1 None" implementation detail.
-        assert cam.read_frame.call_count >= 3
-        # And the last call returned None (loop terminated correctly)
-        assert cam.read_frame.return_value is None or \
-               len(cam.read_frame.side_effect_list if hasattr(
-                   cam.read_frame, "side_effect_list") else []) == 0
+        # Drain pulled 3 frames and then saw None, terminating the loop.
+        # The 4th call (returning None) is what breaks the loop, so the
+        # drain makes exactly 4 calls: 3 frames + 1 terminating None.
+        assert cam.read_frame.call_count == 4
+
+    def test_clear_buffer_caps_at_10000(self, telops_module):
+        """A producer that never empties must not loop forever: the
+        drain is bounded at 10000 iterations."""
+        cam = _make_fake_pytelops_camera(width=8, height=4)
+        tel = telops_module.TelopsCamera(camera=cam)
+        # Acquisition is started by the constructor, so clear_buffer drains.
+        assert tel.camera_acq_started is True
+        # Reset after constructor so we count only clear_buffer calls.
+        cam.read_frame.reset_mock()
+        # Always return a frame (no None, no finite side_effect): the only
+        # thing that can end the loop is the iteration cap.
+        cam.read_frame.side_effect = None
+        cam.read_frame.return_value = np.zeros((4, 8), dtype=np.float32)
+        tel.clear_buffer()
+        assert cam.read_frame.call_count == 10000
 
     def test_clear_buffer_noop_when_not_started(self, telops_module):
         """After terminate, clear_buffer must not call read_frame."""

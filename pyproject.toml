@@ -74,6 +74,9 @@ ni = [
     "nidaqwrapper>=0.1.0",
     "nidaqmx>=0.8.0",
 ]
+telops = [
+    "pyTelops>=0.2.2",
+]
 
 [project.urls]
 homepage = "https://github.com/ladisk/LDAQ"

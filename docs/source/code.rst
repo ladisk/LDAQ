@@ -6,7 +6,7 @@ Overview
 
 This section provides comprehensive documentation for the LDAQ code, designed to facilitate data acquisition, generation, and visualization across a variety of hardware platforms. The documentation is organized into several key sections, each focusing on a specific aspect of the LDAQ system.
 
-The "Acquisition" section introduces the base acquisition class along with hardware-specific acquisition classes, detailing the methods and properties associated with data acquisition from various devices. These devices range from simulated environments and serial communications to specific hardware integrations like National Instruments, Digilent, FLIR thermal cameras, and Basler cameras.
+The "Acquisition" section introduces the base acquisition class along with hardware-specific acquisition classes, detailing the methods and properties associated with data acquisition from various devices. These devices range from simulated environments and serial communications to specific hardware integrations like National Instruments, Digilent, FLIR thermal cameras, Basler cameras, and Telops thermal cameras.
 
 In the "Generation" section, the focus shifts to data generation. Here, the base generation class and various hardware-specific generation classes are documented, providing insights into how data can be generated and manipulated within the LDAQ framework.
 
@@ -46,6 +46,9 @@ Hardware-Specific Acqusition Classes
     :members:
 
 .. autoclass:: LDAQ.basler.BaslerCamera
+    :members:
+
+.. autoclass:: LDAQ.telops.TelopsCamera
     :members:
 
 Generation

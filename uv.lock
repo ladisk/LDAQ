@@ -1878,7 +1878,7 @@ wheels = [
 
 [[package]]
 name = "ldaq"
-version = "1.3.0"
+version = "1.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "beautifultable" },
@@ -1930,6 +1930,9 @@ ni = [
 qt = [
     { name = "pyqt6" },
 ]
+telops = [
+    { name = "pytelops" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -1961,6 +1964,7 @@ requires-dist = [
     { name = "pyqt6", marker = "extra == 'qt'" },
     { name = "pyqtgraph" },
     { name = "pyserial" },
+    { name = "pytelops", marker = "extra == 'telops'", specifier = ">=0.2.2" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytrigger" },
     { name = "scipy", specifier = ">=1.2.0" },
@@ -1974,7 +1978,7 @@ requires-dist = [
     { name = "twine", marker = "extra == 'dev'" },
     { name = "wheel", marker = "extra == 'dev'" },
 ]
-provides-extras = ["dev", "qt", "bluetooth", "ni"]
+provides-extras = ["dev", "qt", "bluetooth", "ni", "telops"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2188,14 +2192,14 @@ wheels = [
 
 [[package]]
 name = "mistune"
-version = "3.2.1"
+version = "3.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ca/84/620cc3f7e3adf6f5067e10f4dbae71295d8f9e16d5d3f9ef97c40f2f592c/mistune-3.2.1.tar.gz", hash = "sha256:7c8e5501d38bac1582e067e46c8343f17d57ea1aaa735823f3aba1fd59c88a28", size = 98003, upload-time = "2026-05-03T14:33:22.312Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/84/9c/1939635275ec7258e2b43b00dafabc36d89ad11aa7838d375dc1b0e561cb/mistune-3.3.0.tar.gz", hash = "sha256:3074ec4c61b384abe725128e4dcbb483f5a09cc4632012505cdee655d3a113b9", size = 110936, upload-time = "2026-06-21T13:11:39.458Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/7f/a946aa4f8752b37102b41e64dca18a1976ac705c3a0d1dfe74d820a02552/mistune-3.2.1-py3-none-any.whl", hash = "sha256:78cdb0ba5e938053ccf63651b352508d2efa9411dc8810bfb05f2dc5140c0048", size = 53749, upload-time = "2026-05-03T14:33:20.551Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/76/b90f9d48d43fbd80a79a20d3eab2e5109859c7a56dc663b23187385898f3/mistune-3.3.0-py3-none-any.whl", hash = "sha256:a758e578acda49d8195f9a860b132dae2cf7bf409381393b1c4e6e489a65397b", size = 61250, upload-time = "2026-06-21T13:11:37.938Z" },
 ]
 
 [[package]]
@@ -3092,6 +3096,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/15/1b/b5dfc2ed2d5fc4e281b319562bae323c4dbb83dedc91f952e15a565a41c4/pydeps-3.0.6.tar.gz", hash = "sha256:7f8b12c9db90f5a2e009fe0ef75f2945bf698d6cc5fb064423a525823d423085", size = 54777, upload-time = "2026-04-23T10:34:50.012Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d6/93/f152a9d5c669efdce1c4e4328256eb2a61486134a2ff4dce8cb93bcd8e9d/pydeps-3.0.6-py3-none-any.whl", hash = "sha256:fc102c0ee2ad25a1596714c7175d8060fa138aaa87eafb308e820e88a709e5fc", size = 48106, upload-time = "2026-04-23T10:34:48.622Z" },
+]
+
+[[package]]
+name = "pygigevision"
+version = "0.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "psutil" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/68/21/b0da886b0905ff2d2137c08ccc248122cc83809a29caac3a82f54eefacd5/pygigevision-0.2.2.tar.gz", hash = "sha256:9b8295c2efec353741aae8142951ff949b46627d76cdc8d61467bae9f56be9e2", size = 50466, upload-time = "2026-07-08T11:38:06.506Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/09/97/858f41593a04070f9b16cbe40fc0ca1f3d34d2ad0354464864e7d0dad916/pygigevision-0.2.2-py3-none-any.whl", hash = "sha256:cb8dc1a0a1fa9ab70d428f4a62be4d08ca3d31c15bfb1ca658618e432d4fea9d", size = 27068, upload-time = "2026-07-08T11:38:05.417Z" },
 ]
 
 [[package]]
@@ -6285,6 +6303,21 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/1e/7d/ae3f0a63f41e4d2f6cb66a5b57197850f919f59e558159a4dd3a818f5082/pyserial-3.5.tar.gz", hash = "sha256:3c77e014170dfffbd816e6ffc205e9842efb10be9f58ec16d3e8675b4925cddb", size = 159125, upload-time = "2020-11-23T03:59:15.045Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/07/bc/587a445451b253b285629263eb51c2d8e9bcea4fc97826266d186f96f558/pyserial-3.5-py2.py3-none-any.whl", hash = "sha256:c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0", size = 90585, upload-time = "2020-11-23T03:59:13.41Z" },
+]
+
+[[package]]
+name = "pytelops"
+version = "0.2.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pygigevision" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b8/f4/b2f5acd8820cf07eef0e578511970dd32cef53a339399b0025274fc785e7/pytelops-0.2.3.tar.gz", hash = "sha256:6deef0c156623fbbd698a7543063b0fd129621841f6e99c7ee00b7991644fd4b", size = 254871, upload-time = "2026-07-10T11:56:51.247Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/49/98/840eeb3fce532ac410ac323e89ad2ce0ae1770d1f223696f41275a531833/pytelops-0.2.3-py3-none-any.whl", hash = "sha256:821ce210af2d4583e707af7374b1c7ab97f06f91ac22bbc94fcdec24694816c6", size = 65930, upload-time = "2026-07-10T11:56:49.893Z" },
 ]
 
 [[package]]

@@ -25,6 +25,7 @@ Example::
 """
 import atexit
 import ctypes
+import math
 import threading
 import time
 import warnings
@@ -53,6 +54,10 @@ _FLUSH_TIMEOUT_S = 10.0
 # Stream 1 has no header; its first 8 bytes are FPGA data.
 _TS_HEADER_SIZE = 8
 _TS_CLK_HZ = 10_000_000.0
+
+# Frame rate written by get_max_frame_rate(). The camera caps a written
+# frame rate at its limit, so it must be above any real limit.
+_PROBE_FRAME_RATE = 1e6
 
 _IMPORT_ERROR_MESSAGE = (
     "vevoapi could not be imported. vevoapi.py and liboptomotive_vevo.so "
@@ -226,6 +231,75 @@ class OptomotiveCamera:
                     f"current exposure and ROI). LDAQ timestamps will "
                     f"reflect the achieved rate.",
                     RuntimeWarning, stacklevel=2)
+
+    def get_max_frame_rate(self):
+        """Read the highest frame rate the camera allows now.
+
+        vevoapi has no register for it, so the camera is tested: the camera
+        caps a written frame rate at the sensor readout limit for the
+        current ROI, and then at the limit for the current exposure. The
+        steps are:
+
+        1. Save the exposure and frame rate.
+        2. Write a very high frame rate and read it back: the sensor limit.
+           The camera may shorten the exposure to fit.
+        3. Write the saved exposure back and read the frame rate: the limit
+           at the saved exposure.
+        4. Write the saved frame rate back and check that the exposure and
+           frame rate are the same as before.
+
+        This is the sensor limit only. The transfer to the PC can limit the
+        frame rate further (frames are then lost, see
+        :meth:`OptomotiveImage.dropped_frames`).
+
+        Returns:
+            dict: ``sensor`` (Hz), the readout limit for the current ROI,
+            and ``with_exposure`` (Hz), the limit at the current exposure
+            (never higher than ``sensor``).
+
+        Raises:
+            RuntimeError: If the camera is closed or acquiring, if a value
+                cannot be read or written, or if the exposure and frame rate
+                are not restored.
+        """
+        with self.lock:
+            if self._closed:
+                raise RuntimeError("OptomotiveCamera is closed.")
+            if self._running:
+                raise RuntimeError(
+                    "Cannot read the frame-rate limit while the camera is "
+                    "acquiring.")
+            exposure = self.cam.get_exposure()
+            rate = self.cam.get_framerate()
+            if exposure is None or rate is None:
+                raise RuntimeError(
+                    "Could not read the exposure or frame rate of the camera.")
+            sensor_max = None
+            try:
+                if self.cam.set_framerate(_PROBE_FRAME_RATE) is not None:
+                    sensor_max = self.cam.get_framerate()
+            finally:
+                # Exposure first (this caps the frame rate by the exposure),
+                # then the frame rate, which was valid with that exposure.
+                exposure_ok = self.cam.set_exposure(exposure) is not None
+                with_exposure = self.cam.get_framerate()
+                rate_ok = self.cam.set_framerate(rate) is not None
+                new_exposure = self.cam.get_exposure()
+                new_rate = self.cam.get_framerate()
+
+        def same(a, b):
+            return a is not None and math.isclose(a, b, rel_tol=1e-3)
+
+        if not (exposure_ok and rate_ok and same(new_exposure, exposure)
+                and same(new_rate, rate)):
+            raise RuntimeError(
+                f"Could not restore the exposure ({exposure}) and frame rate "
+                f"({rate}) after reading the frame-rate limit. They are now "
+                f"{new_exposure} and {new_rate}.")
+        if sensor_max is None or with_exposure is None:
+            raise RuntimeError("Could not read the frame-rate limit of the camera.")
+        return {"sensor": float(sensor_max),
+                "with_exposure": float(with_exposure)}
 
     @property
     def image_shape(self):

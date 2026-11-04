@@ -46,6 +46,10 @@ class FakeCamera:
         self.producer = None  # optional callable(self) -> called on pending count
         self.running = False
         self.set_fails = None  # name of a setter that returns None (error)
+        self.exposure = 1000.0
+        # Optional frame-rate limits like the firmware: sensor readout limit
+        # and 1e6 / (exposure + FOT_US). None: no limits.
+        self.sensor_max = None
 
     def open(self):
         self.calls.append("open")
@@ -55,9 +59,19 @@ class FakeCamera:
         self.calls.append("close")
         return True
 
+    FOT_US = 100.0
+
     def set_exposure(self, v):
         self.calls.append(("set_exposure", v))
-        return None if self.set_fails == "set_exposure" else v
+        if self.set_fails == "set_exposure":
+            return None
+        self.exposure = v
+        if self.sensor_max is not None:  # exposure caps the frame rate
+            self.rate = min(self.rate, 1e6 / (v + self.FOT_US))
+        return v
+
+    def get_exposure(self):
+        return self.exposure
 
     def set_roi(self, x, y, w, h):
         self.calls.append(("set_roi", x, y, w, h))
@@ -71,6 +85,9 @@ class FakeCamera:
         if self.set_fails == "set_framerate":
             return None
         self.rate = v if self.rate_after_set is None else self.rate_after_set
+        if self.sensor_max is not None:  # cap, then shorten the exposure
+            self.rate = min(self.rate, self.sensor_max)
+            self.exposure = min(self.exposure, 1e6 / self.rate - self.FOT_US)
         return self.rate
 
     def get_framerate(self):
@@ -337,6 +354,42 @@ class TestOptomotiveCamera:
             OptomotiveCamera(sample_rate=500.0)
         assert owned.calls.count("close") == 1
         assert acq_module._open_cameras == []
+
+    @pytest.mark.parametrize("exposure, expected", [(1900.0, 500.0), (900.0, 600.0)])
+    def test_max_frame_rate_read_and_settings_restored(self, fake_vevoapi, exposure,
+                                                       expected):
+        fake = FakeCamera()
+        fake.sensor_max = 600.0  # exposure 1900 us -> 1e6 / 2000 = 500 Hz
+        cam = OptomotiveCamera(vevo_camera=fake, exposure=exposure, sample_rate=100.0)
+        n0 = len(fake.calls)
+        limits = cam.get_max_frame_rate()
+        assert limits["sensor"] == pytest.approx(600.0)
+        assert limits["with_exposure"] == pytest.approx(expected)
+        assert ("set_framerate", acq_module._PROBE_FRAME_RATE) in fake.calls[n0:]
+        assert fake.exposure == exposure
+        assert fake.rate == 100.0
+        assert cam.sample_rate == 100.0
+        cam.close()
+
+    def test_max_frame_rate_refused_while_running(self, camera, fake_cam):
+        img = OptomotiveImage(camera)
+        img.set_data_source()
+        n0 = len(fake_cam.calls)
+        with pytest.raises(RuntimeError, match="acquiring"):
+            camera.get_max_frame_rate()
+        assert fake_cam.calls[n0:] == []
+        img.terminate_data_source()
+
+    def test_max_frame_rate_refused_when_closed(self, camera):
+        camera.close()
+        with pytest.raises(RuntimeError, match="closed"):
+            camera.get_max_frame_rate()
+
+    def test_max_frame_rate_restore_failure_raises(self, camera, fake_cam):
+        fake_cam.sensor_max = 600.0
+        fake_cam.set_fails = "set_exposure"
+        with pytest.raises(RuntimeError, match="restore"):
+            camera.get_max_frame_rate()
 
     def test_close_waits_until_camera_is_quiet(self, fake_vevoapi):
         owned = fake_vevoapi.discover.return_value[0]

@@ -10,4 +10,4 @@ from . import dewesoft
 from . import serial_communication
 from . import simulator
 from . import telops
-
+from . import optomotive

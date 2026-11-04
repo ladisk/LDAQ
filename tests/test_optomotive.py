@@ -106,9 +106,15 @@ class FakeCamera:
     def pop_image(self, img):
         self.popped += 1
 
-    def push(self, stream, size, header_size=HEADER, fill=1):
+    def push(self, stream, size, header_size=HEADER, fill=1, timestamp=None):
         data = np.full(size, fill, dtype=np.uint8)
+        if timestamp is not None:  # header bytes 0-7, little-endian
+            data[:8] = np.frombuffer(np.uint64(timestamp).astype("<u8").tobytes(),
+                                     dtype=np.uint8)
         self.queues[stream].append(FakeImage(stream, data, header_size))
+
+
+_REAL_COPY_FRAME = OptomotiveCamera._copy_frame
 
 
 def _fake_copy_frame(self, image, n_bytes, skip_header, out_row):
@@ -116,10 +122,11 @@ def _fake_copy_frame(self, image, n_bytes, skip_header, out_row):
     header = image.header_size
     payload = size - header if skip_header else size
     if payload != n_bytes:
-        return size, header, False
+        return size, header, False, None
     start = header if skip_header else 0
     out_row[:] = image.data[start:start + n_bytes]
-    return size, header, True
+    timestamp = int(image.data[:8].view("<u8")[0]) if header == 8 else None
+    return size, header, True, timestamp
 
 
 @pytest.fixture
@@ -362,7 +369,7 @@ class TestOptomotiveCamera:
         fake_cam.push(1, 40)
         fake_cam.push(1, 40)
         fake_cam.calls.clear()
-        data, n_bad, _, _ = camera.read_stream(0, WIDTH * HEIGHT, True)
+        data, n_bad, _, _, _ = camera.read_stream(0, WIDTH * HEIGHT, True)
         assert ("clear", 1) in fake_cam.calls
         assert ("clear", 0) not in fake_cam.calls
         assert len(fake_cam.queues[1]) == 0
@@ -373,7 +380,7 @@ class TestOptomotiveCamera:
         for _ in range(3):
             fake_cam.push(0, _image_bytes())
         fake_cam.push(0, 5)  # bad
-        data, n_bad, first_bad, last_header = camera.read_stream(0, WIDTH * HEIGHT, True)
+        data, n_bad, first_bad, last_header, _ = camera.read_stream(0, WIDTH * HEIGHT, True)
         assert data.shape == (3, WIDTH * HEIGHT)
         assert n_bad == 1
         assert first_bad == (5, HEADER)
@@ -448,6 +455,85 @@ class TestOptomotiveImage:
         img.clear_buffer()
         assert len(fake_cam.queues[0]) == 0
         img.terminate_data_source()
+
+
+class TestDroppedFrames:
+    PERIOD = 10_000  # ticks of the 10 MHz clock at 1000 fps
+
+    def _push(self, fake_cam, frame_numbers, t0=123_456_789, jitter=0):
+        for i, n in enumerate(frame_numbers):
+            j = jitter if i % 2 else -jitter
+            fake_cam.push(0, _image_bytes(), timestamp=t0 + n * self.PERIOD + j)
+
+    def test_no_gap(self, camera, fake_cam):
+        img = OptomotiveImage(camera)
+        img.set_data_source()
+        self._push(fake_cam, range(10), jitter=300)
+        img.read_data()
+        self._push(fake_cam, range(10, 20), jitter=300)  # second read
+        img.read_data()
+        assert img.frame_timestamps.dtype == np.uint64
+        assert img.dropped_frames() == {"n_frames": 20, "n_missing": 0, "gaps": []}
+        img.terminate_data_source()
+
+    def test_gap_of_three_frames(self, camera, fake_cam):
+        img = OptomotiveImage(camera)
+        img.set_data_source()
+        self._push(fake_cam, [0, 1, 2, 3, 4, 8, 9, 10], jitter=300)
+        img.read_data()
+        assert img.dropped_frames() == {"n_frames": 8, "n_missing": 3,
+                                        "gaps": [(5, 3)]}
+        img.terminate_data_source()
+
+    def test_clear_and_new_run_reset_timestamps(self, camera, fake_cam):
+        img = OptomotiveImage(camera)
+        img.set_data_source()
+        self._push(fake_cam, range(3))
+        img.read_data()
+        img.clear_buffer()  # frames dropped on purpose are not "lost"
+        self._push(fake_cam, range(100, 105))
+        img.read_data()
+        assert img.dropped_frames()["n_frames"] == 5
+        assert img.dropped_frames()["n_missing"] == 0
+        img.terminate_data_source()
+        img.set_data_source()  # new run
+        assert img.dropped_frames()["n_frames"] == 0
+        img.terminate_data_source()
+
+    def test_frame_without_timestamp_header(self, camera, fake_cam):
+        img = OptomotiveImage(camera)
+        img.set_data_source()
+        fake_cam.push(0, WIDTH * HEIGHT + 4, header_size=4)
+        img.read_data()
+        assert img.frame_timestamps is None
+        with pytest.raises(RuntimeError, match="timestamp header"):
+            img.dropped_frames()
+        img.terminate_data_source()
+
+    def test_raw_stream_reads_no_timestamps(self, camera, fake_cam):
+        raw = OptomotiveRaw(camera, frame_bits=RAW_BYTES * 8)
+        raw.set_data_source()
+        fake_cam.push(1, RAW_BYTES)
+        assert raw.read_data().shape == (1, RAW_BYTES)
+        assert not hasattr(raw, "dropped_frames")
+        raw.terminate_data_source()
+
+    def test_real_copy_frame_reads_little_endian_timestamp(self, fake_vevoapi):
+        frame = np.arange(8 + 5, dtype=np.uint8)
+        frame[:8] = np.frombuffer((0x0102030405060708).to_bytes(8, "little"),
+                                  dtype=np.uint8)
+        lib = fake_vevoapi.vevo_lib
+        lib.vevoGetImageData.return_value = frame.ctypes.data
+        lib.vevoGetImageSize.return_value = frame.size
+        lib.vevoGetHeaderSize.return_value = 8
+        out = np.zeros(5, dtype=np.uint8)
+        image = FakeImage(0, frame, 8)
+        result = _REAL_COPY_FRAME(None, image, 5, True, out)
+        assert result == (13, 8, True, 0x0102030405060708)
+        assert list(out) == [8, 9, 10, 11, 12]
+        lib.vevoGetHeaderSize.return_value = 0  # stream 1: no timestamp
+        out = np.zeros(13, dtype=np.uint8)
+        assert _REAL_COPY_FRAME(None, image, 13, False, out)[3] is None
 
 
 # -----------------------------------------------------------------------------
@@ -538,7 +624,7 @@ class TestCoreRun:
                 state["t0"] = time.perf_counter()
             due = int((time.perf_counter() - state["t0"]) * rate)
             while state["made"] < due:
-                c.push(0, _image_bytes())
+                c.push(0, _image_bytes(), timestamp=state["made"] * 50_000)
                 c.push(1, RAW_BYTES)
                 state["made"] += 1
 
@@ -565,3 +651,6 @@ class TestCoreRun:
         assert cam_fake.calls.count("start") == 1
         assert cam_fake.calls[n0:].count("stop") == 1
         assert threading.active_count() <= threads_before
+        dropped = img.dropped_frames()  # 200 fps: 50 000 ticks per frame
+        assert dropped["n_frames"] >= n_img
+        assert dropped["n_missing"] == 0

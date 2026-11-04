@@ -48,6 +48,12 @@ _ALL_STREAMS = (_STREAM_IMAGE, _STREAM_RAW)
 _FLUSH_QUIET_S = 0.2
 _FLUSH_TIMEOUT_S = 10.0
 
+# Stream 0 header: bytes 0-7 are the exposure-start timestamp (uint64,
+# little-endian) of a free-running 10 MHz counter (TIMESTAMP_TICK_FREQ).
+# Stream 1 has no header; its first 8 bytes are FPGA data.
+_TS_HEADER_SIZE = 8
+_TS_CLK_HZ = 10_000_000.0
+
 _IMPORT_ERROR_MESSAGE = (
     "vevoapi could not be imported. vevoapi.py and liboptomotive_vevo.so "
     "must be importable, for example placed in the folder of the virtual "
@@ -294,8 +300,11 @@ class OptomotiveCamera:
             out_row (np.ndarray): uint8 row of length ``n_bytes``.
 
         Returns:
-            tuple: ``(frame_size, header_size, copied)``. ``copied`` is
-            False (nothing written) if the size does not match ``n_bytes``.
+            tuple: ``(frame_size, header_size, copied, timestamp)``.
+            ``copied`` is False (nothing written) if the size does not
+            match ``n_bytes``. ``timestamp`` is bytes 0-7 read as a
+            little-endian uint64 if the frame was copied and the header is
+            8 bytes, otherwise None. It is a time only on stream 0.
         """
         lib = vevoapi.vevo_lib
         handle = ctypes.c_void_p(image.handle)
@@ -304,14 +313,17 @@ class OptomotiveCamera:
         header = int(lib.vevoGetHeaderSize(handle))
         payload = size - header if skip_header else size
         if payload != n_bytes or not ptr:
-            return size, header, False
+            return size, header, False, None
         src = np.frombuffer((ctypes.c_uint8 * size).from_address(ptr),
                             dtype=np.uint8)
         start = header if skip_header else 0
         np.copyto(out_row, src[start:start + n_bytes])
-        return size, header, True
+        timestamp = None
+        if header == _TS_HEADER_SIZE:
+            timestamp = int(src[:_TS_HEADER_SIZE].view("<u8")[0])
+        return size, header, True, timestamp
 
-    def read_stream(self, stream, n_bytes, skip_header):
+    def read_stream(self, stream, n_bytes, skip_header, read_timestamps=False):
         """Drain all pending frames of one stream.
 
         Frames are copied once from SDK memory into a preallocated array and
@@ -324,32 +336,40 @@ class OptomotiveCamera:
             n_bytes (int): Expected bytes per frame (without the header if
                 ``skip_header`` is True, otherwise the whole frame).
             skip_header (bool): Drop the header from the output.
+            read_timestamps (bool, optional): Also return the header
+                timestamp of every good frame. Defaults to False.
 
         Returns:
-            tuple: ``(data, n_bad, first_bad, last_header_size)`` where
+            tuple: ``(data, n_bad, first_bad, last_header_size,
+            timestamps)`` where
             ``data`` is a uint8 array of shape ``(n_ok, n_bytes)``,
             ``n_bad`` the number of skipped frames, ``first_bad`` is
             ``(frame_size, header_size)`` of the first skipped frame or None,
-            and ``last_header_size`` the header size of the last good frame
-            (None if there was none).
+            ``last_header_size`` the header size of the last good frame
+            (None if there was none) and ``timestamps`` a uint64 array of
+            shape ``(n_ok,)``. ``timestamps`` is None if not requested or
+            if a good frame had no 8-byte header.
         """
         empty = np.empty((0, n_bytes), dtype=np.uint8)
+        no_ts = np.empty(0, dtype=np.uint64) if read_timestamps else None
         with self.lock:
             if self._closed:
-                return empty, 0, None, None
+                return empty, 0, None, None, no_ts
 
             active = set(self._registered.values())
             for s in _ALL_STREAMS:
                 if s not in active:
                     self.cam.clear_buffer(s)
             if stream not in active:
-                return empty, 0, None, None
+                return empty, 0, None, None, no_ts
 
             n_pending = int(self.cam.get_pending_image_count(stream))
             if n_pending <= 0:
-                return empty, 0, None, None
+                return empty, 0, None, None, no_ts
 
             out = np.empty((n_pending, n_bytes), dtype=np.uint8)
+            timestamps = (np.empty(n_pending, dtype=np.uint64)
+                          if read_timestamps else None)
             n_ok = 0
             n_bad = 0
             first_bad = None
@@ -359,18 +379,25 @@ class OptomotiveCamera:
                 if image is None:
                     break
                 try:
-                    size, header, copied = self._copy_frame(
+                    size, header, copied, timestamp = self._copy_frame(
                         image, n_bytes, skip_header, out[n_ok])
                 finally:
                     self.cam.pop_image(image)
                 if copied:
+                    if timestamps is not None:
+                        if timestamp is None:
+                            timestamps = None
+                        else:
+                            timestamps[n_ok] = timestamp
                     n_ok += 1
                     last_header_size = header
                 else:
                     n_bad += 1
                     if first_bad is None:
                         first_bad = (size, header)
-            return out[:n_ok], n_bad, first_bad, last_header_size
+            if timestamps is not None:
+                timestamps = timestamps[:n_ok]
+            return out[:n_ok], n_bad, first_bad, last_header_size, timestamps
 
     def _flush(self):
         """Drop frames that the camera still sends after a stop.
@@ -451,6 +478,7 @@ class _OptomotiveStreamSource(BaseAcquisition):
 
     _stream = None
     _skip_header = True
+    _read_timestamps = False
 
     def _setup(self, camera, acquisition_name, default_name, channel_name,
                n_bytes, channel_shape):
@@ -493,8 +521,11 @@ class _OptomotiveStreamSource(BaseAcquisition):
             np.ndarray: uint8 array of shape ``(n_frames, n_columns)``;
             ``(0, n_columns)`` if no frame is pending.
         """
-        data, n_bad, first_bad, last_header = self.camera.read_stream(
-            self._stream, self._n_bytes, self._skip_header)
+        data, n_bad, first_bad, last_header, timestamps = self.camera.read_stream(
+            self._stream, self._n_bytes, self._skip_header,
+            self._read_timestamps)
+        if self._read_timestamps:
+            self._record_timestamps(timestamps, len(data))
         if last_header is not None:
             self.last_header_size = last_header
         if n_bad:
@@ -532,10 +563,14 @@ class OptomotiveImage(_OptomotiveStreamSource):
 
     One video channel of shape ``(H, W)``, uint8. The frame header is
     removed. Create an :class:`OptomotiveCamera` first and pass it in.
+
+    The header timestamp of every received frame is kept (not in the
+    measurement), so lost frames can be found with :meth:`dropped_frames`.
     """
 
     _stream = _STREAM_IMAGE
     _skip_header = True
+    _read_timestamps = True
 
     def __init__(self, camera, acquisition_name=None, channel_name="image"):
         """Create the image source (the camera is not started here).
@@ -556,9 +591,92 @@ class OptomotiveImage(_OptomotiveStreamSource):
         if not isinstance(camera, OptomotiveCamera):
             raise TypeError("camera must be an OptomotiveCamera.")
         super().__init__()
+        self._reset_timestamps()
         height, width = camera.image_shape
         self._setup(camera, acquisition_name, "OptomotiveImage", channel_name,
                     height * width, (height, width))
+
+    def _reset_timestamps(self):
+        self._ts_chunks = []
+        self._ts_complete = True
+
+    def _record_timestamps(self, timestamps, n_frames):
+        if n_frames == 0:
+            return
+        if timestamps is None:
+            self._ts_complete = False
+        else:
+            self._ts_chunks.append(timestamps)
+
+    def set_data_source(self, start_acquisition=True):
+        """Build the channel layout and (optionally) start the camera.
+
+        Starting a run also clears the recorded timestamps.
+
+        Args:
+            start_acquisition (bool, optional): See the base class.
+                Defaults to True.
+        """
+        if start_acquisition and not self._registered:
+            self._reset_timestamps()
+        super().set_data_source(start_acquisition)
+
+    def clear_buffer(self):
+        """Clear the SDK buffer of this stream and the recorded timestamps.
+
+        LDAQ clears the buffer while it waits for all sources at the start of
+        a run. Those frames are dropped on purpose, so the timestamps start
+        again after the last clear.
+        """
+        super().clear_buffer()
+        self._reset_timestamps()
+
+    @property
+    def frame_timestamps(self):
+        """np.ndarray or None: Header timestamps (uint64, 10 MHz ticks).
+
+        One value per frame received since the start of the last run (after
+        the last buffer clear), including frames from before the trigger.
+        None if a received frame had no 8-byte header.
+        """
+        if not self._ts_complete:
+            return None
+        if not self._ts_chunks:
+            return np.empty(0, dtype=np.uint64)
+        return np.concatenate(self._ts_chunks)
+
+    def dropped_frames(self):
+        """Find frames lost between the camera and LDAQ in the last run.
+
+        Consecutive timestamps should be one frame period apart. A step of
+        about ``k`` periods means ``k - 1`` lost frames. The step is rounded
+        to whole periods to absorb jitter. The period comes from the frame
+        rate read back from the camera, so the check is only valid in
+        free-run mode at a fixed frame rate.
+
+        The check covers every frame received since the start of the last
+        run, including frames from before the trigger.
+
+        Returns:
+            dict: ``n_frames`` (received frames), ``n_missing`` (lost
+            frames) and ``gaps``, a list of ``(frame, n_missing)``:
+            ``n_missing`` frames are lost just before received frame number
+            ``frame`` (0 is the first frame of the run).
+
+        Raises:
+            RuntimeError: If a received frame had no 8-byte header.
+        """
+        ts = self.frame_timestamps
+        if ts is None:
+            raise RuntimeError(
+                "Some image frames had no 8-byte timestamp header; lost "
+                "frames cannot be counted.")
+        period = _TS_CLK_HZ / self.sample_rate
+        steps = np.rint(np.diff(ts.astype(np.int64)) / period).astype(np.int64)
+        gaps = [(int(i) + 1, int(steps[i]) - 1) for i in np.flatnonzero(steps > 1)]
+        return {"n_frames": int(ts.size),
+                "n_missing": sum(n for _, n in gaps),
+                "gaps": gaps}
 
 
 class OptomotiveRaw(_OptomotiveStreamSource):

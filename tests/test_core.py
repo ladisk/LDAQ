@@ -214,3 +214,43 @@ class TestSaveMeasurement:
         assert 'test_acq' in loaded
         assert 'time' in loaded['test_acq']
         assert 'data' in loaded['test_acq']
+
+
+# =============================================================================
+# Repeated runs in one process
+# =============================================================================
+
+class TestRepeatedRun:
+    """Tests for several Core.run() calls in the same Python process."""
+
+    def test_second_autostart_run_finishes(self):
+        """A second Core.run(autostart=True) must not wait forever.
+
+        The class-level "all acquisitions ready" flag has to be cleared at the
+        start of every run, otherwise autostart never triggers in the second
+        run (for example the second run of a Jupyter cell).
+        """
+        import threading
+
+        t = np.arange(10000) / 1000
+        data = np.sin(2 * np.pi * 10 * t).reshape(-1, 1)
+
+        for run in range(2):
+            acq = LDAQ.simulator.SimulatedAcquisition(acquisition_name='test_acq')
+            acq.set_simulated_data(data, channel_names=['ch0'], sample_rate=1000)
+            core = LDAQ.Core(acquisitions=[acq])
+            thread = threading.Thread(
+                target=core.run,
+                kwargs=dict(measurement_duration=0.2, autostart=True,
+                            hotkeys=False, verbose=0),
+                daemon=True)
+            thread.start()
+            thread.join(timeout=10.0)
+            finished = not thread.is_alive()
+            if not finished:  # clean up the hanging run
+                core.stop_acquisition_and_generation()
+                thread.join(timeout=5.0)
+
+            # Contract: every run finishes and records data
+            assert finished, f"Core.run() number {run + 1} did not finish"
+            assert core.get_measurement_dict()['test_acq']['data'].shape[0] > 0

@@ -14,6 +14,7 @@ import sys
 import traceback
 import warnings
 from .utils import load_measurement
+from .acquisition_base import BaseAcquisition
         
 class Core():
     def __init__(self, acquisitions, generations=None, controls=None, visualization=None):
@@ -208,6 +209,11 @@ class Core():
         # Thread setting:  #
         ####################
         
+        # Clear the class-level "all acquisitions ready" flag left over from an
+        # earlier run in this process. expected_count=0: only _check_events()
+        # sets the flag, so autostart triggers in every run.
+        BaseAcquisition.reset_ready_state(expected_count=0)
+
         self.lock = threading.Lock() # for locking a thread if needed.
         self.stop_event = threading.Event()
         self._triggered_event = threading.Event()
